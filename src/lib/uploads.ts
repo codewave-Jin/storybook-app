@@ -31,7 +31,7 @@ function extensionFromMime(type: string): string {
   return "jpg";
 }
 
-function useBlobStorage() {
+function blobStorageEnabled() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
@@ -47,7 +47,7 @@ async function saveBuffer(
 ) {
   const filename = `${crypto.randomUUID()}${extension.startsWith(".") ? extension : `.${extension}`}`;
 
-  if (useBlobStorage()) {
+  if (blobStorageEnabled()) {
     const blob = await put(`uploads/${folder}/${filename}`, buffer, {
       access: "public",
       addRandomSuffix: false,
