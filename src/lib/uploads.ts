@@ -1,6 +1,7 @@
-import { copyFile, mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import { del, put } from "@vercel/blob";
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -30,6 +31,38 @@ function extensionFromMime(type: string): string {
   return "jpg";
 }
 
+function useBlobStorage() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+export function isRemoteAsset(value: string | null | undefined): value is string {
+  return Boolean(value && /^https?:\/\//i.test(value));
+}
+
+async function saveBuffer(
+  buffer: Buffer,
+  folder: "characters" | "illustrations",
+  extension: string,
+  contentType?: string,
+) {
+  const filename = `${crypto.randomUUID()}${extension.startsWith(".") ? extension : `.${extension}`}`;
+
+  if (useBlobStorage()) {
+    const blob = await put(`uploads/${folder}/${filename}`, buffer, {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: contentType ?? "image/png",
+    });
+    return blob.url;
+  }
+
+  const destDir =
+    folder === "characters" ? CHARACTERS_UPLOAD_DIR : ILLUSTRATIONS_UPLOAD_DIR;
+  await mkdir(destDir, { recursive: true });
+  await writeFile(path.join(destDir, filename), buffer);
+  return `/uploads/${folder}/${filename}`;
+}
+
 export async function saveCharacterPhoto(file: File): Promise<string> {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.");
@@ -39,17 +72,20 @@ export async function saveCharacterPhoto(file: File): Promise<string> {
     throw new Error("이미지 크기는 5MB 이하여야 합니다.");
   }
 
-  await mkdir(CHARACTERS_UPLOAD_DIR, { recursive: true });
-
-  const filename = `${crypto.randomUUID()}.${extensionFromMime(file.type)}`;
-  const filepath = path.join(CHARACTERS_UPLOAD_DIR, filename);
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(filepath, buffer);
-
-  return `/uploads/characters/${filename}`;
+  return saveBuffer(
+    buffer,
+    "characters",
+    extensionFromMime(file.type),
+    file.type,
+  );
 }
 
 export function toAbsolutePublicPath(publicPath: string) {
+  if (isRemoteAsset(publicPath)) {
+    return publicPath;
+  }
+
   return path.join(
     process.cwd(),
     "public",
@@ -57,30 +93,42 @@ export function toAbsolutePublicPath(publicPath: string) {
   );
 }
 
+async function downloadRemoteAsset(url: string) {
+  const response = await fetch(url, {
+    headers: { "ngrok-skip-browser-warning": "true" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Generated image download failed: ${response.status}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
 export async function persistGeneratedCharacterImage(sourcePath: string) {
-  return persistGeneratedImage(sourcePath, CHARACTERS_UPLOAD_DIR, "characters");
+  return persistGeneratedImage(sourcePath, "characters");
 }
 
 export async function persistGeneratedIllustrationImage(sourcePath: string) {
-  const resolved =
-    sourcePath.startsWith("/uploads/") || sourcePath.startsWith("/dummy/")
-      ? toAbsolutePublicPath(sourcePath)
-      : sourcePath;
-
-  return persistGeneratedImage(
-    resolved,
-    ILLUSTRATIONS_UPLOAD_DIR,
-    "illustrations",
-  );
+  return persistGeneratedImage(sourcePath, "illustrations");
 }
 
 async function persistGeneratedImage(
   sourcePath: string,
-  destDir: string,
   publicFolder: "characters" | "illustrations",
 ) {
   if (sourcePath.startsWith("/uploads/") || sourcePath.startsWith("/dummy/")) {
     return sourcePath;
+  }
+
+  if (isRemoteAsset(sourcePath)) {
+    if (sourcePath.includes("blob.vercel-storage.com")) {
+      return sourcePath;
+    }
+
+    const buffer = await downloadRemoteAsset(sourcePath);
+    const ext = path.extname(new URL(sourcePath).pathname) || ".png";
+    return saveBuffer(buffer, publicFolder, ext);
   }
 
   const candidates = [
@@ -97,16 +145,56 @@ async function persistGeneratedImage(
     );
   }
 
-  await mkdir(destDir, { recursive: true });
+  const buffer = await readFile(absolute);
   const ext = path.extname(absolute) || ".png";
-  const filename = `${crypto.randomUUID()}${ext}`;
-  const dest = path.join(destDir, filename);
-  await copyFile(absolute, dest);
-  return `/uploads/${publicFolder}/${filename}`;
+  return saveBuffer(buffer, publicFolder, ext);
+}
+
+export async function readStoredAsset(storedPath: string | null | undefined) {
+  if (!storedPath) {
+    return null;
+  }
+
+  if (isRemoteAsset(storedPath)) {
+    try {
+      return await downloadRemoteAsset(storedPath);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!storedPath.startsWith("/") || storedPath.includes("..")) {
+    return null;
+  }
+
+  const filepath = path.join(
+    process.cwd(),
+    "public",
+    ...storedPath.split("/").filter(Boolean),
+  );
+
+  if (!existsSync(filepath)) {
+    return null;
+  }
+
+  return readFile(filepath);
 }
 
 export async function deletePublicFile(publicPath: string | null | undefined) {
-  if (!publicPath || !publicPath.startsWith("/uploads/")) {
+  if (!publicPath) {
+    return;
+  }
+
+  if (isRemoteAsset(publicPath)) {
+    try {
+      await del(publicPath);
+    } catch {
+      // Blob may already be gone.
+    }
+    return;
+  }
+
+  if (!publicPath.startsWith("/uploads/")) {
     return;
   }
 
@@ -125,6 +213,11 @@ export async function deletePublicFile(publicPath: string | null | undefined) {
 export async function deleteIllustrationFile(
   publicPath: string | null | undefined,
 ) {
+  if (isRemoteAsset(publicPath)) {
+    await deletePublicFile(publicPath);
+    return;
+  }
+
   if (!publicPath?.startsWith("/uploads/illustrations/")) {
     return;
   }

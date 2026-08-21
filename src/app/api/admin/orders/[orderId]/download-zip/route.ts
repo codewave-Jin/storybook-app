@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminOrNull } from "@/lib/admin";
-import { contentDisposition, publicUrlToFsPath } from "@/lib/files";
+import { contentDisposition } from "@/lib/files";
 import { zipFiles } from "@/lib/zip";
 import { prisma } from "@/lib/prisma";
 
@@ -27,14 +27,13 @@ export async function GET(
   }
 
   const entries = order.illustrations.flatMap((illustration) => {
-    const filepath = publicUrlToFsPath(illustration.imagePath);
-    if (!filepath) {
+    if (!illustration.imagePath) {
       return [];
     }
 
     return [
       {
-        filepath,
+        storedPath: illustration.imagePath,
         name: `${illustration.pageNumber}_원본.png`,
       },
     ];

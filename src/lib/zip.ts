@@ -1,9 +1,8 @@
-import { createReadStream } from "fs";
 import { ZipArchive } from "archiver";
-import { fileExists } from "@/lib/files";
+import { readStoredAsset } from "@/lib/uploads";
 
 export async function zipFiles(
-  entries: Array<{ filepath: string; name: string }>,
+  entries: Array<{ storedPath: string; name: string }>,
 ) {
   const archive = new ZipArchive({ zlib: { level: 9 } });
   const chunks: Buffer[] = [];
@@ -18,8 +17,9 @@ export async function zipFiles(
   });
 
   for (const entry of entries) {
-    if (await fileExists(entry.filepath)) {
-      archive.append(createReadStream(entry.filepath), { name: entry.name });
+    const file = await readStoredAsset(entry.storedPath);
+    if (file) {
+      archive.append(file, { name: entry.name });
     }
   }
 

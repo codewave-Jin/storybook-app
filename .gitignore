@@ -40,3 +40,6 @@ yarn-error.log*
 # user uploads
 /public/uploads
 
+
+.vercel
+.env*

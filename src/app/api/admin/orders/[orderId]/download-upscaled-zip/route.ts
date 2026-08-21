@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminOrNull } from "@/lib/admin";
-import { contentDisposition, publicUrlToFsPath } from "@/lib/files";
+import { contentDisposition } from "@/lib/files";
 import { zipFiles } from "@/lib/zip";
 import { prisma } from "@/lib/prisma";
 
@@ -32,14 +32,13 @@ export async function POST(
   });
 
   const entries = illustrations.flatMap((illustration) => {
-    const filepath = publicUrlToFsPath(illustration.upscaledImagePath);
-    if (!filepath) {
+    if (!illustration.upscaledImagePath) {
       return [];
     }
 
     return [
       {
-        filepath,
+        storedPath: illustration.upscaledImagePath,
         name: `${illustration.pageNumber}_업스케일.png`,
       },
     ];

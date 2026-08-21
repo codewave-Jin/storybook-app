@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { readFile } from "fs/promises";
 import { getAdminOrNull } from "@/lib/admin";
-import { contentDisposition, fileExists, publicUrlToFsPath } from "@/lib/files";
+import { contentDisposition } from "@/lib/files";
 import { prisma } from "@/lib/prisma";
+import { readStoredAsset } from "@/lib/uploads";
 
 export async function GET(
   _request: Request,
@@ -26,13 +26,12 @@ export async function GET(
     return NextResponse.json({ error: "이미지가 없습니다." }, { status: 404 });
   }
 
-  const filepath = publicUrlToFsPath(illustration.imagePath);
-  if (!filepath || !(await fileExists(filepath))) {
+  const file = await readStoredAsset(illustration.imagePath);
+  if (!file) {
     return NextResponse.json({ error: "파일을 찾을 수 없습니다." }, { status: 404 });
   }
 
   const filename = `${illustration.orderId}_${illustration.pageNumber}_원본.png`;
-  const file = await readFile(filepath);
 
   return new NextResponse(file, {
     headers: {
