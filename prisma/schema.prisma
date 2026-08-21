@@ -7,4 +7,131 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Add models here, then run: npx prisma migrate dev
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  password           String
+  name               String
+  isAdmin            Boolean  @default(false)
+  characterSlotLimit Int      @default(5)
+  createdAt          DateTime @default(now())
+
+  characters        Character[]
+  tokenBalance      TokenBalance?
+  tokenTransactions TokenTransaction[]
+  orders            StorybookOrder[]
+}
+
+model TokenBalance {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id])
+  balance           Int       @default(0)
+  lastFreeGrantDate DateTime?
+}
+
+model TokenTransaction {
+  id        String                @id @default(cuid())
+  userId    String
+  user      User                  @relation(fields: [userId], references: [id])
+  amount    Int
+  type      TokenTransactionType
+  createdAt DateTime              @default(now())
+}
+
+enum TokenTransactionType {
+  DAILY_FREE
+  CHARACTER_GENERATION
+  PURCHASE
+}
+
+model Character {
+  id                 String           @id @default(cuid())
+  userId             String
+  user               User             @relation(fields: [userId], references: [id])
+  label              String
+  gender             Gender
+  originalPhotoPath  String
+  generatedImagePath String?
+  seed               BigInt?
+  status             CharacterStatus  @default(PENDING)
+  createdAt          DateTime         @default(now())
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum CharacterStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model StorybookTemplate {
+  id           String           @id @default(cuid())
+  title        String
+  description  String?
+  customFields Json
+  orders       StorybookOrder[]
+}
+
+model StorybookOrder {
+  id                   String           @id @default(cuid())
+  userId               String
+  user                 User             @relation(fields: [userId], references: [id])
+  templateId           String
+  template             StorybookTemplate @relation(fields: [templateId], references: [id])
+  selectedCharacterIds Json
+  customInputValues    Json
+  paymentStatus        PaymentStatus    @default(PENDING)
+  productionStatus     ProductionStatus @default(WAITING)
+  createdAt            DateTime         @default(now())
+
+  illustrations   Illustration[]
+  photoAlbumPages PhotoAlbumPage[]
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum ProductionStatus {
+  WAITING
+  ILLUSTRATING
+  UPSCALING
+  COMPLETED
+}
+
+model Illustration {
+  id                   String              @id @default(cuid())
+  orderId              String
+  order                StorybookOrder      @relation(fields: [orderId], references: [id])
+  pageNumber           Int
+  prompt               String
+  selectedCharacterIds Json                @default("[]")
+  imagePath            String?
+  upscaledImagePath    String?
+  seed                 BigInt?
+  status               IllustrationStatus  @default(IDLE)
+  createdAt            DateTime            @default(now())
+}
+
+enum IllustrationStatus {
+  IDLE
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model PhotoAlbumPage {
+  id         String         @id @default(cuid())
+  orderId    String
+  order      StorybookOrder @relation(fields: [orderId], references: [id])
+  layoutId   String
+  photoPaths Json
+}

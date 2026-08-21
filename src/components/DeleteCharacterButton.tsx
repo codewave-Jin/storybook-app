@@ -1,0 +1,77 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { deleteCharacter } from "@/app/actions/characters";
+
+export function DeleteCharacterButton({
+  characterId,
+  label,
+}: {
+  characterId: string;
+  label: string;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function handleDelete() {
+    startTransition(async () => {
+      await deleteCharacter(characterId);
+      router.refresh();
+      setOpen(false);
+    });
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="h-9 rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
+      >
+        삭제
+      </button>
+
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`delete-title-${characterId}`}
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl sm:p-6"
+          >
+            <h2
+              id={`delete-title-${characterId}`}
+              className="text-lg font-semibold"
+            >
+              캐릭터 삭제
+            </h2>
+            <p className="mt-2 text-sm text-stone-500">
+              <span className="font-medium text-stone-800">{label}</span>{" "}
+              캐릭터를 삭제할까요? 삭제하면 되돌릴 수 없습니다.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => setOpen(false)}
+                className="h-11 rounded-xl border border-stone-300 px-4 text-sm font-medium hover:bg-stone-50 disabled:opacity-60"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleDelete}
+                className="h-11 rounded-xl bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {isPending ? "삭제 중..." : "삭제"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
