@@ -6,7 +6,7 @@ const nextConfig = {
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   experimental: {
-    serverComponentsExternalPackages: ["bcrypt", "archiver", "openai"],
+    serverComponentsExternalPackages: ["archiver", "openai"],
     serverActions: {
       bodySizeLimit: "8mb",
     },
