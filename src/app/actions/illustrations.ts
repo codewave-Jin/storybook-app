@@ -92,12 +92,19 @@ export async function requestIllustrationGeneration(
     return { error: "생성된 캐릭터 이미지가 없습니다." };
   }
 
+  if (illustration.status === "PROCESSING") {
+    return { error: "이미 생성 중입니다." };
+  }
+
   const characterImagePath = toAbsolutePublicPath(
     selectedCharacter.generatedImagePath,
   );
 
-  await prisma.illustration.update({
-    where: { id: illustrationId },
+  const claimed = await prisma.illustration.updateMany({
+    where: {
+      id: illustrationId,
+      NOT: { status: "PROCESSING" },
+    },
     data: {
       prompt,
       selectedCharacterIds: characterIds,
@@ -105,6 +112,10 @@ export async function requestIllustrationGeneration(
       imagePath: keepImage ? illustration.imagePath : null,
     },
   });
+
+  if (claimed.count === 0) {
+    return { error: "이미 생성 중입니다." };
+  }
 
   try {
     const response = await postToComfy("/generate-illustration", {

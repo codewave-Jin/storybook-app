@@ -32,6 +32,7 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const submittingRef = useRef(false);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -65,6 +66,11 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current || pending) {
+      return;
+    }
+
+    submittingRef.current = true;
     setError(null);
     setPending(true);
 
@@ -79,6 +85,8 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
       } | null;
 
       if (!response.ok || !payload?.character_id) {
+        submittingRef.current = false;
+        setPending(false);
         setError(payload?.error ?? "캐릭터 생성에 실패했습니다.");
         return;
       }
@@ -86,16 +94,19 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
       router.push("/dashboard");
       router.refresh();
     } catch {
-      setError("캐릭터 생성에 실패했습니다. 다시 시도해 주세요.");
-    } finally {
+      submittingRef.current = false;
       setPending(false);
+      setError("캐릭터 생성에 실패했습니다. 다시 시도해 주세요.");
     }
   }
 
   const noTokens = tokenBalance < 1;
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+    <form
+      onSubmit={onSubmit}
+      className={`flex flex-col gap-5 ${pending ? "pointer-events-none" : ""}`}
+    >
       <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
         라벨
         <input

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
   deleteIllustrationPage,
@@ -57,6 +57,8 @@ export function IllustrationPageEditor({
   const [englishPrompt, setEnglishPrompt] = useState(illustration.prompt);
   const [translating, setTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
+  const generateLockRef = useRef(false);
+  const [generateLocked, setGenerateLocked] = useState(false);
 
   useEffect(() => {
     setEnglishPrompt(illustration.prompt);
@@ -102,6 +104,20 @@ export function IllustrationPageEditor({
 
   const processing = illustration.status === "PROCESSING";
   const failed = illustration.status === "FAILED";
+  const generateBusy = processing || generateLocked;
+
+  useEffect(() => {
+    if (processing) {
+      generateLockRef.current = true;
+      setGenerateLocked(true);
+      return;
+    }
+
+    if (state?.error || failed) {
+      generateLockRef.current = false;
+      setGenerateLocked(false);
+    }
+  }, [failed, processing, state?.error]);
 
   return (
     <article className="grid grid-cols-[340px_minmax(0,1fr)] gap-6 rounded-2xl border border-stone-200 bg-white p-6">
@@ -164,7 +180,18 @@ export function IllustrationPageEditor({
           </div>
         </div>
 
-        <form action={formAction} className="mt-4 space-y-4">
+        <form
+          action={formAction}
+          onSubmit={(event) => {
+            if (generateLockRef.current || processing) {
+              event.preventDefault();
+            } else {
+              generateLockRef.current = true;
+              setGenerateLocked(true);
+            }
+          }}
+          className="mt-4 space-y-4"
+        >
           <input type="hidden" name="illustrationId" value={illustration.id} />
           <input
             type="hidden"
@@ -223,14 +250,14 @@ export function IllustrationPageEditor({
                   <ActionButton
                     label="재생성"
                     pendingLabel="생성 중..."
-                    disabled={processing}
+                    disabled={generateBusy}
                     className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
                   />
                 ) : (
                   <ActionButton
                     label="생성하기"
                     pendingLabel="생성 중..."
-                    disabled={processing}
+                    disabled={generateBusy}
                     className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
                   />
                 )}

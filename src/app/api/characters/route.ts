@@ -53,6 +53,22 @@ export async function POST(request: Request) {
     );
   }
 
+  const inflight = await prisma.character.count({
+    where: {
+      userId,
+      status: { in: ["PENDING", "PROCESSING"] },
+    },
+  });
+  if (inflight > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "이미 캐릭터를 생성 중입니다. 완료된 뒤에 다시 시도해 주세요.",
+      },
+      { status: 409 },
+    );
+  }
+
   let originalPhotoPath: string;
   try {
     originalPhotoPath = await saveCharacterPhoto(photo);
