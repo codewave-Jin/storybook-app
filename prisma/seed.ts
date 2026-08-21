@@ -5,8 +5,8 @@ const prisma = new PrismaClient();
 
 const DEMO_EMAIL = "demo@storybook.app";
 const DEMO_PASSWORD = "demo1234";
-const ADMIN_EMAIL = "admin@example.com";
-const ADMIN_PASSWORD = "admin1234";
+const ADMIN_EMAIL = "admin@codewave.im";
+const ADMIN_PASSWORD = "1234";
 
 const templates = [
   {

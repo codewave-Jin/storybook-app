@@ -210,6 +210,7 @@ export function UpscaleWorkbench({
         <button
           type="button"
           disabled
+          onClick={runDownload}
           title="업스케일 워크플로우 연동 후 활성화됩니다"
           className="h-12 cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-5 text-sm font-medium text-stone-400"
         >

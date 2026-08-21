@@ -1,27 +1,11 @@
 import { createReadStream } from "fs";
+import { ZipArchive } from "archiver";
 import { fileExists } from "@/lib/files";
-
-type ZipArchive = {
-  on(event: "data", cb: (chunk: Buffer) => void): void;
-  on(event: "end", cb: () => void): void;
-  on(event: "error", cb: (error: Error) => void): void;
-  append(source: NodeJS.ReadableStream, data: { name: string }): void;
-  finalize(): Promise<void> | void;
-};
-
-function createZipArchive() {
-  const createArchiver = require("archiver") as (
-    format: "zip",
-    options: { zlib: { level: number } },
-  ) => ZipArchive;
-
-  return createArchiver("zip", { zlib: { level: 9 } });
-}
 
 export async function zipFiles(
   entries: Array<{ filepath: string; name: string }>,
 ) {
-  const archive = createZipArchive();
+  const archive = new ZipArchive({ zlib: { level: 9 } });
   const chunks: Buffer[] = [];
 
   archive.on("data", (chunk: Buffer) => {
