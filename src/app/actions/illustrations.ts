@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin";
-import { comfyServerHeaders, comfyServerUrl } from "@/lib/comfy-server";
+import { postToComfy } from "@/lib/comfy-server";
 import { prisma } from "@/lib/prisma";
 import { toAbsolutePublicPath } from "@/lib/uploads";
 
@@ -107,14 +107,10 @@ export async function requestIllustrationGeneration(
   });
 
   try {
-    const response = await fetch(comfyServerUrl("/generate-illustration"), {
-      method: "POST",
-      headers: comfyServerHeaders(),
-      body: JSON.stringify({
-        illustration_id: illustrationId,
-        character_image_path: characterImagePath,
-        prompt,
-      }),
+    const response = await postToComfy("/generate-illustration", {
+      illustration_id: illustrationId,
+      character_image_path: characterImagePath,
+      prompt,
     });
 
     if (!response.ok) {

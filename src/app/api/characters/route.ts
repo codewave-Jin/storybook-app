@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { comfyServerHeaders, comfyServerUrl } from "@/lib/comfy-server";
+import { postToComfy } from "@/lib/comfy-server";
 import { prisma } from "@/lib/prisma";
 import { canCreateCharacter, consumeToken } from "@/lib/tokens";
 import {
@@ -9,6 +9,8 @@ import {
   saveCharacterPhoto,
   toAbsolutePublicPath,
 } from "@/lib/uploads";
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -105,17 +107,38 @@ export async function POST(request: Request) {
   });
 
   const imagePath = toAbsolutePublicPath(originalPhotoPath);
-  void fetch(comfyServerUrl("/generate-character"), {
-    method: "POST",
-    headers: comfyServerHeaders(),
-    body: JSON.stringify({
+
+  try {
+    const response = await postToComfy("/generate-character", {
       character_id: characterId,
       image_path: imagePath,
       gender: gender.toLowerCase(),
-    }),
-  }).catch((error) => {
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.error("generate-character rejected", response.status, detail);
+      throw new Error(`Comfy rejected generate-character (${response.status})`);
+    }
+  } catch (error) {
     console.error("generate-character request failed", error);
-  });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { status: "FAILED" },
+    });
+    await prisma.tokenBalance.update({
+      where: { userId },
+      data: { balance: { increment: 1 } },
+    });
+    revalidatePath("/dashboard");
+    return NextResponse.json(
+      {
+        error:
+          "생성 서버에 연결하지 못했습니다. ngrok과 FastAPI가 켜져 있는지 확인해 주세요.",
+      },
+      { status: 502 },
+    );
+  }
 
   revalidatePath("/dashboard");
 
