@@ -35,7 +35,7 @@ function blobStorageEnabled() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
-export function isRemoteAsset(value: string | null | undefined): value is string {
+export function isRemoteAsset(value: string | null | undefined) {
   return Boolean(value && /^https?:\/\//i.test(value));
 }
 
