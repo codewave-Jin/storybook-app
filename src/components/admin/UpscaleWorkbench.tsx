@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { AppImage } from "@/components/AppImage";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { copyOriginalToUpscaled } from "@/app/actions/illustrations";
@@ -118,7 +118,7 @@ export function UpscaleWorkbench({
 
   return (
     <div>
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setSelectedIds(allIds)}
@@ -135,7 +135,7 @@ export function UpscaleWorkbench({
         </button>
       </div>
 
-      <div className="mt-6 grid grid-cols-4 gap-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {items.map((item) => {
           const selected = selectedIds.includes(item.id);
           const processing = processingId === item.id;
@@ -162,7 +162,7 @@ export function UpscaleWorkbench({
                 />
               </div>
               <div className="relative mt-2 aspect-[4/5] bg-stone-100">
-                <Image
+                <AppImage
                   src={item.imagePath}
                   alt={`${item.pageNumber}페이지 원본`}
                   fill
@@ -181,7 +181,7 @@ export function UpscaleWorkbench({
                     업스케일 완료
                   </span>
                   <div className="relative mt-2 aspect-[4/5] overflow-hidden rounded-lg bg-stone-100">
-                    <Image
+                    <AppImage
                       src={item.upscaledImagePath}
                       alt={`${item.pageNumber}페이지 업스케일`}
                       fill
@@ -198,12 +198,12 @@ export function UpscaleWorkbench({
         })}
       </div>
 
-      <div className="mt-8 flex items-center gap-3 border-t border-stone-200 pt-6">
+      <div className="sticky bottom-0 z-20 -mx-4 mt-8 flex flex-col gap-3 border-t border-stone-200 bg-stone-50/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:flex-row sm:items-center sm:px-6 lg:static lg:mx-0 lg:bg-transparent lg:px-0 lg:backdrop-blur-none">
         <button
           type="button"
           disabled={isPending}
           onClick={runBatchUpscale}
-          className="h-12 rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
+          className="h-12 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60 sm:w-auto"
         >
           선택한 항목 일괄 업스케일
         </button>
@@ -212,7 +212,7 @@ export function UpscaleWorkbench({
           disabled
           onClick={runDownload}
           title="업스케일 워크플로우 연동 후 활성화됩니다"
-          className="h-12 cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-5 text-sm font-medium text-stone-400"
+          className="h-12 w-full cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-5 text-sm font-medium text-stone-400 sm:w-auto"
         >
           선택 항목 업스케일본 다운로드
         </button>

@@ -121,7 +121,7 @@ async function seedDemoUser() {
       password,
       name: "데모",
       tokenBalance: {
-        create: { balance: 3 },
+        create: { freeBalance: 3, paidBalance: 0 },
       },
     },
   });
@@ -134,7 +134,8 @@ async function seedDemoUser() {
     await prisma.tokenBalance.create({
       data: {
         userId: user.id,
-        balance: 3,
+        freeBalance: 3,
+        paidBalance: 0,
       },
     });
   }
@@ -159,7 +160,7 @@ async function seedAdminUser() {
       name: "관리자",
       isAdmin: true,
       tokenBalance: {
-        create: { balance: 0 },
+        create: { freeBalance: 0, paidBalance: 0 },
       },
     },
   });
@@ -172,7 +173,8 @@ async function seedAdminUser() {
     await prisma.tokenBalance.create({
       data: {
         userId: user.id,
-        balance: 0,
+        freeBalance: 0,
+        paidBalance: 0,
       },
     });
   }

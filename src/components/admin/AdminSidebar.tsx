@@ -16,17 +16,27 @@ export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-stone-200 bg-white">
-      <div className="border-b border-stone-200 px-5 py-5">
-        <p className="text-xs font-medium tracking-wide text-stone-400">
-          ADMIN
-        </p>
-        <Link href="/admin" className="mt-1 block text-lg font-semibold">
-          관리자
-        </Link>
+    <aside className="sticky top-0 z-40 flex w-full shrink-0 flex-col border-b border-stone-200 bg-white lg:static lg:w-60 lg:border-b-0 lg:border-r">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 lg:block lg:border-b lg:border-stone-200 lg:px-5 lg:py-5">
+        <div>
+          <p className="text-xs font-medium tracking-wide text-stone-400">
+            ADMIN
+          </p>
+          <Link href="/admin" className="block text-base font-semibold lg:mt-1 lg:text-lg">
+            관리자
+          </Link>
+        </div>
+        <form action={logout} className="lg:hidden">
+          <button
+            type="submit"
+            className="h-9 rounded-lg px-3 text-sm text-stone-500 hover:bg-stone-100"
+          >
+            로그아웃
+          </button>
+        </form>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 p-3">
+      <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:overflow-visible lg:p-3">
         {NAV_ITEMS.map((item) => {
           const active = item.exact
             ? pathname === item.href
@@ -37,7 +47,7 @@ export function AdminSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "rounded-lg px-3 py-2 text-sm font-medium",
+                "shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium",
                 active
                   ? "bg-stone-900 text-white"
                   : "text-stone-600 hover:bg-stone-100",
@@ -49,7 +59,7 @@ export function AdminSidebar() {
         })}
       </nav>
 
-      <div className="border-t border-stone-200 p-3">
+      <div className="hidden border-t border-stone-200 p-3 lg:block">
         <form action={logout}>
           <button
             type="submit"

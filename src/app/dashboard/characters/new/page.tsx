@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { CharacterCreateForm } from "@/components/CharacterCreateForm";
 import { DashboardShell } from "@/components/DashboardShell";
-import { prisma } from "@/lib/prisma";
-import { canCreateCharacter, getOrCreateTodayFreeTokens } from "@/lib/tokens";
+import { getCharacterSlotAndTokens, getOrCreateTodayFreeTokens } from "@/lib/tokens";
 
 export default async function NewCharacterPage() {
   const session = await auth();
@@ -15,15 +14,7 @@ export default async function NewCharacterPage() {
   const userId = session.user.id;
   await getOrCreateTodayFreeTokens(userId);
 
-  const [slot, tokenBalance] = await Promise.all([
-    canCreateCharacter(userId),
-    prisma.tokenBalance.findUnique({
-      where: { userId },
-      select: { balance: true },
-    }),
-  ]);
-
-  const tokens = tokenBalance?.balance ?? 0;
+  const { slot, tokens } = await getCharacterSlotAndTokens(userId);
 
   return (
     <DashboardShell title="캐릭터 추가">

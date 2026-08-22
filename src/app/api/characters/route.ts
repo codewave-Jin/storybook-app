@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { postToComfy } from "@/lib/comfy-server";
 import { prisma } from "@/lib/prisma";
-import { canCreateCharacter, consumeToken } from "@/lib/tokens";
+import { canCreateCharacter, consumeToken, refundToken } from "@/lib/tokens";
 import {
   deletePublicFile,
   saveCharacterPhoto,
@@ -106,10 +106,9 @@ export async function POST(request: Request) {
     });
     characterId = character.id;
   } catch {
-    await prisma.tokenBalance.update({
-      where: { userId },
-      data: { balance: { increment: 1 } },
-    });
+    if (consumed.used) {
+      await refundToken(userId, consumed.used);
+    }
     await deletePublicFile(originalPhotoPath);
     return NextResponse.json(
       { error: "캐릭터 생성에 실패했습니다. 다시 시도해 주세요." },
@@ -119,7 +118,7 @@ export async function POST(request: Request) {
 
   await prisma.character.update({
     where: { id: characterId },
-    data: { status: "PROCESSING" },
+    data: { status: "PROCESSING", progressPercent: 8, progressLabel: "준비 중" },
   });
 
   const imagePath = toAbsolutePublicPath(originalPhotoPath);
@@ -142,10 +141,9 @@ export async function POST(request: Request) {
       where: { id: characterId },
       data: { status: "FAILED" },
     });
-    await prisma.tokenBalance.update({
-      where: { userId },
-      data: { balance: { increment: 1 } },
-    });
+    if (consumed.used) {
+      await refundToken(userId, consumed.used);
+    }
     revalidatePath("/dashboard");
     return NextResponse.json(
       {

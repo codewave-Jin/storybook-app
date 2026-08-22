@@ -31,17 +31,17 @@ export default async function AdminHomePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">관리자 대시보드</h1>
+      <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">관리자 대시보드</h1>
       <p className="mt-1 text-sm text-stone-500">최근 주문 요약</p>
 
-      <section className="mt-6 grid grid-cols-3 gap-4">
+      <section className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-2xl border border-stone-200 bg-white p-5"
+            className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5"
           >
             <p className="text-sm text-stone-500">{stat.label}</p>
-            <p className="mt-2 text-3xl font-semibold">{stat.value}</p>
+            <p className="mt-2 text-2xl font-semibold sm:text-3xl">{stat.value}</p>
           </div>
         ))}
       </section>

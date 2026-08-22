@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 
 type DashboardShellProps = {
   title: string;
@@ -10,13 +9,7 @@ type DashboardShellProps = {
 
 export async function DashboardShell({ title, children }: DashboardShellProps) {
   const session = await auth();
-  const dbUser = session?.user?.id
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { isAdmin: true },
-      })
-    : null;
-  const isAdmin = Boolean(dbUser?.isAdmin);
+  const isAdmin = Boolean(session?.user?.isAdmin);
 
   return (
     <main className="min-h-dvh bg-stone-50 px-4 py-6 text-stone-900 sm:px-6 sm:py-8">

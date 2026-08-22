@@ -47,7 +47,7 @@ export async function register(
       password: hashedPassword,
       name,
       tokenBalance: {
-        create: { balance: 0 },
+        create: { freeBalance: 0, paidBalance: 0 },
       },
     },
   });

@@ -27,7 +27,8 @@ model TokenBalance {
   id                String    @id @default(cuid())
   userId            String    @unique
   user              User      @relation(fields: [userId], references: [id])
-  balance           Int       @default(0)
+  freeBalance       Int       @default(0)
+  paidBalance       Int       @default(0)
   lastFreeGrantDate DateTime?
 }
 
@@ -56,6 +57,8 @@ model Character {
   generatedImagePath String?
   seed               BigInt?
   status             CharacterStatus  @default(PENDING)
+  progressPercent    Int              @default(0)
+  progressLabel      String?
   createdAt          DateTime         @default(now())
 }
 
@@ -116,9 +119,12 @@ model Illustration {
   prompt               String
   selectedCharacterIds Json                @default("[]")
   imagePath            String?
+  sceneImagePath       String?
   upscaledImagePath    String?
   seed                 BigInt?
   status               IllustrationStatus  @default(IDLE)
+  progressPercent      Int                 @default(0)
+  progressLabel        String?
   createdAt            DateTime            @default(now())
 }
 

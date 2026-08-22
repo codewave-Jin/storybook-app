@@ -31,7 +31,7 @@ export function ProductionStatusSelect({
         );
         router.refresh();
       }}
-      className="h-10 rounded-lg border border-stone-300 bg-white px-3 text-sm"
+      className="h-10 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm sm:w-auto"
     >
       {OPTIONS.map((status) => (
         <option key={status} value={status}>

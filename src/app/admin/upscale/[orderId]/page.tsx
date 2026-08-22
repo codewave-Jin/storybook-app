@@ -32,13 +32,13 @@ export default async function AdminUpscaleWorkPage({
       >
         ← 업스케일 목록
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">
+      <h1 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
         일괄 업스케일
       </h1>
-      <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-stone-200 bg-white p-5">
+      <div className="mt-4 grid grid-cols-1 gap-4 rounded-2xl border border-stone-200 bg-white p-4 sm:grid-cols-2 sm:p-5">
         <div>
           <p className="text-sm text-stone-500">유저 이메일</p>
-          <p className="mt-1 font-medium">{order.user.email}</p>
+          <p className="mt-1 break-all font-medium">{order.user.email}</p>
         </div>
         <div>
           <p className="text-sm text-stone-500">템플릿</p>

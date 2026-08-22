@@ -11,6 +11,7 @@ type CompleteBody = {
   seed?: unknown;
   errorMessage?: unknown;
   error_message?: unknown;
+  kind?: unknown;
 };
 
 function asNonEmptyString(value: unknown) {
@@ -69,6 +70,7 @@ export async function POST(
   console.log("[illustration complete] body", {
     illustrationId: params.id,
     success: body.success,
+    kind: body.kind,
     imagePath: body.imagePath ?? body.image_path,
     seed: body.seed,
     errorMessage: body.errorMessage ?? body.error_message,
@@ -106,7 +108,7 @@ export async function POST(
 
     await prisma.illustration.update({
       where: { id: params.id },
-      data: { status: "FAILED" },
+      data: { status: "FAILED", progressPercent: 0, progressLabel: null },
     });
 
     revalidateIllustration(illustration.orderId);
@@ -138,12 +140,17 @@ export async function POST(
   }
 
   const seed = asSeed(body.seed);
+  const kind = asNonEmptyString(body.kind);
+  const isExpressionEdit = kind === "expression";
 
   await prisma.illustration.update({
     where: { id: params.id },
     data: {
       status: "COMPLETED",
       imagePath,
+      progressPercent: 100,
+      progressLabel: "완료",
+      ...(isExpressionEdit ? {} : { sceneImagePath: imagePath }),
       ...(seed !== undefined ? { seed } : {}),
     },
   });
@@ -152,6 +159,8 @@ export async function POST(
   console.log("[illustration complete] saved status=COMPLETED", {
     illustrationId: params.id,
     imagePath,
+    sceneImagePathUpdated: !isExpressionEdit,
+    kind: kind ?? "scene",
     seed,
   });
   return NextResponse.json({ ok: true, status: "COMPLETED" });

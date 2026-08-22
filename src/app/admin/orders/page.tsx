@@ -38,10 +38,10 @@ export default async function AdminOrdersPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">주문 관리</h1>
+      <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">주문 관리</h1>
       <p className="mt-1 text-sm text-stone-500">최신 주문부터 확인할 수 있습니다.</p>
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         {PRODUCTION_STATUS_FILTERS.map((filter) => {
           const active =
             filter.value === "ALL"
@@ -69,8 +69,40 @@ export default async function AdminOrdersPage({
         })}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="mt-4 space-y-3 md:hidden">
+        {orders.length === 0 ? (
+          <p className="rounded-2xl border border-stone-200 bg-white px-4 py-12 text-center text-sm text-stone-400">
+            주문이 없습니다.
+          </p>
+        ) : (
+          orders.map((order) => (
+            <div
+              key={order.id}
+              className="rounded-2xl border border-stone-200 bg-white p-4"
+            >
+              <Link href={`/admin/orders/${order.id}`} className="block">
+                <p className="break-all font-medium">{order.user.email}</p>
+                <p className="mt-1 text-sm text-stone-600">
+                  {order.template.title}
+                </p>
+                <p className="mt-1 text-xs text-stone-400">
+                  {formatDateTime(order.createdAt)}
+                </p>
+                <p className="mt-2 text-sm text-stone-500">
+                  {PAYMENT_STATUS_LABEL[order.paymentStatus]} ·{" "}
+                  {PRODUCTION_STATUS_LABEL[order.productionStatus]}
+                </p>
+              </Link>
+              <div className="mt-3">
+                <DeleteOrderButton orderId={order.id} />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-stone-200 bg-white md:block">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="bg-stone-50 text-stone-500">
             <tr>
               <th className="px-4 py-3 font-medium">주문일시</th>

@@ -4,8 +4,9 @@ import { auth } from "@/auth";
 import { CharacterCard } from "@/components/CharacterCard";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { DashboardShell } from "@/components/DashboardShell";
+import { characterStatusPayload } from "@/lib/generation-status";
 import { prisma } from "@/lib/prisma";
-import { canCreateCharacter } from "@/lib/tokens";
+import { getOrCreateTodayFreeTokens } from "@/lib/tokens";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -14,19 +15,26 @@ export default async function DashboardPage() {
   }
 
   const userId = session.user.id;
-  const [slot, tokenBalance, characters] = await Promise.all([
-    canCreateCharacter(userId),
-    prisma.tokenBalance.findUnique({
-      where: { userId },
-      select: { balance: true },
-    }),
-    prisma.character.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  await getOrCreateTodayFreeTokens(userId);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      characterSlotLimit: true,
+      tokenBalance: { select: { freeBalance: true, paidBalance: true } },
+      characters: { orderBy: { createdAt: "desc" } },
+    },
+  });
 
-  const tokens = tokenBalance?.balance ?? 0;
+  const characters = user?.characters ?? [];
+  const limit = user?.characterSlotLimit ?? 5;
+  const tokens =
+    (user?.tokenBalance?.freeBalance ?? 0) +
+    (user?.tokenBalance?.paidBalance ?? 0);
+  const slot = {
+    canCreate: characters.length < limit,
+    current: characters.length,
+    limit,
+  };
   const waitingForGeneration = characters.some(
     (character) =>
       character.status === "PENDING" || character.status === "PROCESSING",
@@ -34,7 +42,11 @@ export default async function DashboardPage() {
 
   return (
     <DashboardShell title="대시보드">
-      <IntervalRefresher active={waitingForGeneration} />
+      <IntervalRefresher
+        active={waitingForGeneration}
+        href="/api/characters/status"
+        initialSignature={JSON.stringify(characterStatusPayload(characters))}
+      />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2 text-sm">
           <span className="rounded-full bg-white px-3 py-1.5 font-medium ring-1 ring-stone-200">

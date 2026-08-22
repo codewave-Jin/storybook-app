@@ -24,4 +24,10 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  .no-image-save {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }

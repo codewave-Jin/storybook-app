@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CharacterPhotoPicker } from "@/components/CharacterPhotoPicker";
 
 function SubmitButton({
   disabledReason,
   pending,
+  photoReady,
 }: {
   disabledReason?: string;
   pending: boolean;
+  photoReady: boolean;
 }) {
-  const disabled = pending || Boolean(disabledReason);
+  const disabled = pending || !photoReady || Boolean(disabledReason);
 
   return (
     <div className="space-y-2">
@@ -23,6 +26,10 @@ function SubmitButton({
       </button>
       {disabledReason ? (
         <p className="text-center text-sm text-red-600">{disabledReason}</p>
+      ) : !photoReady && !pending ? (
+        <p className="text-center text-sm text-stone-500">
+          촬영하거나 사진을 선택한 뒤에 생성할 수 있습니다.
+        </p>
       ) : null}
     </div>
   );
@@ -32,41 +39,13 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [hasPhoto, setHasPhoto] = useState(false);
   const submittingRef = useRef(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
-      return;
-    }
-
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  function onFiles(files: FileList | null) {
-    const next = files?.[0];
-    if (!next || !next.type.startsWith("image/")) {
-      return;
-    }
-
-    setFile(next);
-
-    if (inputRef.current) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(next);
-      inputRef.current.files = dataTransfer.files;
-    }
-  }
+  const photoFileRef = useRef<File | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submittingRef.current || pending) {
+    if (submittingRef.current || pending || !photoFileRef.current) {
       return;
     }
 
@@ -75,9 +54,13 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
     setPending(true);
 
     try {
+      const formData = new FormData(event.currentTarget);
+      if (photoFileRef.current) {
+        formData.set("photo", photoFileRef.current);
+      }
       const response = await fetch("/api/characters", {
         method: "POST",
-        body: new FormData(event.currentTarget),
+        body: formData,
       });
       const payload = (await response.json().catch(() => null)) as {
         character_id?: string;
@@ -143,58 +126,13 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
         </div>
       </fieldset>
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-stone-700">사진</p>
-        <label
-          onDragEnter={(event) => {
-            event.preventDefault();
-            setDragActive(true);
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragActive(true);
-          }}
-          onDragLeave={(event) => {
-            event.preventDefault();
-            setDragActive(false);
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragActive(false);
-            onFiles(event.dataTransfer.files);
-          }}
-          className={`flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
-            dragActive
-              ? "border-stone-900 bg-stone-100"
-              : "border-stone-300 bg-white"
-          }`}
-        >
-          <input
-            ref={inputRef}
-            name="photo"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            required
-            className="sr-only"
-            onChange={(event) => onFiles(event.target.files)}
-          />
-          {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewUrl}
-              alt="업로드 미리보기"
-              className="max-h-56 w-full rounded-xl object-contain"
-            />
-          ) : (
-            <div className="space-y-1 text-sm text-stone-500">
-              <p className="font-medium text-stone-700">
-                사진을 드래그하거나 눌러서 업로드
-              </p>
-              <p>JPG, PNG, WEBP · 최대 5MB</p>
-            </div>
-          )}
-        </label>
-      </div>
+      <CharacterPhotoPicker
+        disabled={pending}
+        onPhotoChange={(file) => {
+          photoFileRef.current = file;
+          setHasPhoto(Boolean(file));
+        }}
+      />
 
       {error ? (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -204,6 +142,7 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
 
       <SubmitButton
         pending={pending}
+        photoReady={hasPhoto}
         disabledReason={
           noTokens ? "토큰이 부족합니다 (충전하기)" : undefined
         }

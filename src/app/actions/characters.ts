@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import {
   canCreateCharacter,
   consumeToken,
+  refundToken,
 } from "@/lib/tokens";
 import { deletePublicFile, saveCharacterPhoto } from "@/lib/uploads";
 
@@ -74,10 +75,9 @@ export async function createCharacter(
       },
     });
   } catch {
-    await prisma.tokenBalance.update({
-      where: { userId },
-      data: { balance: { increment: 1 } },
-    });
+    if (consumed.used) {
+      await refundToken(userId, consumed.used);
+    }
     await deletePublicFile(originalPhotoPath);
     return { error: "캐릭터 생성에 실패했습니다. 다시 시도해 주세요." };
   }

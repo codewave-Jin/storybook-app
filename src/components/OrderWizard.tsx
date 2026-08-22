@@ -1,9 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import { AppImage } from "@/components/AppImage";
 import { useMemo, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
+import { GenerationProgress } from "@/components/GenerationProgress";
 import { createOrder, type CreateOrderState } from "@/app/actions/orders";
 import type { CustomField } from "@/lib/templates";
 import { cn } from "@/lib/utils";
@@ -227,24 +228,37 @@ export function OrderWizard({
                         disabled={!selectable}
                         onChange={() => toggleCharacter(character.id, selectable)}
                       />
-                      <div className="relative aspect-[4/5] bg-stone-100">
-                        <Image
+                      <div className="no-image-save relative aspect-[4/5] bg-stone-100">
+                        <AppImage
                           src={imageSrc}
                           alt={character.label}
                           fill
+                          draggable={false}
+                          onContextMenu={(event) => event.preventDefault()}
                           className={cn(
-                            "object-cover",
+                            "pointer-events-none object-cover",
                             !selectable && "grayscale",
                           )}
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         />
+                        <div
+                          className="absolute inset-0"
+                          onContextMenu={(event) => event.preventDefault()}
+                        />
                         {!selectable ? (
                           <div className="absolute inset-0 flex items-center justify-center bg-stone-900/45">
-                            <span className="rounded-full bg-white px-3 py-1 text-sm font-medium">
-                              {character.status === "FAILED"
-                                ? "생성 실패"
-                                : "생성 중"}
-                            </span>
+                            {character.status === "FAILED" ? (
+                              <span className="rounded-full bg-white px-3 py-1 text-sm font-medium">
+                                생성 실패
+                              </span>
+                            ) : (
+                              <div className="rounded-2xl bg-white/95 px-4 py-3">
+                                <GenerationProgress
+                                  kind="character"
+                                  id={character.id}
+                                />
+                              </div>
+                            )}
                           </div>
                         ) : null}
                       </div>

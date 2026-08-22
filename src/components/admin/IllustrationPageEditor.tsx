@@ -1,35 +1,51 @@
 "use client";
 
-import Image from "next/image";
+import { AppImage } from "@/components/AppImage";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
   deleteIllustrationPage,
+  requestIllustrationExpressionEdit,
   requestIllustrationGeneration,
+  restoreIllustrationSceneOriginal,
   type IllustrationActionState,
 } from "@/app/actions/illustrations";
 import {
   CharacterSelectList,
   type WorkCharacter,
 } from "@/components/admin/CharacterZoomGrid";
+import { GenerationProgress } from "@/components/GenerationProgress";
+import {
+  EXPRESSION_OPTIONS,
+  type ExpressionValue,
+} from "@/lib/expressions";
+
+const EDITABLE_EXPRESSIONS = EXPRESSION_OPTIONS.filter(
+  (option) => option.value !== "default",
+);
 
 function ActionButton({
   label,
   pendingLabel,
   className,
   disabled,
+  busy,
+  form,
 }: {
   label: string;
   pendingLabel: string;
   className: string;
   disabled?: boolean;
+  busy?: boolean;
+  form?: string;
 }) {
   const { pending } = useFormStatus();
-  const isDisabled = pending || disabled;
+  const isBusy = pending || busy;
+  const isDisabled = isBusy || disabled;
 
   return (
-    <button type="submit" disabled={isDisabled} className={className}>
-      {pending || disabled ? pendingLabel : label}
+    <button type="submit" form={form} disabled={isDisabled} className={className}>
+      {isBusy ? pendingLabel : label}
     </button>
   );
 }
@@ -43,6 +59,7 @@ export function IllustrationPageEditor({
     pageNumber: number;
     prompt: string;
     imagePath: string | null;
+    sceneImagePath: string | null;
     status: "IDLE" | "PROCESSING" | "COMPLETED" | "FAILED";
     selectedCharacterIds: string[];
   };
@@ -52,8 +69,17 @@ export function IllustrationPageEditor({
     requestIllustrationGeneration,
     undefined,
   );
+  const [expressionState, expressionAction] = useFormState<
+    IllustrationActionState,
+    FormData
+  >(requestIllustrationExpressionEdit, undefined);
+  const [restoreState, restoreAction] = useFormState<
+    IllustrationActionState,
+    FormData
+  >(restoreIllustrationSceneOriginal, undefined);
   const [isDeleting, startDelete] = useTransition();
   const [koreanInput, setKoreanInput] = useState("");
+  const [expression, setExpression] = useState<ExpressionValue | null>(null);
   const [englishPrompt, setEnglishPrompt] = useState(illustration.prompt);
   const [translating, setTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
@@ -63,6 +89,7 @@ export function IllustrationPageEditor({
   useEffect(() => {
     setEnglishPrompt(illustration.prompt);
     setKoreanInput("");
+    setExpression(null);
     setTranslateError(null);
   }, [illustration.id]);
 
@@ -102,9 +129,19 @@ export function IllustrationPageEditor({
     }
   }
 
+  const generateFormId = `illustration-generate-${illustration.id}`;
+  const expressionFormId = `illustration-expression-${illustration.id}`;
+  const restoreFormId = `illustration-restore-${illustration.id}`;
   const processing = illustration.status === "PROCESSING";
   const failed = illustration.status === "FAILED";
+  const hasImage = Boolean(illustration.imagePath);
   const generateBusy = processing || generateLocked;
+  const canRestore =
+    Boolean(
+      illustration.sceneImagePath &&
+        illustration.imagePath &&
+        illustration.sceneImagePath !== illustration.imagePath,
+    ) && !generateBusy;
 
   useEffect(() => {
     if (processing) {
@@ -113,47 +150,45 @@ export function IllustrationPageEditor({
       return;
     }
 
-    if (state?.error || failed) {
-      generateLockRef.current = false;
-      setGenerateLocked(false);
-    }
-  }, [failed, processing, state?.error]);
+    generateLockRef.current = false;
+    setGenerateLocked(false);
+  }, [processing, illustration.status, illustration.imagePath]);
 
   return (
-    <article className="grid grid-cols-[340px_minmax(0,1fr)] gap-6 rounded-2xl border border-stone-200 bg-white p-6">
-      <div className="relative min-h-[280px] overflow-hidden rounded-xl bg-stone-100">
+    <article className="space-y-6 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
+      <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-xl bg-stone-100 xl:mx-0 xl:max-w-none">
         {illustration.imagePath ? (
-          <Image
+          <AppImage
             src={illustration.imagePath}
             alt={`${illustration.pageNumber}페이지`}
             fill
             className="object-contain"
-            sizes="340px"
+            sizes="(max-width: 1280px) 100vw, 280px"
           />
         ) : failed ? (
-          <div className="flex h-full min-h-[280px] flex-col items-center justify-center gap-2 px-4 text-center">
+          <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 px-4 text-center">
             <span className="text-sm font-medium text-red-600">생성 실패</span>
             <span className="text-xs text-stone-500">다시 생성해 주세요</span>
           </div>
         ) : (
-          <div className="flex h-full min-h-[280px] items-center justify-center px-4 text-center text-sm text-stone-400">
+          <div className="flex h-full min-h-[220px] items-center justify-center px-4 text-center text-sm text-stone-400">
             아직 생성된 이미지가 없습니다
           </div>
         )}
         {processing ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/70">
-            <span className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" />
-            <span className="text-sm font-medium text-stone-700">생성 중</span>
+            <GenerationProgress kind="illustration" id={illustration.id} />
           </div>
         ) : null}
       </div>
 
       <div>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <h3 className="text-lg font-semibold">
             {illustration.pageNumber}페이지
           </h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {illustration.imagePath ? (
               <a
                 href={`/api/admin/illustrations/${illustration.id}/download`}
@@ -181,6 +216,7 @@ export function IllustrationPageEditor({
         </div>
 
         <form
+          id={generateFormId}
           action={formAction}
           onSubmit={(event) => {
             if (generateLockRef.current || processing) {
@@ -209,16 +245,16 @@ export function IllustrationPageEditor({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="flex flex-col">
               <label className="block text-sm font-medium text-stone-600">
                 장면 설명 (한글)
                 <textarea
                   value={koreanInput}
                   onChange={(event) => setKoreanInput(event.target.value)}
-                  rows={10}
+                  rows={8}
                   placeholder='예: "바다 위 배에서 해적 놀이하는 장면"'
-                  className="mt-2 min-h-[220px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900"
+                  className="mt-2 min-h-[160px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900 lg:min-h-[220px]"
                 />
               </label>
               <button
@@ -240,27 +276,20 @@ export function IllustrationPageEditor({
                   name="prompt"
                   value={englishPrompt}
                   onChange={(event) => setEnglishPrompt(event.target.value)}
-                  rows={10}
+                  rows={8}
                   placeholder="AI 변환 결과가 여기에 채워집니다. 직접 수정할 수도 있습니다."
-                  className="mt-2 min-h-[220px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900"
+                  className="mt-2 min-h-[160px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900 lg:min-h-[220px]"
                 />
               </label>
               <div className="mt-3">
-                {illustration.imagePath ? (
-                  <ActionButton
-                    label="재생성"
-                    pendingLabel="생성 중..."
-                    disabled={generateBusy}
-                    className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
-                  />
-                ) : (
-                  <ActionButton
-                    label="생성하기"
-                    pendingLabel="생성 중..."
-                    disabled={generateBusy}
-                    className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
-                  />
-                )}
+                <ActionButton
+                  form={generateFormId}
+                  label={hasImage ? "재생성" : "생성하기"}
+                  pendingLabel="생성 중..."
+                  busy={processing}
+                  disabled={generateBusy}
+                  className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
+                />
               </div>
             </div>
           </div>
@@ -278,6 +307,94 @@ export function IllustrationPageEditor({
           ) : null}
         </form>
       </div>
+      </div>
+
+      <form
+        id={expressionFormId}
+        action={expressionAction}
+        onSubmit={(event) => {
+          if (!hasImage || !expression || generateLockRef.current || processing) {
+            event.preventDefault();
+            return;
+          }
+          generateLockRef.current = true;
+          setGenerateLocked(true);
+        }}
+        className="border-t border-stone-200 pt-5"
+      >
+        <input type="hidden" name="illustrationId" value={illustration.id} />
+        {expression ? (
+          <input type="hidden" name="expression" value={expression} />
+        ) : null}
+        <p className="text-sm font-medium text-stone-700">표정 바꾸기</p>
+        <p className="mt-1 text-sm text-stone-500">
+          장면 생성이 끝난 뒤에, 선택한 표정만 다시 생성합니다.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {EDITABLE_EXPRESSIONS.map((option) => {
+            const selected = expression === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setExpression(option.value)}
+                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                  selected
+                    ? "border-stone-900 bg-stone-900 text-white"
+                    : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
+                }`}
+              >
+                {option.hint ? `${option.label} (${option.hint})` : option.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex w-full flex-col gap-2 sm:max-w-xs">
+          <ActionButton
+            form={expressionFormId}
+            label="변환"
+            pendingLabel="표정 변경 중..."
+            busy={processing}
+            disabled={generateBusy || !hasImage || !expression}
+            className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
+          />
+        </div>
+        {expressionState?.error ? (
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            {expressionState.error}
+          </p>
+        ) : null}
+      </form>
+      <form
+        id={restoreFormId}
+        action={restoreAction}
+        className="mt-2 w-full sm:max-w-xs"
+      >
+        <input type="hidden" name="illustrationId" value={illustration.id} />
+        <ActionButton
+          form={restoreFormId}
+          label="되돌리기"
+          pendingLabel="되돌리는 중..."
+          busy={processing}
+          disabled={!canRestore}
+          className="h-11 w-full rounded-xl border border-stone-300 bg-white px-5 text-sm font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-60"
+        />
+      </form>
+      {!hasImage ? (
+        <p className="mt-2 text-sm text-stone-400">
+          먼저 삽화를 생성해야 표정을 바꿀 수 있습니다.
+        </p>
+      ) : !canRestore && !generateBusy ? (
+        <p className="mt-2 text-sm text-stone-400">
+          처음 만든 장면 원본입니다.
+        </p>
+      ) : null}
+      {restoreState?.error ? (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {restoreState.error}
+        </p>
+      ) : null}
     </article>
   );
 }

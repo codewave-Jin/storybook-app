@@ -16,13 +16,38 @@ export default async function AdminIllustrationsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">삽화 생성</h1>
+      <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">삽화 생성</h1>
       <p className="mt-1 text-sm text-stone-500">
         대기중 또는 삽화작업중인 주문을 작업합니다.
       </p>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="mt-6 space-y-3 md:hidden">
+        {orders.length === 0 ? (
+          <p className="rounded-2xl border border-stone-200 bg-white px-4 py-12 text-center text-sm text-stone-400">
+            작업할 주문이 없습니다.
+          </p>
+        ) : (
+          orders.map((order) => (
+            <Link
+              key={order.id}
+              href={`/admin/illustrations/${order.id}`}
+              className="block rounded-2xl border border-stone-200 bg-white p-4"
+            >
+              <p className="break-all font-medium">{order.user.email}</p>
+              <p className="mt-1 text-sm text-stone-600">{order.template.title}</p>
+              <p className="mt-1 text-xs text-stone-400">
+                {formatDateTime(order.createdAt)}
+              </p>
+              <p className="mt-2 text-sm text-stone-500">
+                {PRODUCTION_STATUS_LABEL[order.productionStatus]}
+              </p>
+            </Link>
+          ))
+        )}
+      </div>
+
+      <div className="mt-6 hidden overflow-x-auto rounded-2xl border border-stone-200 bg-white md:block">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-stone-50 text-stone-500">
             <tr>
               <th className="px-4 py-3 font-medium">주문일시</th>

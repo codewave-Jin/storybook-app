@@ -88,7 +88,7 @@ export async function POST(
 
     await prisma.character.update({
       where: { id: params.id },
-      data: { status: "FAILED" },
+      data: { status: "FAILED", progressPercent: 0, progressLabel: null },
     });
 
     revalidatePath("/dashboard");
@@ -128,6 +128,8 @@ export async function POST(
     data: {
       status: "COMPLETED",
       generatedImagePath,
+      progressPercent: 100,
+      progressLabel: "완료",
       ...(seed !== undefined ? { seed } : {}),
     },
   });

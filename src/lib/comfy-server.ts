@@ -22,6 +22,15 @@ export function comfyServerHeaders(
   };
 }
 
+export async function getFromComfy(pathname: string) {
+  const url = comfyServerUrl(pathname);
+  return fetch(url, {
+    headers: { "ngrok-skip-browser-warning": "true" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+}
+
 export async function postToComfy(pathname: string, body: unknown) {
   const url = comfyServerUrl(pathname);
   const headers = comfyServerHeaders();

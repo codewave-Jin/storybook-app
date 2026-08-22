@@ -4,9 +4,10 @@ import {
   addIllustrationPage,
   markOrderIllustrationsComplete,
 } from "@/app/actions/illustrations";
-import { CharacterZoomGrid } from "@/components/admin/CharacterZoomGrid";
+import { CharacterThumbnails } from "@/components/admin/CharacterZoomGrid";
 import { IllustrationPageEditor } from "@/components/admin/IllustrationPageEditor";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
+import { illustrationStatusPayload } from "@/lib/generation-status";
 import {
   parseIdList,
   parseStringRecord,
@@ -62,7 +63,13 @@ export default async function AdminIllustrationWorkPage({
 
   return (
     <div className="max-w-[1400px]">
-      <IntervalRefresher active={waitingForGeneration} />
+      <IntervalRefresher
+        active={waitingForGeneration}
+        href={`/api/admin/orders/${order.id}/generation-status`}
+        initialSignature={JSON.stringify(
+          illustrationStatusPayload(order.illustrations),
+        )}
+      />
       <Link
         href="/admin/illustrations"
         className="text-sm text-stone-500 hover:text-stone-800"
@@ -70,34 +77,32 @@ export default async function AdminIllustrationWorkPage({
         ← 삽화 작업 목록
       </Link>
 
-      <div className="mt-3 flex items-end justify-between gap-4">
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">삽화 생성</h1>
-          <p className="mt-1 text-sm text-stone-500">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">삽화 생성</h1>
+          <p className="mt-1 break-all text-sm text-stone-500">
             {PRODUCTION_STATUS_LABEL[order.productionStatus]} · 주문번호 {order.id}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/admin/orders/${order.id}`}
-            className="text-sm text-stone-500 hover:text-stone-800"
-          >
-            주문 상세
-          </Link>
-        </div>
+        <Link
+          href={`/admin/orders/${order.id}`}
+          className="text-sm text-stone-500 hover:text-stone-800"
+        >
+          주문 상세
+        </Link>
       </div>
 
-      <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-6">
-        <div className="grid grid-cols-3 gap-6">
+      <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <p className="text-sm text-stone-500">유저 이메일</p>
-            <p className="mt-1 font-medium">{order.user.email}</p>
+            <p className="mt-1 break-all font-medium">{order.user.email}</p>
           </div>
           <div>
             <p className="text-sm text-stone-500">템플릿</p>
             <p className="mt-1 font-medium">{order.template.title}</p>
           </div>
-          <div>
+          <div className="md:col-span-2">
             <p className="text-sm text-stone-500">추가 입력값</p>
             {customFields.length === 0 ? (
               <p className="mt-1 text-sm text-stone-400">없음</p>
@@ -116,21 +121,19 @@ export default async function AdminIllustrationWorkPage({
           </div>
         </div>
 
-        <div className="mt-6">
-          <p className="mb-3 text-sm font-medium text-stone-600">
-            선택된 캐릭터 · 클릭하면 확대됩니다
-          </p>
-          <CharacterZoomGrid characters={selectedCharacters} />
+        <div className="mt-4 border-t border-stone-100 pt-4">
+          <p className="mb-2 text-xs font-medium text-stone-400">선택 캐릭터</p>
+          <CharacterThumbnails characters={selectedCharacters} />
         </div>
       </section>
 
       <section className="mt-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">페이지별 삽화</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold sm:text-xl">페이지별 삽화</h2>
           <form action={addIllustrationPage.bind(null, order.id)}>
             <button
               type="submit"
-              className="h-10 rounded-xl bg-stone-900 px-4 text-sm font-medium text-white"
+              className="h-10 w-full rounded-xl bg-stone-900 px-4 text-sm font-medium text-white sm:w-auto"
             >
               새 페이지 추가
             </button>
@@ -154,6 +157,7 @@ export default async function AdminIllustrationWorkPage({
                 pageNumber: illustration.pageNumber,
                 prompt: illustration.prompt,
                 imagePath: illustration.imagePath,
+                sceneImagePath: illustration.sceneImagePath,
                 status: illustration.status,
                 selectedCharacterIds: parseIdList(
                   illustration.selectedCharacterIds,
@@ -168,7 +172,7 @@ export default async function AdminIllustrationWorkPage({
         <form action={markOrderIllustrationsComplete.bind(null, order.id)}>
           <button
             type="submit"
-            className="h-12 rounded-xl bg-stone-900 px-6 text-sm font-medium text-white"
+            className="h-12 w-full rounded-xl bg-stone-900 px-6 text-sm font-medium text-white sm:w-auto"
           >
             전체 삽화 완료 처리
           </button>

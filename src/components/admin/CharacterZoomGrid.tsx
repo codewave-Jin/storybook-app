@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { AppImage } from "@/components/AppImage";
 import { useState } from "react";
 import { GENDER_LABEL } from "@/lib/orders";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ export function CharacterZoomGrid({
 
   return (
     <>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {characters.map((character) => (
           <button
             key={character.id}
@@ -31,7 +31,7 @@ export function CharacterZoomGrid({
             className="overflow-hidden rounded-xl border border-stone-200 bg-white text-left hover:border-stone-400"
           >
             <div className="relative aspect-[4/5] bg-stone-100">
-              <Image
+              <AppImage
                 src={character.imageSrc}
                 alt={character.label}
                 fill
@@ -51,7 +51,7 @@ export function CharacterZoomGrid({
 
       {active ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-8"
           onClick={() => setActiveId(null)}
         >
           <div
@@ -59,7 +59,7 @@ export function CharacterZoomGrid({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="relative aspect-[4/5] bg-stone-100">
-              <Image
+              <AppImage
                 src={active.imageSrc}
                 alt={active.label}
                 fill
@@ -89,6 +89,37 @@ export function CharacterZoomGrid({
   );
 }
 
+export function CharacterThumbnails({
+  characters,
+}: {
+  characters: WorkCharacter[];
+}) {
+  if (characters.length === 0) {
+    return <p className="text-sm text-stone-400">선택된 캐릭터가 없습니다.</p>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      {characters.map((character) => (
+        <div key={character.id} className="flex items-center gap-2">
+          <span className="relative h-10 w-10 overflow-hidden rounded-lg bg-stone-100 ring-1 ring-stone-200">
+            <AppImage
+              src={character.imageSrc}
+              alt={character.label}
+              fill
+              className="object-cover"
+              sizes="40px"
+            />
+          </span>
+          <span className="text-xs font-medium text-stone-600">
+            {character.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CharacterSelectList({
   characters,
   selectedIds,
@@ -97,12 +128,12 @@ export function CharacterSelectList({
   selectedIds: string[];
 }) {
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-2">
       {characters.map((character) => (
         <label
           key={character.id}
           className={cn(
-            "flex cursor-pointer items-center gap-3 rounded-xl border bg-white p-2 pr-4",
+            "flex cursor-pointer items-center gap-2 rounded-xl border bg-white p-1.5 pr-3",
             "has-[:checked]:border-stone-900 has-[:checked]:ring-2 has-[:checked]:ring-stone-900",
           )}
         >
@@ -113,13 +144,13 @@ export function CharacterSelectList({
             defaultChecked={selectedIds.includes(character.id)}
             className="h-4 w-4 accent-stone-900"
           />
-          <span className="relative h-12 w-12 overflow-hidden rounded-lg bg-stone-100">
-            <Image
+          <span className="relative h-8 w-8 overflow-hidden rounded-md bg-stone-100">
+            <AppImage
               src={character.imageSrc}
               alt={character.label}
               fill
               className="object-cover"
-              sizes="48px"
+              sizes="32px"
             />
           </span>
           <span>
