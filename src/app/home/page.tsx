@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { auth } from "@/auth";
+import { CharacterFloatingBanner } from "@/components/home/CharacterFloatingBanner";
 import { HomeLanding } from "@/components/home/HomeLanding";
 
 export const metadata: Metadata = {
@@ -11,5 +12,10 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   const session = await auth();
 
-  return <HomeLanding isLoggedIn={Boolean(session?.user)} />;
+  return (
+    <>
+      <HomeLanding isLoggedIn={Boolean(session?.user)} />
+      <CharacterFloatingBanner />
+    </>
+  );
 }
