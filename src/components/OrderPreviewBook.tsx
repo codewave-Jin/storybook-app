@@ -257,7 +257,7 @@ function BookLeaf({
         className="no-image-save relative aspect-[3/4] bg-stone-100"
         onContextMenu={(event) => event.preventDefault()}
       >
-        {showImage ? (
+        {showImage && page.imagePath ? (
           <AppImage
             src={page.imagePath}
             alt={page.kind === "cover" ? "표지" : `${page.label}페이지`}
