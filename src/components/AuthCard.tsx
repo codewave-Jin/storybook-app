@@ -23,9 +23,12 @@ export function AuthCard({
         <div className="mb-8 text-center">
           <Link
             href="/"
-            className="text-sm font-medium tracking-wide text-stone-500"
+            className="inline-flex items-center gap-2 text-sm font-medium tracking-wide text-sky-500"
           >
-            storybook-app
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-400 text-xs font-semibold text-white">
+              S
+            </span>
+            스토리북
           </Link>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
             {title}
@@ -41,7 +44,7 @@ export function AuthCard({
           {footerText}{" "}
           <Link
             href={footerHref}
-            className="font-medium text-stone-900 underline underline-offset-4"
+            className="font-medium text-sky-600 underline underline-offset-4"
           >
             {footerLinkLabel}
           </Link>

@@ -134,7 +134,7 @@ export function CharacterSelectList({
           key={character.id}
           className={cn(
             "flex cursor-pointer items-center gap-2 rounded-xl border bg-white p-1.5 pr-3",
-            "has-[:checked]:border-stone-900 has-[:checked]:ring-2 has-[:checked]:ring-stone-900",
+            "has-[:checked]:border-sky-400 has-[:checked]:ring-2 has-[:checked]:ring-sky-300",
           )}
         >
           <input
@@ -142,7 +142,7 @@ export function CharacterSelectList({
             name="characterIds"
             value={character.id}
             defaultChecked={selectedIds.includes(character.id)}
-            className="h-4 w-4 accent-stone-900"
+            className="h-4 w-4 accent-sky-400"
           />
           <span className="relative h-8 w-8 overflow-hidden rounded-md bg-stone-100">
             <AppImage

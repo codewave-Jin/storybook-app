@@ -4,6 +4,7 @@ import { LoginForm } from "@/components/LoginForm";
 type LoginPageProps = {
   searchParams: {
     registered?: string;
+    callbackUrl?: string;
   };
 };
 
@@ -16,7 +17,10 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
       footerHref="/signup"
       footerLinkLabel="회원가입"
     >
-      <LoginForm registered={searchParams.registered === "1"} />
+      <LoginForm
+        registered={searchParams.registered === "1"}
+        callbackUrl={searchParams.callbackUrl}
+      />
     </AuthCard>
   );
 }

@@ -10,7 +10,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-stone-900 text-base font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+      className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "가입 중..." : "회원가입"}
     </button>
@@ -33,7 +33,7 @@ export function SignupForm() {
           autoComplete="name"
           required
           placeholder="홍길동"
-          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-stone-900 placeholder:text-stone-400 focus:border-stone-900 focus:ring-2"
+          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
         />
       </label>
 
@@ -45,7 +45,7 @@ export function SignupForm() {
           autoComplete="email"
           required
           placeholder="you@example.com"
-          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-stone-900 placeholder:text-stone-400 focus:border-stone-900 focus:ring-2"
+          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
         />
       </label>
 
@@ -58,7 +58,7 @@ export function SignupForm() {
           required
           minLength={8}
           placeholder="8자 이상"
-          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-stone-900 placeholder:text-stone-400 focus:border-stone-900 focus:ring-2"
+          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
         />
       </label>
 

@@ -1,3 +1,8 @@
+export function isComfyMockEnabled() {
+  const value = process.env.COMFY_MOCK?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
+
 function comfyServerBaseUrl() {
   const url = process.env.COMFY_SERVER_URL?.trim().replace(/\/+$/, "");
   if (!url) {
@@ -32,6 +37,10 @@ export async function getFromComfy(pathname: string) {
 }
 
 export async function postToComfy(pathname: string, body: unknown) {
+  if (isComfyMockEnabled()) {
+    throw new Error("Comfy mock is enabled; remote workflow calls are disabled.");
+  }
+
   const url = comfyServerUrl(pathname);
   const headers = comfyServerHeaders();
   let lastError: unknown;

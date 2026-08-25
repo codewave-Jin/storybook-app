@@ -28,10 +28,9 @@ export const authConfig = {
     },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
       const isOnAdmin = nextUrl.pathname.startsWith("/admin");
 
-      if (isOnAdmin || isOnDashboard) {
+      if (isOnAdmin) {
         return isLoggedIn;
       }
 

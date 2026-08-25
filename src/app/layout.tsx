@@ -14,8 +14,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "storybook-app",
-  description: "Next.js 14 + Prisma + SQLite",
+  title: "스토리북 | 사진으로 만드는 우리 아이 캐릭터",
+  description:
+    "아이 사진으로 캐릭터를 만들고, 그 캐릭터로 동화책·스티커·이모티콘·영상을 이어 가세요.",
 };
 
 export default function RootLayout({

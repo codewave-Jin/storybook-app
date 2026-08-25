@@ -1,44 +1,213 @@
+import type { Character, PaymentStatus, ProductionStatus } from "@prisma/client";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { CharacterCard } from "@/components/CharacterCard";
+import { AddCharacterSlot, CharacterCard } from "@/components/CharacterCard";
+import { DashboardCreateActions } from "@/components/DashboardCreateActions";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { DashboardShell } from "@/components/DashboardShell";
 import { characterStatusPayload } from "@/lib/generation-status";
+import { PRODUCTION_STATUS_LABEL, formatDateTime } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateTodayFreeTokens } from "@/lib/tokens";
+import { FREE_TOKEN_DAILY_MAX, getOrCreateTodayFreeTokens } from "@/lib/tokens";
+
+const PRODUCTION_BADGE: Record<ProductionStatus, string> = {
+  WAITING: "bg-[#F6E7C1] text-[#8A5A12]",
+  ILLUSTRATING: "bg-[#FDE8E0] text-[#E07A5F]",
+  UPSCALING: "bg-sky-100 text-sky-700",
+  COMPLETED: "bg-emerald-50 text-emerald-700",
+};
+
+function StatCard({
+  label,
+  value,
+  max,
+  accent,
+  hint,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  accent: "yellow" | "coral";
+  hint?: string;
+}) {
+  const ratio = max > 0 ? Math.min(1, value / max) : 0;
+  const track = accent === "yellow" ? "bg-[#F6E7C1]" : "bg-[#FDE8E0]";
+  const fill = accent === "yellow" ? "bg-[#E8C84A]" : "bg-[#E07A5F]";
+  const tint =
+    accent === "yellow"
+      ? "bg-[#FDF8EA] ring-[#E8C84A]/40"
+      : "bg-[#FFF6F3] ring-[#E07A5F]/25";
+
+  return (
+    <div className={`rounded-2xl p-4 shadow-sm ring-1 ${tint}`}>
+      <p className="text-xs font-medium text-stone-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-stone-800">
+        {value}
+        <span className="text-base font-medium text-stone-400">/{max}</span>
+      </p>
+      <div className={`mt-3 h-1.5 overflow-hidden rounded-full ${track}`}>
+        <div
+          className={`h-full rounded-full ${fill}`}
+          style={{ width: `${Math.max(ratio * 100, value > 0 ? 8 : 0)}%` }}
+        />
+      </div>
+      {hint ? <p className="mt-2 text-xs text-stone-500">{hint}</p> : null}
+    </div>
+  );
+}
+
+function RecentOrders({
+  orders,
+}: {
+  orders: Array<{
+    id: string;
+    paymentStatus: PaymentStatus;
+    productionStatus: ProductionStatus;
+    createdAt: Date;
+    title: string;
+  }>;
+}) {
+  return (
+    <section className="mt-8">
+      <h2 className="text-base font-semibold text-stone-800">최근 동화책</h2>
+      {orders.length === 0 ? (
+        <p className="mt-3 rounded-2xl bg-white px-4 py-8 text-center text-sm text-stone-500 ring-1 ring-stone-200">
+          아직 만든 동화책이 없습니다
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {orders.map((order) => (
+            <li key={order.id}>
+              <Link
+                href={
+                  order.paymentStatus === "PAID"
+                    ? `/dashboard/orders/${order.id}`
+                    : `/dashboard/orders/${order.id}/preview`
+                }
+                className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-stone-200 transition hover:bg-sky-50/70 hover:ring-sky-200"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-stone-800">
+                    {order.title}
+                  </p>
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    {formatDateTime(order.createdAt)}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${PRODUCTION_BADGE[order.productionStatus]}`}
+                >
+                  {PRODUCTION_STATUS_LABEL[order.productionStatus]}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function CharacterGrid({
+  characters,
+  canCreate,
+  addHref,
+}: {
+  characters: Character[];
+  canCreate: boolean;
+  addHref: string;
+}) {
+  return (
+    <section className="mt-8">
+      <h2 className="text-base font-semibold text-stone-800">내 캐릭터</h2>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {characters.map((character) => (
+          <CharacterCard key={character.id} character={character} />
+        ))}
+        {canCreate ? <AddCharacterSlot href={addHref} /> : null}
+      </div>
+      {!canCreate ? (
+        <p className="mt-3 text-center text-sm font-medium text-[#E07A5F]">
+          슬롯이 가득 찼습니다. 캐릭터를 삭제해주세요
+        </p>
+      ) : null}
+    </section>
+  );
+}
 
 export default async function DashboardPage() {
   const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/login");
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return (
+      <DashboardShell title="대시보드">
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard
+            label="오늘 무료 토큰"
+            value={0}
+            max={FREE_TOKEN_DAILY_MAX}
+            accent="yellow"
+          />
+          <StatCard
+            label="캐릭터 슬롯"
+            value={0}
+            max={5}
+            accent="coral"
+          />
+        </div>
+        <CharacterGrid
+          characters={[]}
+          canCreate
+          addHref="/login?callbackUrl=/dashboard/characters/new"
+        />
+        <p className="mt-4 text-center text-sm text-stone-500">
+          사진을 올리면 동화 속 주인공을 만들 수 있어요. 생성할 때 로그인이
+          필요합니다.
+        </p>
+      </DashboardShell>
+    );
   }
 
-  const userId = session.user.id;
   await getOrCreateTodayFreeTokens(userId);
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       characterSlotLimit: true,
-      tokenBalance: { select: { freeBalance: true, paidBalance: true } },
+      tokenBalance: { select: { freeBalance: true } },
       characters: { orderBy: { createdAt: "desc" } },
+      orders: {
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          paymentStatus: true,
+          productionStatus: true,
+          createdAt: true,
+          template: { select: { title: true } },
+        },
+      },
     },
   });
 
   const characters = user?.characters ?? [];
   const limit = user?.characterSlotLimit ?? 5;
-  const tokens =
-    (user?.tokenBalance?.freeBalance ?? 0) +
-    (user?.tokenBalance?.paidBalance ?? 0);
-  const slot = {
-    canCreate: characters.length < limit,
-    current: characters.length,
-    limit,
-  };
+  const freeTokens = user?.tokenBalance?.freeBalance ?? 0;
+  const canCreate = characters.length < limit;
+  const hasCompleted = characters.some(
+    (character) => character.status === "COMPLETED",
+  );
   const waitingForGeneration = characters.some(
     (character) =>
       character.status === "PENDING" || character.status === "PROCESSING",
   );
+  const orders = (user?.orders ?? []).map((order) => ({
+    id: order.id,
+    paymentStatus: order.paymentStatus,
+    productionStatus: order.productionStatus,
+    createdAt: order.createdAt,
+    title: order.template.title,
+  }));
 
   return (
     <DashboardShell title="대시보드">
@@ -47,52 +216,30 @@ export default async function DashboardPage() {
         href="/api/characters/status"
         initialSignature={JSON.stringify(characterStatusPayload(characters))}
       />
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2 text-sm">
-          <span className="rounded-full bg-white px-3 py-1.5 font-medium ring-1 ring-stone-200">
-            토큰: {tokens}개
-          </span>
-          <span className="rounded-full bg-white px-3 py-1.5 font-medium ring-1 ring-stone-200">
-            캐릭터: {slot.current}/{slot.limit}
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          {slot.canCreate ? (
-            <Link
-              href="/dashboard/characters/new"
-              className="flex h-11 items-center justify-center rounded-xl bg-stone-900 px-5 text-sm font-medium text-white hover:bg-stone-800"
-            >
-              캐릭터 추가하기
-            </Link>
-          ) : (
-            <p className="self-center text-sm font-medium text-red-600">
-              슬롯이 가득 찼습니다. 캐릭터를 삭제해주세요
-            </p>
-          )}
-          <Link
-            href="/dashboard/order/new"
-            className="flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-medium hover:bg-stone-50"
-          >
-            동화책 주문하기
-          </Link>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          label="오늘 무료 토큰"
+          value={freeTokens}
+          max={FREE_TOKEN_DAILY_MAX}
+          accent="yellow"
+        />
+        <StatCard
+          label="캐릭터 슬롯"
+          value={characters.length}
+          max={limit}
+          accent="coral"
+        />
       </div>
 
-      {characters.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-16 text-center">
-          <p className="font-medium">아직 만든 캐릭터가 없습니다</p>
-          <p className="mt-1 text-sm text-stone-500">
-            사진을 올리면 동화 속 주인공을 만들 수 있어요.
-          </p>
-        </div>
-      ) : (
-        <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {characters.map((character) => (
-            <CharacterCard key={character.id} character={character} />
-          ))}
-        </section>
-      )}
+      <CharacterGrid
+        characters={characters}
+        canCreate={canCreate}
+        addHref="/dashboard/characters/new"
+      />
+
+      {hasCompleted ? <DashboardCreateActions /> : null}
+
+      <RecentOrders orders={orders} />
     </DashboardShell>
   );
 }

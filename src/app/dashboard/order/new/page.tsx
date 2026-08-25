@@ -8,7 +8,7 @@ import { parseCustomFields } from "@/lib/templates";
 export default async function NewOrderPage() {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/login");
+    redirect("/login?callbackUrl=/dashboard/order/new");
   }
 
   const [templates, characters] = await Promise.all([

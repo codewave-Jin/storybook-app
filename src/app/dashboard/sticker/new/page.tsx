@@ -1,0 +1,59 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { DashboardShell } from "@/components/DashboardShell";
+import { StickerWizard } from "@/components/StickerWizard";
+import { prisma } from "@/lib/prisma";
+
+export default async function NewStickerPage() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login?callbackUrl=/dashboard/sticker/new");
+  }
+
+  const [characters, templates, phrases, sizes] = await Promise.all([
+    prisma.character.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.stickerTemplate.findMany({
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.stickerPhrasePreset.findMany({
+      orderBy: { text: "asc" },
+    }),
+    prisma.stickerSizeOption.findMany({
+      orderBy: { widthMm: "asc" },
+    }),
+  ]);
+
+  return (
+    <DashboardShell title="스티커 만들기">
+      <StickerWizard
+        characters={characters.map((character) => ({
+          id: character.id,
+          label: character.label,
+          gender: character.gender,
+          status: character.status,
+          generatedImagePath: character.generatedImagePath,
+          originalPhotoPath: character.originalPhotoPath,
+        }))}
+        templates={templates.map((template) => ({
+          id: template.id,
+          label: template.label,
+          thumbnailPath: template.thumbnailPath,
+        }))}
+        phrases={phrases.map((phrase) => ({
+          id: phrase.id,
+          text: phrase.text,
+        }))}
+        sizes={sizes.map((size) => ({
+          id: size.id,
+          label: size.label,
+          widthMm: size.widthMm,
+          heightMm: size.heightMm,
+          quantityPerA4: size.quantityPerA4,
+        }))}
+      />
+    </DashboardShell>
+  );
+}

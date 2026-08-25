@@ -7,11 +7,11 @@ import { getCharacterSlotAndTokens, getOrCreateTodayFreeTokens } from "@/lib/tok
 
 export default async function NewCharacterPage() {
   const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/login");
-  }
+  const userId = session?.user?.id;
 
-  const userId = session.user.id;
+  if (!userId) {
+    redirect("/login?callbackUrl=/dashboard/characters/new");
+  }
   await getOrCreateTodayFreeTokens(userId);
 
   const { slot, tokens } = await getCharacterSlotAndTokens(userId);
@@ -32,7 +32,7 @@ export default async function NewCharacterPage() {
 
         {slot.canCreate ? (
           <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-8">
-            <CharacterCreateForm tokenBalance={tokens} />
+            <CharacterCreateForm tokenBalance={tokens} isLoggedIn />
           </div>
         ) : (
           <div className="rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm">
@@ -42,7 +42,7 @@ export default async function NewCharacterPage() {
             </p>
             <Link
               href="/dashboard"
-              className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-5 text-sm font-medium text-white"
+              className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
             >
               대시보드로 돌아가기
             </Link>

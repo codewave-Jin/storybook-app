@@ -127,7 +127,7 @@ export default async function AdminOrderDetailPage({
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
         <Link
           href={`/admin/illustrations/${order.id}`}
-          className="inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-5 text-sm font-medium text-white"
+          className="inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
         >
           삽화 생성하러 가기
         </Link>

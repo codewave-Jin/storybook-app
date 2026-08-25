@@ -48,7 +48,7 @@ export default async function AdminHomePage() {
 
       <Link
         href="/admin/orders"
-        className="mt-8 inline-flex h-10 items-center rounded-lg bg-stone-900 px-4 text-sm font-medium text-white"
+        className="mt-8 inline-flex h-10 items-center rounded-lg bg-sky-400 px-4 text-sm font-medium text-white"
       >
         주문 목록 보기
       </Link>

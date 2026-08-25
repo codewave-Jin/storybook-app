@@ -1,7 +1,8 @@
-import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
 import { prisma } from "@/lib/prisma";
+import { markOrderPreviewGeneratedIfReady } from "@/lib/preview-generation";
+import { revalidateIllustrationWork } from "@/lib/revalidate-admin";
 import { persistGeneratedIllustrationImage } from "@/lib/uploads";
 
 type CompleteBody = {
@@ -32,16 +33,6 @@ function asSeed(value: unknown): bigint | undefined {
   }
 
   return undefined;
-}
-
-function revalidateIllustration(orderId: string) {
-  revalidatePath("/admin");
-  revalidatePath("/admin/orders");
-  revalidatePath(`/admin/orders/${orderId}`);
-  revalidatePath("/admin/illustrations");
-  revalidatePath(`/admin/illustrations/${orderId}`);
-  revalidatePath("/admin/upscale");
-  revalidatePath(`/admin/upscale/${orderId}`);
 }
 
 export async function POST(
@@ -111,7 +102,7 @@ export async function POST(
       data: { status: "FAILED", progressPercent: 0, progressLabel: null },
     });
 
-    revalidateIllustration(illustration.orderId);
+    revalidateIllustrationWork(illustration.orderId);
     return NextResponse.json({ ok: true, status: "FAILED" });
   }
 
@@ -155,7 +146,8 @@ export async function POST(
     },
   });
 
-  revalidateIllustration(illustration.orderId);
+  revalidateIllustrationWork(illustration.orderId);
+  await markOrderPreviewGeneratedIfReady(illustration.orderId);
   console.log("[illustration complete] saved status=COMPLETED", {
     illustrationId: params.id,
     imagePath,

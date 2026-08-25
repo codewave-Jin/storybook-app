@@ -12,6 +12,18 @@ export type AuthFormState = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function safeCallbackPath(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("://")) {
+    return null;
+  }
+
+  return value;
+}
+
 export async function register(
   _prevState: AuthFormState,
   formData: FormData,
@@ -77,7 +89,9 @@ export async function authenticate(
     await signIn("credentials", {
       email,
       password,
-      redirectTo: user?.isAdmin ? "/admin" : "/dashboard",
+      redirectTo: user?.isAdmin
+        ? "/admin"
+        : (safeCallbackPath(formData.get("callbackUrl")) ?? "/dashboard"),
     });
   } catch (error) {
     if (error instanceof AuthError) {

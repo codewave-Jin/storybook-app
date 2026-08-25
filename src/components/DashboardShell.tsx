@@ -30,19 +30,28 @@ export async function DashboardShell({ title, children }: DashboardShellProps) {
             {isAdmin ? (
               <Link
                 href="/admin"
-                className="flex h-10 items-center rounded-xl bg-stone-900 px-4 text-sm font-medium text-white"
+                className="flex h-10 items-center rounded-xl bg-sky-400 px-4 text-sm font-medium text-white"
               >
                 관리자 페이지
               </Link>
             ) : null}
-            <form action={logout}>
-              <button
-                type="submit"
-                className="h-10 rounded-xl border border-stone-300 px-4 text-sm font-medium hover:bg-white"
+            {session?.user ? (
+              <form action={logout}>
+                <button
+                  type="submit"
+                  className="h-10 rounded-xl border border-stone-300 px-4 text-sm font-medium hover:bg-white"
+                >
+                  로그아웃
+                </button>
+              </form>
+            ) : (
+              <Link
+                href="/login?callbackUrl=/dashboard"
+                className="flex h-10 items-center rounded-xl bg-sky-400 px-4 text-sm font-medium text-white"
               >
-                로그아웃
-              </button>
-            </form>
+                로그인
+              </Link>
+            )}
           </div>
         </header>
         <div className="mt-6">{children}</div>

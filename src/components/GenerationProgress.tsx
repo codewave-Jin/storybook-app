@@ -75,7 +75,7 @@ export function GenerationProgress({
       </span>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-200">
         <div
-          className="h-full rounded-full bg-stone-800 transition-[width] duration-300"
+          className="h-full rounded-full bg-sky-400 transition-[width] duration-300"
           style={{ width: `${Math.max(percent, 4)}%` }}
         />
       </div>

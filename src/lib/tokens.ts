@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-const FREE_TOKEN_DAILY_MAX = 3;
+export const FREE_TOKEN_DAILY_MAX = 3;
 
 export type TokenSpendSource = "free" | "paid";
 
@@ -29,6 +29,15 @@ function totalTokens(balance: {
 }
 
 export async function getOrCreateTodayFreeTokens(userId: string): Promise<void> {
+  const current = await prisma.tokenBalance.findUnique({
+    where: { userId },
+    select: { lastFreeGrantDate: true },
+  });
+
+  if (current && isKoreaToday(current.lastFreeGrantDate)) {
+    return;
+  }
+
   await prisma.$transaction(async (tx) => {
     const existing = await tx.tokenBalance.findUnique({
       where: { userId },

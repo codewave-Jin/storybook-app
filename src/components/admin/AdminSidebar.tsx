@@ -49,7 +49,7 @@ export function AdminSidebar() {
               className={cn(
                 "shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium",
                 active
-                  ? "bg-stone-900 text-white"
+                  ? "bg-sky-400 text-white"
                   : "text-stone-600 hover:bg-stone-100",
               )}
             >

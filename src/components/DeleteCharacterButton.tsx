@@ -7,9 +7,11 @@ import { deleteCharacter } from "@/app/actions/characters";
 export function DeleteCharacterButton({
   characterId,
   label,
+  compact = false,
 }: {
   characterId: string;
   label: string;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -28,7 +30,11 @@ export function DeleteCharacterButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="h-9 rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
+        className={
+          compact
+            ? "h-8 rounded-lg px-2 text-xs font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+            : "h-9 rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
+        }
       >
         삭제
       </button>

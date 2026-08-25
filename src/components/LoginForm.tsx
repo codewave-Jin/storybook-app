@@ -10,14 +10,20 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-stone-900 text-base font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+      className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "로그인 중..." : "로그인"}
     </button>
   );
 }
 
-export function LoginForm({ registered }: { registered?: boolean }) {
+export function LoginForm({
+  registered,
+  callbackUrl,
+}: {
+  registered?: boolean;
+  callbackUrl?: string;
+}) {
   const [state, formAction] = useFormState<AuthFormState, FormData>(
     authenticate,
     undefined,
@@ -31,6 +37,10 @@ export function LoginForm({ registered }: { registered?: boolean }) {
         </p>
       ) : null}
 
+      {callbackUrl ? (
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+      ) : null}
+
       <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
         이메일
         <input
@@ -39,7 +49,7 @@ export function LoginForm({ registered }: { registered?: boolean }) {
           autoComplete="email"
           required
           placeholder="you@example.com"
-          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-stone-900 placeholder:text-stone-400 focus:border-stone-900 focus:ring-2"
+          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
         />
       </label>
 
@@ -51,7 +61,7 @@ export function LoginForm({ registered }: { registered?: boolean }) {
           autoComplete="current-password"
           required
           placeholder="비밀번호"
-          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-stone-900 placeholder:text-stone-400 focus:border-stone-900 focus:ring-2"
+          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
         />
       </label>
 

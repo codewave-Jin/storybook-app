@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CharacterPhotoPicker } from "@/components/CharacterPhotoPicker";
 
@@ -20,7 +21,7 @@ function SubmitButton({
       <button
         type="submit"
         disabled={disabled}
-        className="flex h-12 w-full items-center justify-center rounded-xl bg-stone-900 text-base font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending ? "생성 중..." : "캐릭터 생성하기"}
       </button>
@@ -35,7 +36,13 @@ function SubmitButton({
   );
 }
 
-export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) {
+export function CharacterCreateForm({
+  tokenBalance,
+  isLoggedIn = true,
+}: {
+  tokenBalance: number;
+  isLoggedIn?: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -45,6 +52,10 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isLoggedIn) {
+      router.push("/login?callbackUrl=/dashboard/characters/new");
+      return;
+    }
     if (submittingRef.current || pending || !photoFileRef.current) {
       return;
     }
@@ -91,20 +102,20 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
       className={`flex flex-col gap-5 ${pending ? "pointer-events-none" : ""}`}
     >
       <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
-        라벨
+        이름
         <input
           name="label"
           type="text"
           required
           placeholder='예: "엄마", "아빠", "딸"'
-          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-stone-900 focus:ring-2 focus:ring-stone-900"
+          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
         />
       </label>
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium text-stone-700">성별</legend>
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium has-[:checked]:border-stone-900 has-[:checked]:bg-stone-900 has-[:checked]:text-white">
+          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium has-[:checked]:border-sky-400 has-[:checked]:bg-sky-400 has-[:checked]:text-white">
             <input
               type="radio"
               name="gender"
@@ -114,7 +125,7 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
             />
             여자
           </label>
-          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium has-[:checked]:border-stone-900 has-[:checked]:bg-stone-900 has-[:checked]:text-white">
+          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium has-[:checked]:border-sky-400 has-[:checked]:bg-sky-400 has-[:checked]:text-white">
             <input
               type="radio"
               name="gender"
@@ -140,13 +151,22 @@ export function CharacterCreateForm({ tokenBalance }: { tokenBalance: number }) 
         </p>
       ) : null}
 
-      <SubmitButton
-        pending={pending}
-        photoReady={hasPhoto}
-        disabledReason={
-          noTokens ? "토큰이 부족합니다 (충전하기)" : undefined
-        }
-      />
+      {isLoggedIn ? (
+        <SubmitButton
+          pending={pending}
+          photoReady={hasPhoto}
+          disabledReason={
+            noTokens ? "토큰이 부족합니다 (충전하기)" : undefined
+          }
+        />
+      ) : (
+        <Link
+          href="/login?callbackUrl=/dashboard/characters/new"
+          className="flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white hover:bg-sky-500"
+        >
+          로그인하고 생성하기
+        </Link>
+      )}
     </form>
   );
 }

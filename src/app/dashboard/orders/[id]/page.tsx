@@ -11,7 +11,7 @@ export default async function OrderDetailPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/login");
+    redirect("/login?callbackUrl=/dashboard");
   }
 
   const order = await prisma.storybookOrder.findFirst({
@@ -28,6 +28,10 @@ export default async function OrderDetailPage({
     notFound();
   }
 
+  if (order.paymentStatus !== "PAID") {
+    redirect(`/dashboard/orders/${order.id}/preview`);
+  }
+
   return (
     <DashboardShell title="주문 상세">
       <div className="mx-auto w-full max-w-lg rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm sm:p-10">
@@ -38,7 +42,7 @@ export default async function OrderDetailPage({
         <p className="mt-4 text-xs text-stone-400">주문번호 {order.id}</p>
         <Link
           href="/dashboard"
-          className="mt-8 inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-5 text-sm font-medium text-white"
+          className="mt-8 inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
         >
           대시보드로 돌아가기
         </Link>

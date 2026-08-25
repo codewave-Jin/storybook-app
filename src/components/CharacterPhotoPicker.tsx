@@ -73,7 +73,6 @@ export function CharacterPhotoPicker({
 
   const [reviewFile, setReviewFile] = useState<File | null>(null);
   const [reviewUrl, setReviewUrl] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
 
@@ -210,7 +209,6 @@ export function CharacterPhotoPicker({
 
   function setPhotoFile(file: File | null) {
     assignFileToInput(photoInputRef.current, file);
-    setConfirmed(Boolean(file));
     onPhotoChange?.(file);
   }
 
@@ -252,7 +250,7 @@ export function CharacterPhotoPicker({
         region.size,
       );
       setReviewFile(file);
-      setConfirmed(false);
+      setPhotoFile(file);
       setCameraPhase("preview");
     } catch {
       setError("촬영에 실패했습니다. 다시 시도해 주세요.");
@@ -270,7 +268,7 @@ export function CharacterPhotoPicker({
 
     setError(null);
     setReviewFile(null);
-    setConfirmed(false);
+    setPhotoFile(null);
     setAlbumSrc((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -294,7 +292,7 @@ export function CharacterPhotoPicker({
     try {
       const file = await getCroppedImageFile(albumSrc, croppedAreaPixels);
       setReviewFile(file);
-      setConfirmed(false);
+      setPhotoFile(file);
       setAlbumPhase("preview");
     } catch {
       setError("사진을 자르지 못했습니다. 다른 이미지를 선택해 주세요.");
@@ -303,23 +301,14 @@ export function CharacterPhotoPicker({
     }
   }
 
-  function useCurrentPhoto() {
-    if (!reviewFile) {
-      return;
-    }
-    setPhotoFile(reviewFile);
-  }
-
   function retakeCamera() {
     setReviewFile(null);
-    setConfirmed(false);
     setPhotoFile(null);
     setCameraPhase("live");
   }
 
   function reselectAlbum() {
     setReviewFile(null);
-    setConfirmed(false);
     setPhotoFile(null);
     clearAlbumSrc();
     setAlbumPhase("pick");
@@ -338,7 +327,7 @@ export function CharacterPhotoPicker({
           onClick={() => switchMode("camera")}
           className={`flex h-11 items-center justify-center rounded-xl border text-sm font-medium transition ${
             mode === "camera"
-              ? "border-stone-900 bg-stone-900 text-white"
+              ? "border-sky-400 bg-sky-400 text-white"
               : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
           }`}
         >
@@ -352,7 +341,7 @@ export function CharacterPhotoPicker({
           onClick={() => switchMode("album")}
           className={`flex h-11 items-center justify-center rounded-xl border text-sm font-medium transition ${
             mode === "album"
-              ? "border-stone-900 bg-stone-900 text-white"
+              ? "border-sky-400 bg-sky-400 text-white"
               : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
           }`}
         >
@@ -390,7 +379,7 @@ export function CharacterPhotoPicker({
                 <button
                   type="button"
                   onClick={() => switchMode("album")}
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-4 text-sm font-medium text-white"
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-4 text-sm font-medium text-white"
                 >
                   앨범에서 선택
                 </button>
@@ -399,15 +388,12 @@ export function CharacterPhotoPicker({
           ) : cameraPhase === "preview" && reviewUrl ? (
             <PreviewCard
               src={reviewUrl}
-              confirmed={confirmed}
               retryLabel="다시 찍기"
               onRetry={retakeCamera}
-              onUse={useCurrentPhoto}
-              busy={busy}
             />
           ) : (
             <>
-              <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-stone-900">
+              <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900">
                 <video
                   ref={videoRef}
                   className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
@@ -448,7 +434,7 @@ export function CharacterPhotoPicker({
                 type="button"
                 onClick={() => void captureFrame()}
                 disabled={disabled || busy || !cameraReady}
-                className="flex h-12 w-full items-center justify-center rounded-xl bg-stone-900 text-base font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy ? "처리 중..." : "촬영"}
               </button>
@@ -462,19 +448,24 @@ export function CharacterPhotoPicker({
             type="file"
             accept="image/*"
             className="sr-only"
+            aria-label="앨범에서 사진 선택"
             onChange={(event) => onAlbumFiles(event.target.files)}
           />
 
           {albumPhase === "crop" && albumSrc ? (
             <>
-              <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-stone-900 sm:h-80">
+              <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-slate-900 sm:h-80">
                 <Cropper
                   image={albumSrc}
                   crop={crop}
                   zoom={zoom}
+                  minZoom={1}
+                  maxZoom={3}
+                  rotation={0}
                   aspect={1}
                   cropShape="round"
                   showGrid={false}
+                  zoomWithScroll
                   onCropChange={setCrop}
                   onZoomChange={setZoom}
                   onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
@@ -492,7 +483,7 @@ export function CharacterPhotoPicker({
                   step={0.01}
                   value={zoom}
                   onChange={(event) => setZoom(Number(event.target.value))}
-                  className="w-full accent-stone-900"
+                  className="w-full accent-sky-400"
                   aria-label="사진 확대"
                 />
               </label>
@@ -508,7 +499,7 @@ export function CharacterPhotoPicker({
                   type="button"
                   onClick={() => void applyAlbumCrop()}
                   disabled={busy || !croppedAreaPixels}
-                  className="flex h-12 items-center justify-center rounded-xl bg-stone-900 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-12 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busy ? "처리 중..." : "적용"}
                 </button>
@@ -517,11 +508,8 @@ export function CharacterPhotoPicker({
           ) : albumPhase === "preview" && reviewUrl ? (
             <PreviewCard
               src={reviewUrl}
-              confirmed={confirmed}
               retryLabel="다시 선택"
               onRetry={reselectAlbum}
-              onUse={useCurrentPhoto}
-              busy={busy}
             />
           ) : (
             <button
@@ -546,8 +534,8 @@ export function CharacterPhotoPicker({
               }}
               className={`flex min-h-48 w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
                 dragActive
-                  ? "border-stone-900 bg-stone-100"
-                  : "border-stone-300 bg-white hover:border-stone-900 hover:bg-stone-50"
+                  ? "border-sky-400 bg-sky-50"
+                  : "border-stone-300 bg-white hover:border-sky-400 hover:bg-sky-50"
               }`}
             >
               <span className="space-y-1 text-sm text-stone-500">
@@ -571,18 +559,12 @@ export function CharacterPhotoPicker({
 
 function PreviewCard({
   src,
-  confirmed,
   retryLabel,
   onRetry,
-  onUse,
-  busy,
 }: {
   src: string;
-  confirmed: boolean;
   retryLabel: string;
   onRetry: () => void;
-  onUse: () => void;
-  busy: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -593,29 +575,15 @@ function PreviewCard({
           alt="선택한 얼굴 미리보기"
           className="h-52 w-52 rounded-full object-cover ring-2 ring-white shadow-sm"
         />
-        {confirmed ? (
-          <p className="text-sm font-medium text-stone-700">이 사진이 선택되었습니다</p>
-        ) : (
-          <p className="text-sm text-stone-500">이 사진을 사용할까요?</p>
-        )}
+        <p className="text-sm font-medium text-stone-700">이 사진이 선택되었습니다</p>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={onRetry}
-          className="flex h-12 items-center justify-center rounded-xl border border-stone-300 bg-white text-sm font-medium text-stone-800 hover:bg-stone-50"
-        >
-          {retryLabel}
-        </button>
-        <button
-          type="button"
-          onClick={onUse}
-          disabled={busy || confirmed}
-          className="flex h-12 items-center justify-center rounded-xl bg-stone-900 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {confirmed ? "선택됨" : "이 사진 사용"}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="flex h-12 w-full items-center justify-center rounded-xl border border-stone-300 bg-white text-sm font-medium text-stone-800 hover:bg-stone-50"
+      >
+        {retryLabel}
+      </button>
     </div>
   );
 }

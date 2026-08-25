@@ -254,7 +254,7 @@ export function IllustrationPageEditor({
                   onChange={(event) => setKoreanInput(event.target.value)}
                   rows={8}
                   placeholder='예: "바다 위 배에서 해적 놀이하는 장면"'
-                  className="mt-2 min-h-[160px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900 lg:min-h-[220px]"
+                  className="mt-2 min-h-[160px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200 lg:min-h-[220px]"
                 />
               </label>
               <button
@@ -278,7 +278,7 @@ export function IllustrationPageEditor({
                   onChange={(event) => setEnglishPrompt(event.target.value)}
                   rows={8}
                   placeholder="AI 변환 결과가 여기에 채워집니다. 직접 수정할 수도 있습니다."
-                  className="mt-2 min-h-[160px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900 lg:min-h-[220px]"
+                  className="mt-2 min-h-[160px] w-full rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200 lg:min-h-[220px]"
                 />
               </label>
               <div className="mt-3">
@@ -288,7 +288,7 @@ export function IllustrationPageEditor({
                   pendingLabel="생성 중..."
                   busy={processing}
                   disabled={generateBusy}
-                  className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
+                  className="h-11 w-full rounded-xl bg-sky-400 px-5 text-sm font-medium text-white disabled:opacity-60"
                 />
               </div>
             </div>
@@ -341,7 +341,7 @@ export function IllustrationPageEditor({
                 onClick={() => setExpression(option.value)}
                 className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                   selected
-                    ? "border-stone-900 bg-stone-900 text-white"
+                    ? "border-sky-400 bg-sky-400 text-white"
                     : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
                 }`}
               >
@@ -357,7 +357,7 @@ export function IllustrationPageEditor({
             pendingLabel="표정 변경 중..."
             busy={processing}
             disabled={generateBusy || !hasImage || !expression}
-            className="h-11 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60"
+            className="h-11 w-full rounded-xl bg-sky-400 px-5 text-sm font-medium text-white disabled:opacity-60"
           />
         </div>
         {expressionState?.error ? (

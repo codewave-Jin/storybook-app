@@ -9,11 +9,15 @@ export function characterStatusPayload(
 }
 
 export function illustrationStatusPayload(
-  items: Array<{ id: string; status: string }>,
+  items: Array<{ id: string; status: string; imagePath?: string | null }>,
 ) {
   return {
     illustrations: [...items]
       .sort((a, b) => a.id.localeCompare(b.id))
-      .map(({ id, status }) => ({ id, status })),
+      .map(({ id, status, imagePath }) => ({
+        id,
+        status,
+        imagePath: imagePath ?? null,
+      })),
   };
 }

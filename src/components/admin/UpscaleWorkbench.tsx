@@ -146,7 +146,7 @@ export function UpscaleWorkbench({
               className={cn(
                 "cursor-pointer overflow-hidden rounded-2xl border bg-white",
                 selected
-                  ? "border-stone-900 ring-2 ring-stone-900"
+                  ? "border-sky-400 ring-2 ring-sky-300"
                   : "border-stone-200",
               )}
             >
@@ -158,7 +158,7 @@ export function UpscaleWorkbench({
                   type="checkbox"
                   checked={selected}
                   onChange={() => toggle(item.id)}
-                  className="h-4 w-4 accent-stone-900"
+                  className="h-4 w-4 accent-sky-400"
                 />
               </div>
               <div className="relative mt-2 aspect-[4/5] bg-stone-100">
@@ -203,7 +203,7 @@ export function UpscaleWorkbench({
           type="button"
           disabled={isPending}
           onClick={runBatchUpscale}
-          className="h-12 w-full rounded-xl bg-stone-900 px-5 text-sm font-medium text-white disabled:opacity-60 sm:w-auto"
+          className="h-12 w-full rounded-xl bg-sky-400 px-5 text-sm font-medium text-white disabled:opacity-60 sm:w-auto"
         >
           선택한 항목 일괄 업스케일
         </button>

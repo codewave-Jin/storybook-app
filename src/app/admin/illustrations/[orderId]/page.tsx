@@ -7,6 +7,7 @@ import {
 import { CharacterThumbnails } from "@/components/admin/CharacterZoomGrid";
 import { IllustrationPageEditor } from "@/components/admin/IllustrationPageEditor";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
+import { PendingSubmitButton } from "@/components/PendingSubmitButton";
 import { illustrationStatusPayload } from "@/lib/generation-status";
 import {
   parseIdList,
@@ -131,12 +132,11 @@ export default async function AdminIllustrationWorkPage({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold sm:text-xl">페이지별 삽화</h2>
           <form action={addIllustrationPage.bind(null, order.id)}>
-            <button
-              type="submit"
-              className="h-10 w-full rounded-xl bg-stone-900 px-4 text-sm font-medium text-white sm:w-auto"
-            >
-              새 페이지 추가
-            </button>
+            <PendingSubmitButton
+              label="새 페이지 추가"
+              pendingLabel="추가 중..."
+              className="h-10 w-full rounded-xl bg-sky-400 px-4 text-sm font-medium text-white disabled:opacity-60 sm:w-auto"
+            />
           </form>
         </div>
 
@@ -170,12 +170,11 @@ export default async function AdminIllustrationWorkPage({
 
       <div className="mt-10 border-t border-stone-200 pt-6">
         <form action={markOrderIllustrationsComplete.bind(null, order.id)}>
-          <button
-            type="submit"
-            className="h-12 w-full rounded-xl bg-stone-900 px-6 text-sm font-medium text-white sm:w-auto"
-          >
-            전체 삽화 완료 처리
-          </button>
+          <PendingSubmitButton
+            label="전체 삽화 완료 처리"
+            pendingLabel="처리 중..."
+            className="h-12 w-full rounded-xl bg-sky-400 px-6 text-sm font-medium text-white disabled:opacity-60 sm:w-auto"
+          />
         </form>
         <p className="mt-2 text-sm text-stone-400">
           완료 처리하면 제작상태가 업스케일중으로 바뀝니다.

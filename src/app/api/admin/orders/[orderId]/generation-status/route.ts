@@ -14,7 +14,7 @@ export async function GET(
 
   const illustrations = await prisma.illustration.findMany({
     where: { orderId: params.orderId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, imagePath: true },
     orderBy: { id: "asc" },
   });
 

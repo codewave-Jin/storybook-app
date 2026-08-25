@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { postToComfy } from "@/lib/comfy-server";
+import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
 import { prisma } from "@/lib/prisma";
 import { canCreateCharacter, consumeToken, refundToken } from "@/lib/tokens";
 import {
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   if (!label) {
     return NextResponse.json(
-      { error: "캐릭터 라벨을 입력해 주세요." },
+      { error: "캐릭터 이름을 입력해 주세요." },
       { status: 400 },
     );
   }
@@ -114,6 +114,21 @@ export async function POST(request: Request) {
       { error: "캐릭터 생성에 실패했습니다. 다시 시도해 주세요." },
       { status: 500 },
     );
+  }
+
+  if (isComfyMockEnabled()) {
+    await prisma.character.update({
+      where: { id: characterId },
+      data: {
+        status: "COMPLETED",
+        generatedImagePath: originalPhotoPath,
+        progressPercent: 100,
+        progressLabel: "로컬 목업",
+      },
+    });
+    revalidatePath("/dashboard");
+    console.log("[comfy mock] character completed locally", characterId);
+    return NextResponse.json({ character_id: characterId, mock: true });
   }
 
   await prisma.character.update({

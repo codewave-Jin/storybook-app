@@ -8,10 +8,21 @@ export const PRODUCTION_STATUS_LABEL: Record<ProductionStatus, string> = {
 };
 
 export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
-  PENDING: "결제대기",
+  PENDING: "미리보기 (미결제)",
   PAID: "결제완료",
   FAILED: "결제실패",
 };
+
+export type PaymentListFilter = "PAID" | "PENDING" | "ALL";
+
+export const PAYMENT_STATUS_FILTERS: Array<{
+  value: PaymentListFilter;
+  label: string;
+}> = [
+  { value: "PAID", label: "결제 완료" },
+  { value: "PENDING", label: "미리보기 (미결제)" },
+  { value: "ALL", label: "전체" },
+];
 
 export const PRODUCTION_STATUS_FILTERS: Array<{
   value: "ALL" | ProductionStatus;

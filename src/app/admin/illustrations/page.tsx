@@ -5,6 +5,7 @@ import { formatDateTime, PRODUCTION_STATUS_LABEL } from "@/lib/orders";
 export default async function AdminIllustrationsPage() {
   const orders = await prisma.storybookOrder.findMany({
     where: {
+      paymentStatus: "PAID",
       productionStatus: { in: ["WAITING", "ILLUSTRATING"] },
     },
     include: {
@@ -18,7 +19,7 @@ export default async function AdminIllustrationsPage() {
     <div>
       <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">삽화 생성</h1>
       <p className="mt-1 text-sm text-stone-500">
-        대기중 또는 삽화작업중인 주문을 작업합니다.
+        결제 완료된 주문 중 대기중 또는 삽화작업중인 건만 표시합니다.
       </p>
 
       <div className="mt-6 space-y-3 md:hidden">

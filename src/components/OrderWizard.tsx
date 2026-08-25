@@ -25,22 +25,22 @@ export type OrderCharacterOption = {
   originalPhotoPath: string;
 };
 
-const STEP_LABELS = ["동화책 유형", "캐릭터", "추가 정보", "결제"] as const;
+const STEP_LABELS = ["동화책 유형", "캐릭터", "추가 정보", "미리보기"] as const;
 const GENDER_LABEL = {
   MALE: "남자아이",
   FEMALE: "여자아이",
 } as const;
 
-function PayButton() {
+function PreviewButton() {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
       disabled={pending}
-      className="flex h-12 w-full items-center justify-center rounded-xl bg-stone-900 text-base font-medium text-white hover:bg-stone-800 disabled:opacity-60 sm:w-auto sm:px-8"
+      className="flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white hover:bg-sky-500 disabled:opacity-60 sm:w-auto sm:px-8"
     >
-      {pending ? "결제 중..." : "결제하기"}
+      {pending ? "미리보기 만드는 중..." : "미리보기 만들기"}
     </button>
   );
 }
@@ -126,7 +126,7 @@ export function OrderWizard({
                 <div
                   className={cn(
                     "h-1.5 rounded-full",
-                    active || done ? "bg-stone-900" : "bg-stone-200",
+                    active || done ? "bg-sky-400" : "bg-stone-200",
                   )}
                 />
                 <p
@@ -160,7 +160,7 @@ export function OrderWizard({
                   className={cn(
                     "rounded-2xl border bg-white p-5 text-left shadow-sm transition",
                     selected
-                      ? "border-stone-900 ring-2 ring-stone-900"
+                      ? "border-sky-400 ring-2 ring-sky-300"
                       : "border-stone-200 hover:border-stone-400",
                   )}
                 >
@@ -190,7 +190,7 @@ export function OrderWizard({
               </p>
               <Link
                 href="/dashboard/characters/new"
-                className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-5 text-sm font-medium text-white"
+                className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
               >
                 캐릭터 만들러 가기
               </Link>
@@ -216,7 +216,7 @@ export function OrderWizard({
                         "relative overflow-hidden rounded-2xl border bg-white shadow-sm",
                         selectable ? "cursor-pointer" : "cursor-not-allowed",
                         selected
-                          ? "border-stone-900 ring-2 ring-stone-900"
+                          ? "border-sky-400 ring-2 ring-sky-300"
                           : "border-stone-200",
                         !selectable && "opacity-60",
                       )}
@@ -242,11 +242,11 @@ export function OrderWizard({
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         />
                         <div
-                          className="absolute inset-0"
+                          className="pointer-events-none absolute inset-0"
                           onContextMenu={(event) => event.preventDefault()}
                         />
                         {!selectable ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-stone-900/45">
+                          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45">
                             {character.status === "FAILED" ? (
                               <span className="rounded-full bg-white px-3 py-1 text-sm font-medium">
                                 생성 실패
@@ -297,7 +297,7 @@ export function OrderWizard({
                       [field.key]: event.target.value,
                     }))
                   }
-                  className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-stone-900 focus:ring-2 focus:ring-stone-900"
+                  className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
                 />
               </label>
             ))}
@@ -338,8 +338,9 @@ export function OrderWizard({
                 </ul>
               </div>
             ) : null}
-            <p className="rounded-lg bg-stone-50 px-3 py-2 text-sm text-stone-500">
-              지금은 테스트 결제입니다. 버튼을 누르면 주문이 바로 완료됩니다.
+            <p className="rounded-lg bg-[#F6E7C1]/70 px-3 py-2 text-sm text-[#8A5A12]">
+              지금은 결제 없이 표지와 장면 2장을 먼저 만들어요. 마음에 들면
+              미리보기에서 나머지 이야기를 결제할 수 있습니다.
             </p>
           </div>
 
@@ -361,7 +362,7 @@ export function OrderWizard({
                 {state.error}
               </p>
             ) : null}
-            <PayButton />
+            <PreviewButton />
           </form>
         </section>
       ) : null}
@@ -383,7 +384,7 @@ export function OrderWizard({
             type="button"
             onClick={goNext}
             disabled={!canNext}
-            className="flex h-12 items-center justify-center rounded-xl bg-stone-900 px-8 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-12 items-center justify-center rounded-xl bg-sky-400 px-8 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             다음
           </button>

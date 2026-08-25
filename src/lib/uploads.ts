@@ -35,6 +35,23 @@ function blobStorageEnabled() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+function requireBlobStorage() {
+  if (!blobStorageEnabled()) {
+    throw new Error(
+      "BLOB_READ_WRITE_TOKEN is required to store generated images",
+    );
+  }
+}
+
+function looksLikeImage(buffer: Buffer) {
+  return (
+    buffer.length >= 24 &&
+    ((buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e) ||
+      (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) ||
+      buffer.subarray(0, 4).toString("ascii") === "RIFF")
+  );
+}
+
 export function isRemoteAsset(value: string | null | undefined) {
   return Boolean(value && /^https?:\/\//i.test(value));
 }
@@ -102,7 +119,13 @@ async function downloadRemoteAsset(url: string) {
     throw new Error(`Generated image download failed: ${response.status}`);
   }
 
-  return Buffer.from(await response.arrayBuffer());
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("image/") && !looksLikeImage(buffer)) {
+    throw new Error("Generated image download did not return an image");
+  }
+
+  return buffer;
 }
 
 export async function persistGeneratedCharacterImage(sourcePath: string) {
@@ -117,15 +140,27 @@ async function persistGeneratedImage(
   sourcePath: string,
   publicFolder: "characters" | "illustrations",
 ) {
-  if (sourcePath.startsWith("/uploads/") || sourcePath.startsWith("/dummy/")) {
+  if (sourcePath.startsWith("/dummy/")) {
     return sourcePath;
   }
 
-  if (isRemoteAsset(sourcePath)) {
-    if (sourcePath.includes("blob.vercel-storage.com")) {
-      return sourcePath;
-    }
+  if (isRemoteAsset(sourcePath) && sourcePath.includes("blob.vercel-storage.com")) {
+    return sourcePath;
+  }
 
+  requireBlobStorage();
+
+  if (sourcePath.startsWith("/uploads/")) {
+    const absolute = toAbsolutePublicPath(sourcePath);
+    if (!existsSync(absolute)) {
+      throw new Error(`Generated image not found: ${sourcePath}`);
+    }
+    const buffer = await readFile(absolute);
+    const ext = path.extname(absolute) || ".png";
+    return saveBuffer(buffer, publicFolder, ext);
+  }
+
+  if (isRemoteAsset(sourcePath)) {
     const buffer = await downloadRemoteAsset(sourcePath);
     const ext = path.extname(new URL(sourcePath).pathname) || ".png";
     return saveBuffer(buffer, publicFolder, ext);

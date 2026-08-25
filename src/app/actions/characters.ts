@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { prisma } from "@/lib/prisma";
 import {
   canCreateCharacter,
@@ -30,7 +31,7 @@ export async function createCharacter(
   const photo = formData.get("photo");
 
   if (!label) {
-    return { error: "캐릭터 라벨을 입력해 주세요." };
+    return { error: "캐릭터 이름을 입력해 주세요." };
   }
 
   if (gender !== "MALE" && gender !== "FEMALE") {
@@ -71,7 +72,14 @@ export async function createCharacter(
         label,
         gender,
         originalPhotoPath,
-        status: "PENDING",
+        ...(isComfyMockEnabled()
+          ? {
+              generatedImagePath: originalPhotoPath,
+              status: "COMPLETED" as const,
+              progressPercent: 100,
+              progressLabel: "로컬 목업",
+            }
+          : { status: "PENDING" as const }),
       },
     });
   } catch {
