@@ -9,6 +9,7 @@ import {
   revalidateIllustrationWork,
 } from "@/lib/revalidate-admin";
 import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
+import { toAbsolutePublicPath } from "@/lib/uploads";
 
 export async function addIllustrationPage(orderId: string) {
   await requireAdmin();
