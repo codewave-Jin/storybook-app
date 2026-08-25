@@ -109,7 +109,7 @@ function CreateButton({
 }
 
 export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
-  const createHref = characterStartHref(isLoggedIn);
+  const createHref = characterStartHref();
 
   return (
     <div className="home-landing min-h-dvh overflow-x-hidden bg-stone-50 text-stone-800">
