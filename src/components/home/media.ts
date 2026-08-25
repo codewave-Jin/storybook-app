@@ -34,7 +34,7 @@ export const HOME_MEDIA = {
   whyCharacter: "/landing/child-after.png" as string | null,
 };
 
-export function characterStartHref(_isLoggedIn: boolean) {
+export function characterStartHref(_?: boolean) {
   return "/dashboard";
 }
 

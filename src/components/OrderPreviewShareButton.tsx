@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function OrderPreviewShareButton({ title }: { title: string }) {
   const [copied, setCopied] = useState(false);
