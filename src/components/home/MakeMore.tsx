@@ -9,12 +9,15 @@ function ComingSoonCard({
   title,
   description,
   image,
+  imageFit = "cover",
 }: {
   title: string;
   description: string;
   image: string;
+  imageFit?: "cover" | "contain";
 }) {
   const [hint, setHint] = useState(false);
+  const isContain = imageFit === "contain";
 
   return (
     <button
@@ -23,13 +26,17 @@ function ComingSoonCard({
       onClick={() => setHint(true)}
       className="flex cursor-not-allowed items-center gap-4 rounded-[24px] bg-white p-4 text-left shadow-sm ring-1 ring-sky-100 sm:gap-5 sm:p-5"
     >
-      <span className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-sky-50">
+      <span
+        className={`relative shrink-0 overflow-hidden rounded-2xl bg-sky-50 ${
+          isContain ? "aspect-video h-24" : "h-24 w-24"
+        }`}
+      >
         <AppImage
           src={image}
           alt=""
           fill
-          className="object-cover"
-          sizes="96px"
+          className={isContain ? "object-contain object-center" : "object-cover"}
+          sizes={isContain ? "140px" : "96px"}
         />
       </span>
       <div className="min-w-0 flex-1">
@@ -131,6 +138,7 @@ export function MakeMore({ isLoggedIn }: { isLoggedIn: boolean }) {
 
         <ComingSoonCard
           image="/landing/make-video.jpg"
+          imageFit="contain"
           title="영상"
           description="우리 가족이 움직이고 말하는 짧은 영상"
         />
