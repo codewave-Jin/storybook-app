@@ -6,26 +6,32 @@ import { AppImage } from "@/components/AppImage";
 /** 캐러셀 이미지는 public/landing 파일을 교체하면 됩니다. */
 const SLIDES = [
   {
-    src: "/landing/sample-zoo.png",
-    alt: "동물원에서 손을 흔드는 아이 캐릭터",
+    src: "/landing/sample-desk.jpg",
+    alt: "책상에 앉아 그림을 그리는 아이와 토끼 친구",
     quote:
-      "“안녕!” 손을 흔들자 기린과 판다가 웃으며 대답했어요.",
+      "토끼 친구와 나란히 앉아, 오늘도 예쁜 그림을 그렸어요.",
+    fit: "cover",
   },
   {
-    src: "/landing/sample-ocean.png",
-    alt: "바닷가에서 물결을 만지는 아이 캐릭터",
+    src: "/landing/sample-stickers.jpg",
+    alt: "우리 아이 캐릭터로 만든 답례품 스티커",
     quote:
-      "“바닷속에는 어떤 친구가 있을까?” 노란 우비를 입고 물결에 손을 담갔어요.",
+      "돌잔치·선생님 선물 답례품으로 많이 쓰는, 우리 아이 얼굴 스티커예요.",
+    fit: "cover",
   },
   {
-    src: "/landing/sample-dog.png",
-    alt: "강아지와 안기는 아이 캐릭터",
-    quote: "강아지와 꼭 안은 채, 꽃밭을 한참 걸어 다녔어요.",
+    src: "/landing/sample-cover.jpg",
+    alt: "사랑하는 우리 아들의 작은 모험 동화책 표지",
+    quote:
+      "사랑하는 우리 아들의 『작은 모험』 — 표지부터 우리 아이 얼굴로요.",
+    fit: "cover",
   },
   {
-    src: "/landing/sample-rabbit.png",
-    alt: "토끼와 마주 앉은 아이 캐릭터",
-    quote: "토끼와 눈을 맞추고, 꽃향기 속에서 속삭였어요.",
+    src: "/landing/sample-chat-emoji.jpg",
+    alt: "새해 인사 이모티콘을 보내는 채팅 화면",
+    quote:
+      "우리 아이 얼굴 이모티콘으로, 할아버지께 새해 인사도 보내요.",
+    fit: "contain",
   },
 ] as const;
 
@@ -118,18 +124,24 @@ export function StoryShowcase() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
       <div className="relative overflow-hidden rounded-[28px] bg-sky-100 shadow-[0_18px_40px_rgba(47,74,95,0.12)]">
-        <div className="relative aspect-[16/10] sm:aspect-[16/8]">
+        <div className="relative aspect-[16/10] bg-[#dbeafe] sm:aspect-[16/8]">
           <AppImage
             key={slide.src}
             src={slide.src}
             alt={slide.alt}
             fill
-            className="object-cover"
+            className={
+              slide.fit === "contain"
+                ? "object-contain object-center"
+                : "object-cover object-center"
+            }
             sizes="(max-width: 1152px) 100vw, 1152px"
             priority={active === 0}
           />
-          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent" />
-          <p className="absolute bottom-4 right-4 max-w-[min(100%-2rem,22rem)] rounded-2xl bg-white/90 px-4 py-3 text-sm leading-relaxed text-stone-700 shadow-sm sm:bottom-6 sm:right-6 sm:text-base">
+          {slide.fit === "cover" ? (
+            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent" />
+          ) : null}
+          <p className="absolute bottom-3 left-3 right-3 max-w-[min(100%,22rem)] rounded-2xl bg-white/95 px-4 py-3 text-sm leading-relaxed text-stone-700 shadow-sm sm:bottom-6 sm:left-auto sm:right-6 sm:text-base">
             {slide.quote}
           </p>
         </div>

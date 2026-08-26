@@ -15,18 +15,24 @@ type HomeLandingProps = {
   isLoggedIn: boolean;
 };
 
-const DIFFERENTIALS = [
+const REVIEWS = [
   {
-    title: "실제 얼굴 기반 AI 캐릭터화",
-    body: "이름만 바꾸는 책이 아니라, 우리 가족의 눈매와 미소를 그림 속 주인공으로 담아요.",
+    name: "김서연",
+    role: "5세 아이 엄마",
+    image: "/landing/child-after.png",
+    body: "샘플 보고 깜짝 놀랐어요ㅎ 너무 귀여워서 동화책, 스티커 전부 구매해서 잘 쓰고 있어요ㅎ 특히 동화책은 우리 아이가 이 책밖에 안 봐요ㅎㅎ",
   },
   {
-    title: "가족 최대 3명까지 함께 등장",
-    body: "아이만 나오는 이야기가 아니에요. 엄마, 아빠, 아이가 같은 장면 안에 함께 등장합니다.",
+    name: "박지훈",
+    role: "돌잔치 준비 아빠",
+    image: "/landing/sample-stickers.jpg",
+    body: "돌잔치 답례품으로 스티커 만들었어요. 하객분들이 너무 귀엽다고 물어보셔서, 어디서 만들었는지 계속 자랑했습니다.",
   },
   {
-    title: "한 번 만든 캐릭터로 이어가요",
-    body: "같은 얼굴로 동화책, 스티커, 이모티콘, 영상까지 만들 수 있어요.",
+    name: "이하늘",
+    role: "쌍둥이 엄마",
+    image: "/landing/sample-cover.jpg",
+    body: "무료로 먼저 확인하니까 결제 부담이 없었어요. 마음에 들어서 바로 완성했는데, 아이들이 자기 얼굴 동화책을 몇 번이나 펼쳐 봐요.",
   },
 ];
 
@@ -62,13 +68,13 @@ const BOOK_STEPS = [
   },
   {
     step: "STEP 2",
-    title: "동화책 · 스티커 선택",
+    title: "컨텐츠 선택\n(동화책, 스티커 등)",
     body: "캐릭터가 준비되면, 동화책이나 스티커로 이어가요. (영상은 곧 추가돼요)",
   },
   {
     step: "STEP 3",
-    title: "표지와 삽화 먼저 확인하기",
-    body: "표지와 삽화 2장을 먼저 만들어드려요. 마음에 드실 때 완성을 진행하시면 돼요.",
+    title: "무료로 먼저 확인하기",
+    body: "샘플을 먼저 확인해 보세요. 마음에 드시면 결제 후 자동으로 완성됩니다.",
   },
 ];
 
@@ -116,7 +122,7 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
       <HomeNav isLoggedIn={isLoggedIn} />
 
       <main>
-        <section className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-8 pt-10 sm:px-6 sm:pb-12 sm:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+        <section className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 pb-8 pt-10 sm:gap-10 sm:px-6 sm:pb-12 sm:pt-14 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12 lg:pt-16">
           <div className="pointer-events-none absolute -left-16 top-8 h-48 w-48 rounded-full bg-sky-200/50 blur-3xl" />
           <div className="pointer-events-none absolute right-8 top-0 h-40 w-40 rounded-full bg-[#F6E7C1]/70 blur-3xl lg:right-24" />
 
@@ -139,7 +145,7 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative flex justify-center lg:justify-end">
             <BeforeAfterGallery />
           </div>
         </section>
@@ -158,9 +164,9 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
             </p>
           </div>
 
-          <div className="mx-auto mt-10 max-w-3xl">
-            <div className="grid items-center gap-4 sm:grid-cols-[1fr_auto_1fr]">
-              <figure className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-sky-100">
+          <div className="mx-auto mt-8 max-w-sm sm:mt-10 sm:max-w-3xl">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+              <figure className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100 sm:rounded-[28px]">
                 <div className="aspect-[4/5]">
                   <MediaSlot
                     src={HOME_MEDIA.whyPhoto}
@@ -173,11 +179,11 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
               </figure>
               <p
                 aria-hidden
-                className="text-center text-3xl font-light text-sky-400 sm:text-4xl"
+                className="text-center text-xl font-light text-sky-400 sm:text-4xl"
               >
                 →
               </p>
-              <figure className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-sky-100">
+              <figure className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100 sm:rounded-[28px]">
                 <div className="aspect-[4/5]">
                   <MediaSlot
                     src={HOME_MEDIA.whyCharacter}
@@ -189,7 +195,7 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
                 </div>
               </figure>
             </div>
-            <p className="mt-4 text-center text-sm font-medium text-[#E07A5F]">
+            <p className="mt-3 text-center text-sm font-medium text-[#E07A5F] sm:mt-4">
               실사가 아닌, 사랑스러운 그림체로
             </p>
           </div>
@@ -211,7 +217,9 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
                 <p className="text-xs font-semibold tracking-wide text-sky-500">
                   {item.step}
                 </p>
-                <h3 className="mt-3 text-lg font-semibold">{item.title}</h3>
+                <h3 className="mt-3 whitespace-pre-line text-lg font-semibold">
+                  {item.title}
+                </h3>
                 <p className="mt-2 text-sm leading-relaxed text-stone-500">
                   {item.body}
                 </p>
@@ -221,23 +229,36 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
         </section>
 
         <section className="bg-sky-50/80 py-16 sm:py-24">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="mx-auto max-w-3xl px-4 sm:px-6">
             <h2 className="text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-              이름만 넣는 동화책이 아니에요
+              먼저 만들어 본 부모님들의 이야기
             </h2>
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {DIFFERENTIALS.map((item, index) => (
+            <div className="mt-10 space-y-3">
+              {REVIEWS.map((item) => (
                 <article
-                  key={item.title}
-                  className="rounded-[24px] bg-white p-6 shadow-sm ring-1 ring-sky-100"
+                  key={item.name}
+                  className="flex items-center gap-4 rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-sky-100 sm:gap-5 sm:p-5"
                 >
-                  <p className="text-xs font-semibold tracking-wide text-[#E07A5F]">
-                    0{index + 1}
-                  </p>
-                  <h3 className="mt-3 text-lg font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-stone-500">
-                    {item.body}
-                  </p>
+                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-sky-50 sm:h-24 sm:w-24">
+                    <AppImage
+                      src={item.image}
+                      alt={`${item.name} 리뷰 사진`}
+                      fill
+                      className="object-cover"
+                      sizes="96px"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm leading-relaxed text-stone-600">
+                      “{item.body}”
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-stone-800">
+                      {item.name}
+                      <span className="ml-2 text-xs font-normal text-stone-500">
+                        {item.role}
+                      </span>
+                    </p>
+                  </div>
                 </article>
               ))}
             </div>
