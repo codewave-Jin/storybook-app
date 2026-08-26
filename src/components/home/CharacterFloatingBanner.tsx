@@ -7,7 +7,7 @@ export function CharacterFloatingBanner() {
     <Link
       href="/dashboard"
       aria-label="지금 무료로 캐릭터 생성해보기"
-      className="fixed bottom-2 left-2 right-2 z-50 mx-auto block max-w-[400px] transition-transform duration-200 md:bottom-5 md:left-auto md:right-5 md:mx-0 md:w-[340px] md:max-w-none md:hover:scale-105"
+      className="fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-2 right-2 z-[100] mx-auto block max-w-[400px] transition-transform duration-200 md:bottom-5 md:left-auto md:right-5 md:mx-0 md:w-[340px] md:max-w-none md:hover:scale-105"
     >
       <AppImage
         src="/banners/character-banner.png"
