@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { CharacterCreateForm } from "@/components/CharacterCreateForm";
 import { DashboardShell } from "@/components/DashboardShell";
+import { prisma } from "@/lib/prisma";
 import { getCharacterSlotAndTokens, getOrCreateTodayFreeTokens } from "@/lib/tokens";
 
 export default async function NewCharacterPage() {
@@ -12,6 +13,17 @@ export default async function NewCharacterPage() {
   if (!userId) {
     redirect("/login?callbackUrl=/dashboard/characters/new");
   }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (!existingUser) {
+    await signOut({
+      redirectTo: "/login?callbackUrl=/dashboard/characters/new",
+    });
+  }
+
   await getOrCreateTodayFreeTokens(userId);
 
   const { slot, tokens } = await getCharacterSlotAndTokens(userId);

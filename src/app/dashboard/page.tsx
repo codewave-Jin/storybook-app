@@ -1,6 +1,6 @@
 import type { Character, PaymentStatus, ProductionStatus } from "@prisma/client";
 import Link from "next/link";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { AddCharacterSlot, CharacterCard } from "@/components/CharacterCard";
 import { DashboardCreateActions } from "@/components/DashboardCreateActions";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
@@ -190,6 +190,10 @@ export default async function DashboardPage() {
     },
   });
 
+  // DB 교체 등으로 세션 userId가 더 이상 없으면 재로그인 유도
+  if (!user) {
+    await signOut({ redirectTo: "/login?callbackUrl=/dashboard" });
+  }
   const characters = user?.characters ?? [];
   const limit = user?.characterSlotLimit ?? 5;
   const freeTokens = user?.tokenBalance?.freeBalance ?? 0;

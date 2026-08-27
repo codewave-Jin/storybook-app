@@ -29,6 +29,16 @@ function totalTokens(balance: {
 }
 
 export async function getOrCreateTodayFreeTokens(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  // 세션은 남아 있지만 DB에 유저가 없는 경우(DB 교체 등)에는 토큰 생성을 건너뜁니다.
+  if (!user) {
+    return;
+  }
+
   const current = await prisma.tokenBalance.findUnique({
     where: { userId },
     select: { lastFreeGrantDate: true },
