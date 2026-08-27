@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { CharacterCreateForm } from "@/components/CharacterCreateForm";
 import { DashboardShell } from "@/components/DashboardShell";
 import { prisma } from "@/lib/prisma";
@@ -19,9 +19,9 @@ export default async function NewCharacterPage() {
     select: { id: true },
   });
   if (!existingUser) {
-    await signOut({
-      redirectTo: "/login?callbackUrl=/dashboard/characters/new",
-    });
+    redirect(
+      "/api/auth/force-logout?callbackUrl=/login%3FcallbackUrl%3D%2Fdashboard%2Fcharacters%2Fnew",
+    );
   }
 
   await getOrCreateTodayFreeTokens(userId);
