@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const LINKS = [
-  { href: "#create", label: "캐릭터 만들기" },
+  { href: "#how", label: "캐릭터 만들기" },
   { href: "#themes", label: "테마 보기" },
   { href: "#faq", label: "FAQ" },
 ];
@@ -15,20 +16,13 @@ type HomeNavProps = {
 
 export function HomeNav({ isLoggedIn }: HomeNavProps) {
   const [open, setOpen] = useState(false);
-  const accountHref = "/dashboard";
+  const accountHref = isLoggedIn ? "/mypage" : "/dashboard";
   const accountLabel = isLoggedIn ? "마이페이지" : "대시보드";
 
   return (
     <header className="sticky top-0 z-40 border-b border-sky-100/80 bg-stone-50/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6">
-        <Link href="/home" className="flex items-center gap-2 text-sky-500">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400 text-sm font-semibold text-white">
-            책
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-stone-800">
-            스토리북
-          </span>
-        </Link>
+        <BrandLogo href="/home" size="sm" priority />
 
         <nav className="hidden items-center gap-7 text-sm text-stone-600 md:flex">
           {LINKS.map((link) => (

@@ -3,9 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { startOrderPreviewGeneration } from "@/lib/preview-generation";
+import {
+  startOrderPaidGeneration,
+  startOrderPreviewGeneration,
+} from "@/lib/preview-generation";
+import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
+import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
 import { parseCustomFields } from "@/lib/templates";
+import { deleteIllustrationFile } from "@/lib/uploads";
 import {
   buildPreviewBookPages,
   previewIllustrationWhere,
@@ -82,12 +88,22 @@ export async function createOrder(
     customInputValues[field.key] = value;
   }
 
+  const submittedArtStyleId = String(formData.get("artStyleId") ?? "").trim();
+  const resolvedStyle = await resolveOrderArtStyleId({
+    templateId: template.id,
+    submittedArtStyleId,
+  });
+  if (resolvedStyle.error) {
+    return { error: resolvedStyle.error };
+  }
+
   const order = await prisma.storybookOrder.create({
     data: {
       userId,
       templateId: template.id,
       selectedCharacterIds: characterIds,
       customInputValues,
+      artStyleId: resolvedStyle.artStyleId,
       paymentStatus: "PENDING",
       productionStatus: "WAITING",
     },
@@ -118,7 +134,7 @@ export async function payForOrder(
 
   const order = await prisma.storybookOrder.findFirst({
     where: { id: orderId, userId: session.user.id },
-    select: { id: true, paymentStatus: true },
+    select: { id: true, paymentStatus: true, expectedDeliveryAt: true },
   });
 
   if (!order) {
@@ -126,6 +142,11 @@ export async function payForOrder(
   }
 
   if (order.paymentStatus === "PAID") {
+    try {
+      await startOrderPaidGeneration(orderId);
+    } catch (error) {
+      console.error("paid generation failed to start", error);
+    }
     revalidatePath(`/dashboard/orders/${orderId}/preview`);
     return { success: true };
   }
@@ -152,11 +173,67 @@ export async function payForOrder(
 
   await prisma.storybookOrder.update({
     where: { id: orderId },
-    data: { paymentStatus: "PAID" },
+    data: {
+      paymentStatus: "PAID",
+      expectedDeliveryAt:
+        order.expectedDeliveryAt ?? defaultExpectedDeliveryAt(new Date()),
+    },
   });
+
+  try {
+    await startOrderPaidGeneration(orderId);
+  } catch (error) {
+    console.error("paid generation failed to start", error);
+  }
 
   revalidatePath(`/dashboard/orders/${orderId}/preview`);
   revalidatePath(`/dashboard/orders/${orderId}`);
   revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function deleteDraftOrder(orderId: string) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const order = await prisma.storybookOrder.findFirst({
+    where: { id: orderId, userId: session.user.id },
+    include: {
+      illustrations: {
+        select: {
+          imagePath: true,
+          sceneImagePath: true,
+          upscaledImagePath: true,
+        },
+      },
+    },
+  });
+
+  if (!order) {
+    return { error: "주문을 찾을 수 없습니다." };
+  }
+
+  if (order.paymentStatus === "PAID") {
+    return { error: "결제가 끝난 주문은 삭제할 수 없습니다." };
+  }
+
+  for (const illustration of order.illustrations) {
+    await deleteIllustrationFile(illustration.imagePath);
+    await deleteIllustrationFile(illustration.sceneImagePath);
+    await deleteIllustrationFile(illustration.upscaledImagePath);
+  }
+
+  await prisma.$transaction([
+    prisma.review.deleteMany({ where: { storybookOrderId: orderId } }),
+    prisma.illustration.deleteMany({ where: { orderId } }),
+    prisma.photoAlbumPage.deleteMany({ where: { orderId } }),
+    prisma.storybookOrder.delete({ where: { id: orderId } }),
+  ]);
+
+  revalidatePath("/dashboard");
+  revalidatePath("/mypage");
+  revalidatePath(`/dashboard/orders/${orderId}/preview`);
   return { success: true };
 }

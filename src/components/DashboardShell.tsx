@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import { auth } from "@/auth";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type DashboardShellProps = {
   title: string;
@@ -16,13 +17,8 @@ export async function DashboardShell({ title, children }: DashboardShellProps) {
       <div className="mx-auto w-full max-w-6xl">
         <header className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium tracking-wide text-stone-500"
-            >
-              storybook-app
-            </Link>
-            <h1 className="truncate text-2xl font-semibold tracking-tight">
+            <BrandLogo href="/" size="sm" />
+            <h1 className="mt-2 truncate text-2xl font-semibold tracking-tight">
               {title}
             </h1>
           </div>
@@ -36,14 +32,22 @@ export async function DashboardShell({ title, children }: DashboardShellProps) {
               </Link>
             ) : null}
             {session?.user ? (
-              <form action={logout}>
-                <button
-                  type="submit"
-                  className="h-10 rounded-xl border border-stone-300 px-4 text-sm font-medium hover:bg-white"
+              <>
+                <Link
+                  href="/mypage"
+                  className="flex h-10 items-center rounded-xl border border-stone-300 px-4 text-sm font-medium hover:bg-white"
                 >
-                  로그아웃
-                </button>
-              </form>
+                  마이페이지
+                </Link>
+                <form action={logout}>
+                  <button
+                    type="submit"
+                    className="h-10 rounded-xl border border-stone-300 px-4 text-sm font-medium hover:bg-white"
+                  >
+                    로그아웃
+                  </button>
+                </form>
+              </>
             ) : (
               <Link
                 href="/login?callbackUrl=/dashboard"

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppImage } from "@/components/AppImage";
+import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { OrderPreviewPayButton } from "@/components/OrderPreviewPayButton";
 import { OrderPreviewShareButton } from "@/components/OrderPreviewShareButton";
@@ -16,6 +17,7 @@ export function OrderPreviewBook({
   pages,
   paid,
   ready,
+  bookComplete,
   orderId,
 }: {
   title: string;
@@ -23,6 +25,7 @@ export function OrderPreviewBook({
   pages: PreviewBookPage[];
   paid: boolean;
   ready: boolean;
+  bookComplete: boolean;
   orderId: string;
 }) {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -37,7 +40,11 @@ export function OrderPreviewBook({
     return () => media.removeEventListener("change", apply);
   }, []);
 
-  const lastIndex = isDesktop ? 1 : pages.length - 1;
+  const desktopLastIndex = Math.max(
+    0,
+    Math.ceil(Math.max(pages.length - 1, 0) / 2),
+  );
+  const lastIndex = isDesktop ? desktopLastIndex : pages.length - 1;
   const safeIndex = Math.min(index, lastIndex);
 
   useEffect(() => {
@@ -45,17 +52,17 @@ export function OrderPreviewBook({
   }, [lastIndex]);
 
   useEffect(() => {
-    if (isDesktop || paid) {
+    if (isDesktop) {
       return;
     }
     pageRefs.current[safeIndex]?.scrollIntoView({
       behavior: "smooth",
       block: "center",
     });
-  }, [safeIndex, isDesktop, paid]);
+  }, [safeIndex, isDesktop]);
 
   useEffect(() => {
-    if (isDesktop || paid) {
+    if (isDesktop) {
       return;
     }
 
@@ -84,7 +91,7 @@ export function OrderPreviewBook({
 
     nodes.forEach((node) => observer.observe(node));
     return () => observer.disconnect();
-  }, [isDesktop, paid, pages.length]);
+  }, [isDesktop, pages.length]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -100,10 +107,15 @@ export function OrderPreviewBook({
     return () => window.removeEventListener("keydown", onKey);
   }, [lastIndex]);
 
+  const spread = getDesktopSpread(pages, safeIndex);
+  const completedCount = pages.filter(
+    (page) => page.status === "COMPLETED" && page.imagePath,
+  ).length;
+  const showProgress = paid && !bookComplete;
+  const useSkeleton = paid;
+
   const counterLabel = isDesktop
-    ? safeIndex === 0
-      ? "1 / 3"
-      : "2–3 / 3"
+    ? desktopCounterLabel(pages, safeIndex)
     : `${safeIndex + 1} / ${pages.length}`;
 
   return (
@@ -133,42 +145,86 @@ export function OrderPreviewBook({
           <h1 className="min-w-0 flex-1 truncate text-center text-base font-semibold tracking-tight sm:text-lg">
             {title}
           </h1>
+          {paid ? null : (
+            <DeleteDraftOrderButton
+              orderId={orderId}
+              title={title}
+              redirectTo="/dashboard"
+            />
+          )}
           <OrderPreviewShareButton title={title} />
         </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-40 pt-4 sm:px-4 sm:pt-6">
-        {paid ? (
-          <PaidNotice />
-        ) : (
-          <>
-            <div className="hidden md:flex md:flex-1 md:items-center md:justify-center">
-              <Spread
-                left={safeIndex === 0 ? null : pages[1]}
-                right={safeIndex === 0 ? pages[0] : pages[2]}
-                coverMode={safeIndex === 0}
+        {showProgress ? (
+          <div className="mb-4 rounded-2xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-sky-100 sm:px-6">
+            <p className="text-base font-semibold text-stone-800">
+              AI가 이야기를 그리고 있어요
+            </p>
+            <p className="mt-1 text-sm tabular-nums text-stone-500">
+              {completedCount}/{pages.length} 페이지 완성
+            </p>
+            <div className="mx-auto mt-3 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-stone-200">
+              <div
+                className="h-full rounded-full bg-sky-400 transition-[width] duration-500"
+                style={{
+                  width: `${Math.max((completedCount / Math.max(pages.length, 1)) * 100, 4)}%`,
+                }}
               />
             </div>
+          </div>
+        ) : null}
 
-            <div className="flex flex-col gap-5 md:hidden">
-              {pages.map((page, pageIndex) => (
-                <article
-                  key={`${page.kind}-${page.pageNumber}-${page.id ?? pageIndex}`}
-                  ref={(node) => {
-                    pageRefs.current[pageIndex] = node;
-                  }}
-                  className="scroll-mt-20"
-                >
-                  <BookLeaf page={page} />
-                </article>
-              ))}
-            </div>
-          </>
-        )}
+        <div className="hidden md:flex md:flex-1 md:items-center md:justify-center">
+          <Spread
+            left={spread.left}
+            right={spread.right}
+            coverMode={spread.coverMode}
+            skeleton={useSkeleton}
+          />
+        </div>
+
+        <div className="flex flex-col gap-5 md:hidden">
+          {pages.map((page, pageIndex) => (
+            <article
+              key={`${page.kind}-${page.pageNumber}-${page.id ?? pageIndex}`}
+              ref={(node) => {
+                pageRefs.current[pageIndex] = node;
+              }}
+              className="scroll-mt-20"
+            >
+              <BookLeaf page={page} skeleton={useSkeleton} />
+            </article>
+          ))}
+        </div>
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-sky-100 bg-[#eaf4fb]/95 px-3 py-3 backdrop-blur sm:px-4">
         <div className="mx-auto flex w-full max-w-xl flex-col gap-2.5">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIndex((current) => Math.max(current - 1, 0))}
+              disabled={safeIndex === 0}
+              className="flex h-11 flex-1 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              이전
+            </button>
+            <p className="min-w-[4.5rem] text-center text-sm font-semibold tabular-nums text-stone-600">
+              {counterLabel}
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                setIndex((current) => Math.min(current + 1, lastIndex))
+              }
+              disabled={safeIndex >= lastIndex}
+              className="flex h-11 flex-1 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              다음
+            </button>
+          </div>
           {paid ? (
             <Link
               href="/dashboard"
@@ -177,32 +233,7 @@ export function OrderPreviewBook({
               대시보드로 돌아가기
             </Link>
           ) : (
-            <>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIndex((current) => Math.max(current - 1, 0))}
-                  disabled={safeIndex === 0}
-                  className="flex h-11 flex-1 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  이전
-                </button>
-                <p className="min-w-[4.5rem] text-center text-sm font-semibold tabular-nums text-stone-600">
-                  {counterLabel}
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setIndex((current) => Math.min(current + 1, lastIndex))
-                  }
-                  disabled={safeIndex >= lastIndex}
-                  className="flex h-11 flex-1 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  다음
-                </button>
-              </div>
-              <OrderPreviewPayButton orderId={orderId} ready={ready} />
-            </>
+            <OrderPreviewPayButton orderId={orderId} ready={ready} />
           )}
         </div>
       </footer>
@@ -210,22 +241,67 @@ export function OrderPreviewBook({
   );
 }
 
+function getDesktopSpread(
+  pages: PreviewBookPage[],
+  spreadIndex: number,
+): {
+  left: PreviewBookPage | null;
+  right: PreviewBookPage | null;
+  coverMode: boolean;
+} {
+  if (spreadIndex === 0) {
+    return { left: null, right: pages[0] ?? null, coverMode: true };
+  }
+  const first = 1 + (spreadIndex - 1) * 2;
+  return {
+    left: pages[first] ?? null,
+    right: pages[first + 1] ?? null,
+    coverMode: false,
+  };
+}
+
+function desktopCounterLabel(pages: PreviewBookPage[], spreadIndex: number) {
+  if (spreadIndex === 0) {
+    return `1 / ${pages.length}`;
+  }
+  const first = 1 + (spreadIndex - 1) * 2;
+  const left = pages[first];
+  const right = pages[first + 1];
+  if (left && right) {
+    return `${left.pageNumber}–${right.pageNumber} / ${pages.length}`;
+  }
+  if (left) {
+    return `${left.pageNumber} / ${pages.length}`;
+  }
+  return `${spreadIndex + 1} / ${pages.length}`;
+}
+
 function Spread({
   left,
   right,
   coverMode,
+  skeleton,
 }: {
   left: PreviewBookPage | null;
   right: PreviewBookPage | null;
   coverMode: boolean;
+  skeleton: boolean;
 }) {
   return (
     <div className="flex w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_18px_50px_rgba(47,74,95,0.12)] ring-1 ring-sky-100">
       <div className="w-1/2 border-r border-stone-200/80">
-        {coverMode || !left ? <EmptyLeaf /> : <BookLeaf page={left} flush />}
+        {coverMode || !left ? (
+          <EmptyLeaf />
+        ) : (
+          <BookLeaf page={left} flush skeleton={skeleton} />
+        )}
       </div>
       <div className="w-1/2">
-        {right ? <BookLeaf page={right} flush /> : <EmptyLeaf />}
+        {right ? (
+          <BookLeaf page={right} flush skeleton={skeleton} />
+        ) : (
+          <EmptyLeaf />
+        )}
       </div>
     </div>
   );
@@ -240,9 +316,11 @@ function EmptyLeaf() {
 function BookLeaf({
   page,
   flush = false,
+  skeleton = false,
 }: {
   page: PreviewBookPage;
   flush?: boolean;
+  skeleton?: boolean;
 }) {
   const showImage = page.status === "COMPLETED" && page.imagePath;
 
@@ -271,6 +349,13 @@ function BookLeaf({
             <p className="text-sm font-medium text-red-600">생성 실패</p>
             <p className="text-xs text-stone-500">잠시 후 다시 시도해 주세요</p>
           </div>
+        ) : skeleton ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-stone-100 via-stone-200/80 to-stone-100" />
+            <p className="relative z-10 text-sm font-medium text-stone-500">
+              {page.status === "PROCESSING" ? "그리는 중..." : "대기 중"}
+            </p>
+          </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3">
             {page.id ? (
@@ -298,18 +383,5 @@ function BookLeaf({
         </span>
       </div>
     </figure>
-  );
-}
-
-function PaidNotice() {
-  return (
-    <div className="mx-auto mt-8 max-w-lg rounded-3xl bg-[#FDE8E0] px-6 py-12 text-center ring-1 ring-[#E07A5F]/20 sm:px-10">
-      <p className="text-xl font-semibold text-stone-800">
-        관리자가 나머지 페이지를 제작 중입니다
-      </p>
-      <p className="mt-3 text-sm text-[#E07A5F]">
-        결제가 완료되었어요. 나머지 장면은 관리자가 이어서 그려요.
-      </p>
-    </div>
   );
 }

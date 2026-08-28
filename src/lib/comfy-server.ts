@@ -1,6 +1,14 @@
 export function isComfyMockEnabled() {
   const value = process.env.COMFY_MOCK?.trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes";
+  if (value === "0" || value === "false" || value === "no") {
+    return false;
+  }
+  if (value === "1" || value === "true" || value === "yes") {
+    return true;
+  }
+  return (
+    process.env.VERCEL === "1" || process.env.NODE_ENV === "production"
+  );
 }
 
 function comfyServerBaseUrl() {

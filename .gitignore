@@ -40,6 +40,9 @@ yarn-error.log*
 # user uploads
 /public/uploads
 
+# local illustration smoke-test outputs
+/scripts/output
 
 .vercel
 .env*
+!.env.example

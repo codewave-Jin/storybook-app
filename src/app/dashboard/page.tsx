@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AddCharacterSlot, CharacterCard } from "@/components/CharacterCard";
 import { DashboardCreateActions } from "@/components/DashboardCreateActions";
+import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { DashboardShell } from "@/components/DashboardShell";
 import { characterStatusPayload } from "@/lib/generation-status";
@@ -77,32 +78,44 @@ function RecentOrders({
         </p>
       ) : (
         <ul className="mt-3 space-y-2">
-          {orders.map((order) => (
-            <li key={order.id}>
-              <Link
-                href={
-                  order.paymentStatus === "PAID"
-                    ? `/dashboard/orders/${order.id}`
-                    : `/dashboard/orders/${order.id}/preview`
-                }
-                className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-stone-200 transition hover:bg-sky-50/70 hover:ring-sky-200"
+          {orders.map((order) => {
+            const href = `/dashboard/orders/${order.id}/preview`;
+            const canDelete = order.paymentStatus !== "PAID";
+
+            return (
+              <li
+                key={order.id}
+                className="flex items-center gap-1 rounded-2xl bg-white pr-2 shadow-sm ring-1 ring-stone-200"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-stone-800">
-                    {order.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-stone-500">
-                    {formatDateTime(order.createdAt)}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${PRODUCTION_BADGE[order.productionStatus]}`}
+                <Link
+                  href={href}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition hover:bg-sky-50/70"
                 >
-                  {PRODUCTION_STATUS_LABEL[order.productionStatus]}
-                </span>
-              </Link>
-            </li>
-          ))}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-stone-800">
+                      {order.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                      {formatDateTime(order.createdAt)}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${PRODUCTION_BADGE[order.productionStatus]}`}
+                  >
+                    {PRODUCTION_STATUS_LABEL[order.productionStatus]}
+                  </span>
+                </Link>
+                {canDelete ? (
+                  <DeleteDraftOrderButton
+                    compact
+                    orderId={order.id}
+                    title={order.title}
+                    redirectTo="/dashboard"
+                  />
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -121,7 +134,7 @@ function CharacterGrid({
   return (
     <section className="mt-8">
       <h2 className="text-base font-semibold text-stone-800">내 캐릭터</h2>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="mt-3 grid grid-cols-4 gap-1.5 sm:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
         {characters.map((character) => (
           <CharacterCard key={character.id} character={character} />
         ))}
@@ -236,13 +249,13 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {hasCompleted ? <DashboardCreateActions /> : null}
+
       <CharacterGrid
         characters={characters}
         canCreate={canCreate}
         addHref="/dashboard/characters/new"
       />
-
-      {hasCompleted ? <DashboardCreateActions /> : null}
 
       <RecentOrders orders={orders} />
     </DashboardShell>

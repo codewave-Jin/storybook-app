@@ -1,98 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-
-function BookIcon() {
-  return (
-    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
-      <rect x="8" y="10" width="32" height="28" rx="4" fill="#E0F2FE" />
-      <path
-        d="M24 12v24M12 16h8M12 22h8M28 16h8M28 22h8"
-        stroke="#38BDF8"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function StickerIcon() {
-  return (
-    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
-      <rect x="10" y="10" width="28" height="28" rx="8" fill="#FDE8E0" />
-      <circle cx="20" cy="22" r="2.2" fill="#E07A5F" />
-      <circle cx="28" cy="22" r="2.2" fill="#E07A5F" />
-      <path
-        d="M18 29c2 2.5 10 2.5 12 0"
-        fill="none"
-        stroke="#E07A5F"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function EmojiIcon() {
-  return (
-    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
-      <rect x="10" y="10" width="28" height="28" rx="8" fill="#E8E0D8" />
-      <circle cx="20" cy="22" r="2" fill="#A8988C" />
-      <circle cx="28" cy="22" r="2" fill="#A8988C" />
-      <path
-        d="M18 29c2 2.5 10 2.5 12 0"
-        fill="none"
-        stroke="#A8988C"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function VideoIcon() {
-  return (
-    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
-      <rect x="8" y="14" width="24" height="20" rx="4" fill="#E8E0D8" />
-      <path d="M34 20l6-3v14l-6-3V20z" fill="#C4B6AA" />
-      <path d="M17 21l8 5-8 5V21z" fill="#A8988C" />
-    </svg>
-  );
-}
+import { useState } from "react";
+import { AppImage } from "@/components/AppImage";
 
 function ComingSoonCard({
   title,
   description,
-  icon,
+  image,
+  imageFit = "cover",
 }: {
   title: string;
   description: string;
-  icon: ReactNode;
+  image: string;
+  imageFit?: "cover" | "contain";
 }) {
   const [hint, setHint] = useState(false);
+  const isContain = imageFit === "contain";
 
   return (
     <button
       type="button"
+      aria-disabled="true"
       onClick={() => setHint(true)}
-      className="flex cursor-not-allowed flex-col rounded-[24px] bg-white/70 p-5 text-left opacity-60 ring-1 ring-stone-200 grayscale"
+      className="flex cursor-not-allowed items-center gap-3 rounded-2xl bg-stone-50 p-3 text-left ring-1 ring-stone-200 sm:gap-4 sm:p-4"
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100">
-          {icon}
-        </span>
-        <span className="rounded-full bg-stone-200 px-2.5 py-1 text-[11px] font-medium text-stone-500">
-          Coming Soon
-        </span>
-      </div>
-      <h3 className="mt-4 font-semibold text-stone-600">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-stone-500">{description}</p>
-      {hint ? (
-        <p className="mt-3 text-sm font-medium text-stone-500">
-          곧 만나보실 수 있어요
+      <span
+        className={`relative shrink-0 overflow-hidden rounded-xl bg-stone-100 ${
+          isContain ? "aspect-video h-16" : "h-16 w-16"
+        }`}
+      >
+        <AppImage
+          src={image}
+          alt=""
+          fill
+          className={isContain ? "object-contain object-center opacity-70" : "object-cover opacity-70"}
+          sizes={isContain ? "100px" : "64px"}
+        />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold text-stone-500">{title}</h3>
+          <span className="inline-flex rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-medium text-stone-500">
+            Coming Soon
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs leading-relaxed text-stone-400">
+          {description}
         </p>
-      ) : null}
+        {hint ? (
+          <p className="mt-1.5 text-xs font-medium text-stone-500">
+            곧 만나보실 수 있어요
+          </p>
+        ) : null}
+      </div>
     </button>
   );
 }
@@ -101,60 +62,97 @@ function AvailableCard({
   href,
   title,
   description,
-  icon,
+  image,
+  accent,
 }: {
   href: string;
   title: string;
   description: string;
-  icon: ReactNode;
+  image: string;
+  accent: "sky" | "coral";
 }) {
+  const ring =
+    accent === "sky"
+      ? "ring-sky-300 hover:ring-sky-400 bg-sky-50/80 hover:bg-sky-100/70"
+      : "ring-[#E07A5F]/35 hover:ring-[#E07A5F]/55 bg-[#FFF6F3] hover:bg-[#FDE8E0]/70";
+  const cta =
+    accent === "sky"
+      ? "bg-sky-400 text-white"
+      : "bg-[#E07A5F] text-white";
+
   return (
     <Link
       href={href}
-      className="flex flex-col rounded-[24px] bg-white p-5 text-left shadow-sm ring-2 ring-sky-200 transition hover:bg-sky-50/60 hover:ring-sky-400"
+      className={`flex items-center gap-3 rounded-[22px] p-3 text-left shadow-sm ring-2 transition sm:gap-4 sm:p-4 ${ring}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-100">
-          {icon}
-        </span>
-        <span className="rounded-full bg-[#F6E7C1] px-2.5 py-1 text-[11px] font-medium text-[#8A5A12]">
-          지금 이용 가능
+      <span className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm sm:h-24 sm:w-24">
+        <AppImage
+          src={image}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="96px"
+        />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-base font-bold text-stone-800 sm:text-lg">
+            {title}
+          </h3>
+          <span className="inline-flex rounded-full bg-[#F6E7C1] px-2.5 py-1 text-[11px] font-medium text-[#8A5A12]">
+            지금 이용 가능
+          </span>
+        </div>
+        <p className="mt-1 text-sm leading-relaxed text-stone-600">
+          {description}
+        </p>
+        <span
+          className={`mt-3 inline-flex h-9 items-center rounded-full px-4 text-sm font-semibold ${cta}`}
+        >
+          시작하기 ›
         </span>
       </div>
-      <h3 className="mt-4 font-semibold text-stone-800">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-stone-500">{description}</p>
     </Link>
   );
 }
 
 export function DashboardCreateActions() {
   return (
-    <section className="mt-8">
-      <h2 className="text-base font-semibold text-stone-800">만들기</h2>
+    <section className="mt-6 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-sky-100 sm:mt-8 sm:p-6">
+      <h2 className="text-lg font-semibold tracking-tight text-stone-800 sm:text-xl">
+        이제 만들어볼까요?
+      </h2>
       <p className="mt-1 text-sm text-stone-500">
-        하나의 캐릭터로 다양한 콘텐츠를 즐길 수 있어요
+        완성한 캐릭터로 동화책이나 스티커를 시작해 보세요
       </p>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
         <AvailableCard
           href="/dashboard/order/new"
-          icon={<BookIcon />}
-          title="나만의 동화책 만들기"
+          image="/landing/make-storybook.jpg"
+          title="동화책"
           description="우리 가족이 주인공인 특별한 이야기"
+          accent="sky"
         />
         <AvailableCard
           href="/dashboard/sticker/new"
-          icon={<StickerIcon />}
-          title="스티커 만들기"
+          image="/landing/make-sticker.jpg"
+          title="스티커"
           description="일기장, 편지, 선물 포장에 붙이는 우리 가족 스티커"
+          accent="coral"
         />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         <ComingSoonCard
-          icon={<EmojiIcon />}
-          title="이모티콘 만들기"
+          image="/landing/make-emoji.jpg"
+          title="이모티콘"
           description="카카오톡, 메시지에서 쓰는 우리 가족 이모티콘"
         />
         <ComingSoonCard
-          icon={<VideoIcon />}
-          title="동영상 만들기"
+          image="/landing/make-video.jpg"
+          imageFit="contain"
+          title="영상"
           description="우리 가족이 움직이고 말하는 짧은 영상"
         />
       </div>

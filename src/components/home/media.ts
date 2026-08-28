@@ -38,8 +38,6 @@ export function characterStartHref() {
   return "/dashboard";
 }
 
-export function storybookStartHref(isLoggedIn: boolean) {
-  return isLoggedIn
-    ? "/dashboard/order/new"
-    : "/login?callbackUrl=/dashboard/order/new";
+export function storybookStartHref() {
+  return "/dashboard";
 }

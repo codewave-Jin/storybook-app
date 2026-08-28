@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/actions/auth";
+import { BrandLogo } from "@/components/BrandLogo";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -19,10 +20,11 @@ export function AdminSidebar() {
     <aside className="sticky top-0 z-40 flex w-full shrink-0 flex-col border-b border-stone-200 bg-white lg:static lg:w-60 lg:border-b-0 lg:border-r">
       <div className="flex items-center justify-between gap-3 px-4 py-3 lg:block lg:border-b lg:border-stone-200 lg:px-5 lg:py-5">
         <div>
-          <p className="text-xs font-medium tracking-wide text-stone-400">
+          <BrandLogo href="/admin" size="sm" />
+          <p className="mt-2 text-xs font-medium tracking-wide text-stone-400">
             ADMIN
           </p>
-          <Link href="/admin" className="block text-base font-semibold lg:mt-1 lg:text-lg">
+          <Link href="/admin" className="block text-base font-semibold lg:text-lg">
             관리자
           </Link>
         </div>

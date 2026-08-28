@@ -1,15 +1,23 @@
 import { revalidatePath } from "next/cache";
 
+function safeRevalidate(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // CLI / non-Next context (tsx scripts) has no app router cache.
+  }
+}
+
 export function revalidateIllustrationWork(orderId: string) {
-  revalidatePath(`/admin/illustrations/${orderId}`);
+  safeRevalidate(`/admin/illustrations/${orderId}`);
 }
 
 export function revalidateAdminOrderViews(orderId: string) {
-  revalidatePath("/admin");
-  revalidatePath("/admin/orders");
-  revalidatePath(`/admin/orders/${orderId}`);
-  revalidatePath("/admin/illustrations");
-  revalidatePath(`/admin/illustrations/${orderId}`);
-  revalidatePath("/admin/upscale");
-  revalidatePath(`/admin/upscale/${orderId}`);
+  safeRevalidate("/admin");
+  safeRevalidate("/admin/orders");
+  safeRevalidate(`/admin/orders/${orderId}`);
+  safeRevalidate("/admin/illustrations");
+  safeRevalidate(`/admin/illustrations/${orderId}`);
+  safeRevalidate("/admin/upscale");
+  safeRevalidate(`/admin/upscale/${orderId}`);
 }

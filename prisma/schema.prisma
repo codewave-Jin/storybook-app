@@ -22,6 +22,8 @@ model User {
   tokenTransactions TokenTransaction[]
   orders            StorybookOrder[]
   stickerOrders     StickerOrder[]
+  reviews           Review[]
+  orderStatusLogs   OrderStatusLog[]
 }
 
 model TokenBalance {
@@ -88,9 +90,71 @@ model StorybookTemplate {
   title        String
   description  String?
   category     TemplateCategory @default(FUN)
+  /// Legacy JSON question fields; prefer TemplateQuestion going forward.
   customFields Json
   topicPresets Json             @default("[]")
   orders       StorybookOrder[]
+  pageTemplates PageTemplate[]
+  questions    TemplateQuestion[]
+  artStyles    TemplateArtStyle[]
+}
+
+model PageTemplate {
+  id                  String               @id @default(cuid())
+  storybookTemplateId String
+  storybookTemplate   StorybookTemplate    @relation(fields: [storybookTemplateId], references: [id], onDelete: Cascade)
+  pageNumber          Int
+  pageType            IllustrationPageType @default(PAGE)
+  promptTemplate      String
+  characterSlots      Int                  @default(1)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@unique([storybookTemplateId, pageNumber])
+  @@index([storybookTemplateId])
+}
+
+model TemplateQuestion {
+  id                  String            @id @default(cuid())
+  storybookTemplateId String
+  storybookTemplate   StorybookTemplate @relation(fields: [storybookTemplateId], references: [id], onDelete: Cascade)
+  key                 String
+  label               String
+  answerType          String            @default("text")
+  placeholder         String?
+  required            Boolean           @default(true)
+  sortOrder           Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([storybookTemplateId, key])
+  @@index([storybookTemplateId, sortOrder])
+}
+
+model ArtStyle {
+  id                 String   @id @default(cuid())
+  key                String   @unique
+  label              String
+  /// Supabase Storage public URL for style reference image
+  referenceImageUrl  String?
+  sortOrder          Int      @default(0)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  templates TemplateArtStyle[]
+  orders    StorybookOrder[]
+}
+
+model TemplateArtStyle {
+  storybookTemplateId String
+  artStyleId          String
+  storybookTemplate   StorybookTemplate @relation(fields: [storybookTemplateId], references: [id], onDelete: Cascade)
+  artStyle            ArtStyle          @relation(fields: [artStyleId], references: [id], onDelete: Cascade)
+  sortOrder           Int               @default(0)
+
+  @@id([storybookTemplateId, artStyleId])
+  @@index([artStyleId])
 }
 
 model StorybookOrder {
@@ -101,13 +165,23 @@ model StorybookOrder {
   template             StorybookTemplate @relation(fields: [templateId], references: [id])
   selectedCharacterIds Json
   customInputValues    Json
+  artStyleId           String?
+  artStyle             ArtStyle?        @relation(fields: [artStyleId], references: [id], onDelete: SetNull)
   paymentStatus        PaymentStatus    @default(PENDING)
   productionStatus     ProductionStatus @default(WAITING)
+  fulfillmentStatus    FulfillmentStatus @default(PREPARING)
+  expectedDeliveryAt   DateTime?
+  shippingCarrier      String?
+  trackingNumber       String?
   previewGeneratedAt   DateTime?
   createdAt            DateTime         @default(now())
 
   illustrations   Illustration[]
   photoAlbumPages PhotoAlbumPage[]
+  review          Review?
+  statusLogs      OrderStatusLog[]
+
+  @@index([artStyleId])
 }
 
 enum PaymentStatus {
@@ -121,6 +195,30 @@ enum ProductionStatus {
   ILLUSTRATING
   UPSCALING
   COMPLETED
+}
+
+enum FulfillmentStatus {
+  PREPARING
+  PRINTING
+  PRINTED
+  SHIPPING
+  DELIVERED
+}
+
+model OrderStatusLog {
+  id              String             @id @default(cuid())
+  orderId         String             @map("order_id")
+  order           StorybookOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus      FulfillmentStatus? @map("from_status")
+  toStatus        FulfillmentStatus  @map("to_status")
+  carrier         String?
+  trackingNumber  String?            @map("tracking_number")
+  actorId         String?            @map("actor_id")
+  actor           User?              @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  @@index([orderId, createdAt])
+  @@map("order_status_logs")
 }
 
 model Illustration {
@@ -163,12 +261,44 @@ model PhotoAlbumPage {
 }
 
 model StickerTemplate {
-  id             String         @id @default(cuid())
-  label          String
-  thumbnailPath  String?
-  promptModifier String
-  createdAt      DateTime       @default(now())
-  orders         StickerOrder[]
+  id                       String         @id @default(cuid())
+  key                      String         @unique
+  label                    String
+  thumbnailPath            String?
+  promptModifier           String
+  /// Circular sticker frame / design reference (uploaded later by admin)
+  designReferenceImageUrl  String?
+  createdAt                DateTime       @default(now())
+  orders                   StickerOrder[]
+  costumes                 TemplateCostume[]
+}
+
+model StickerCostume {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  label             String
+  /// Unused for now; kept for a possible future costume reference image
+  referenceImageUrl String?
+  /// Text-only costume transform, e.g. "Transform the character into a butterfly costume..."
+  promptHint        String   @default("")
+  sortOrder         Int      @default(0)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  templates TemplateCostume[]
+  orders    StickerOrder[]
+}
+
+model TemplateCostume {
+  stickerTemplateId String
+  costumeId         String
+  stickerTemplate   StickerTemplate @relation(fields: [stickerTemplateId], references: [id], onDelete: Cascade)
+  costume           StickerCostume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
+  sortOrder         Int             @default(0)
+
+  @@id([stickerTemplateId, costumeId])
+  @@index([costumeId])
 }
 
 model StickerPhrasePreset {
@@ -186,20 +316,55 @@ model StickerSizeOption {
 }
 
 model StickerOrder {
-  id               String           @id @default(cuid())
+  id               String            @id @default(cuid())
   userId           String
-  user             User             @relation(fields: [userId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
   characterId      String
-  character        Character        @relation(fields: [characterId], references: [id])
+  character        Character         @relation(fields: [characterId], references: [id])
   templateId       String
-  template         StickerTemplate  @relation(fields: [templateId], references: [id])
+  template         StickerTemplate   @relation(fields: [templateId], references: [id])
+  costumeId        String?
+  costume          StickerCostume?   @relation(fields: [costumeId], references: [id], onDelete: SetNull)
   phrase           String
   sizeOptionId     String
   sizeOption       StickerSizeOption @relation(fields: [sizeOptionId], references: [id])
   quantity         Int
   previewImagePath String?
   finalImagePath   String?
-  paymentStatus    PaymentStatus    @default(PENDING)
-  productionStatus ProductionStatus @default(WAITING)
-  createdAt        DateTime         @default(now())
+  paymentStatus    PaymentStatus     @default(PENDING)
+  productionStatus ProductionStatus  @default(WAITING)
+  createdAt        DateTime          @default(now())
+  review           Review?
+
+  @@index([costumeId])
+}
+
+model Review {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  user             User     @relation(fields: [userId], references: [id])
+  storybookOrderId String?  @unique @map("storybook_order_id")
+  storybookOrder   StorybookOrder? @relation(fields: [storybookOrderId], references: [id])
+  stickerOrderId   String?  @unique @map("sticker_order_id")
+  stickerOrder     StickerOrder? @relation(fields: [stickerOrderId], references: [id])
+  productId        String?  @map("product_id")
+  rating           Int      @db.SmallInt
+  content          String
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  images           ReviewImage[]
+
+  @@index([userId, createdAt])
+  @@map("reviews")
+}
+
+model ReviewImage {
+  id        String @id @default(cuid())
+  reviewId  String @map("review_id")
+  review    Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  imageUrl  String @map("image_url")
+  sortOrder Int    @default(0) @map("sort_order") @db.SmallInt
+
+  @@index([reviewId])
+  @@map("review_images")
 }

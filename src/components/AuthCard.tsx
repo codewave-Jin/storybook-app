@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
 
 type AuthCardProps = {
@@ -21,16 +22,10 @@ export function AuthCard({
     <main className="flex min-h-dvh items-center justify-center bg-stone-50 px-4 py-8 text-stone-900 sm:px-6">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium tracking-wide text-sky-500"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-400 text-xs font-semibold text-white">
-              S
-            </span>
-            스토리북
-          </Link>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <div className="flex justify-center">
+            <BrandLogo href="/" size="lg" priority />
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
             {title}
           </h1>
           <p className="mt-2 text-sm text-stone-500 sm:text-base">{subtitle}</p>

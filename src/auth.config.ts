@@ -14,7 +14,7 @@ export const authConfig = {
   },
   callbacks: {
     jwt({ token, user }) {
-      if (user && "isAdmin" in user) {
+      if (user) {
         token.isAdmin = Boolean((user as SessionUser).isAdmin);
       }
       return token;
@@ -27,14 +27,11 @@ export const authConfig = {
       return session;
     },
     authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const isOnAdmin = nextUrl.pathname.startsWith("/admin");
-
-      if (isOnAdmin) {
-        return isLoggedIn;
+      if (!nextUrl.pathname.startsWith("/admin")) {
+        return true;
       }
 
-      return true;
+      return Boolean(auth?.user);
     },
   },
   providers: [],

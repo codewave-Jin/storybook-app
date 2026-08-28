@@ -13,12 +13,16 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.blob.vercel-storage.com",
       },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+      },
     ],
   },
   experimental: {
     serverComponentsExternalPackages: ["bcryptjs", "archiver", "openai"],
     serverActions: {
-      bodySizeLimit: "8mb",
+      bodySizeLimit: "20mb",
     },
   },
 };

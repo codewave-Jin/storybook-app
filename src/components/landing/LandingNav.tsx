@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const LINKS = [
   { href: "#products", label: "만들 수 있는 것" },
@@ -15,12 +16,7 @@ export function LandingNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-sky-100/80 bg-stone-50/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:h-16 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 text-sky-500">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400 text-sm font-semibold text-white">
-            S
-          </span>
-          <span className="text-lg font-semibold tracking-tight">스토리북</span>
-        </Link>
+        <BrandLogo href="/" size="sm" priority />
 
         <nav className="hidden items-center gap-6 text-sm text-stone-600 md:flex">
           {LINKS.map((link) => (

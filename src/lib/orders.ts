@@ -13,6 +13,43 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   FAILED: "결제실패",
 };
 
+export function getFulfillmentLabel(
+  paymentStatus: PaymentStatus,
+  productionStatus: ProductionStatus,
+): string {
+  if (paymentStatus !== "PAID") {
+    return "미리보기";
+  }
+
+  switch (productionStatus) {
+    case "WAITING":
+      return "제작 대기";
+    case "ILLUSTRATING":
+    case "UPSCALING":
+      return "제작 중";
+    case "COMPLETED":
+      return "제작 완료 · 배송 준비";
+    default:
+      return PRODUCTION_STATUS_LABEL[productionStatus];
+  }
+}
+
+export function getFulfillmentHint(
+  paymentStatus: PaymentStatus,
+  productionStatus: ProductionStatus,
+): string | null {
+  if (paymentStatus !== "PAID") {
+    return "결제 후 제작·배송이 시작됩니다.";
+  }
+  if (productionStatus === "COMPLETED") {
+    return "영업일 기준 6~7일 내 제작·배송됩니다.";
+  }
+  if (productionStatus === "WAITING") {
+    return "곧 제작을 시작합니다.";
+  }
+  return "제작이 진행 중이에요.";
+}
+
 export type PaymentListFilter = "PAID" | "PENDING" | "ALL";
 
 export const PAYMENT_STATUS_FILTERS: Array<{
@@ -66,5 +103,14 @@ export function formatDateTime(date: Date): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+  }).format(date);
+}
+
+export function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).format(date);
 }

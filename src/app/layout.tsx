@@ -14,9 +14,26 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "스토리북 | 사진으로 만드는 우리 아이 캐릭터",
+  title: "판바기 | 사진으로 만드는 우리 아이 캐릭터",
   description:
     "아이 사진으로 캐릭터를 만들고, 그 캐릭터로 동화책·스티커·이모티콘·영상을 이어 가세요.",
+  applicationName: "판바기",
+  icons: {
+    icon: [
+      { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/brand/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/brand/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: "/favicon.ico",
+  },
+  openGraph: {
+    siteName: "판바기",
+    title: "판바기 | 사진으로 만드는 우리 아이 캐릭터",
+    description:
+      "아이 사진으로 캐릭터를 만들고, 그 캐릭터로 동화책·스티커·이모티콘·영상을 이어 가세요.",
+    images: [{ url: "/brand/panbagi-icon.png" }],
+  },
 };
 
 export default function RootLayout({

@@ -9,7 +9,7 @@ export function OrderPreviewShareButton({ title }: { title: string }) {
     const url = window.location.href;
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${title} · 스토리북`, url });
+        await navigator.share({ title: `${title} · 판바기`, url });
         return;
       }
     } catch (error) {

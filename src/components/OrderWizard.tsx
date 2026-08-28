@@ -9,11 +9,19 @@ import { createOrder, type CreateOrderState } from "@/app/actions/orders";
 import type { CustomField } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
+export type OrderArtStyleOption = {
+  id: string;
+  key: string;
+  label: string;
+  referenceImageUrl: string;
+};
+
 export type OrderTemplateOption = {
   id: string;
   title: string;
   description: string | null;
   customFields: CustomField[];
+  artStyles: OrderArtStyleOption[];
 };
 
 export type OrderCharacterOption = {
@@ -25,11 +33,31 @@ export type OrderCharacterOption = {
   originalPhotoPath: string;
 };
 
-const STEP_LABELS = ["동화책 유형", "캐릭터", "추가 정보", "미리보기"] as const;
+const STEP_LABELS = [
+  "동화책 유형",
+  "그림체",
+  "캐릭터",
+  "추가 정보",
+  "미리보기",
+] as const;
 const GENDER_LABEL = {
   MALE: "남자아이",
   FEMALE: "여자아이",
 } as const;
+
+const STEP_TEMPLATE = 1;
+const STEP_ART_STYLE = 2;
+const STEP_CHARACTERS = 3;
+const STEP_FIELDS = 4;
+const STEP_CONFIRM = 5;
+
+function defaultArtStyleId(styles: OrderArtStyleOption[]) {
+  return (
+    styles.find((style) => style.key === "watercolor")?.id ??
+    styles[0]?.id ??
+    null
+  );
+}
 
 function PreviewButton() {
   const { pending } = useFormStatus();
@@ -52,8 +80,9 @@ export function OrderWizard({
   templates: OrderTemplateOption[];
   characters: OrderCharacterOption[];
 }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(STEP_TEMPLATE);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [artStyleId, setArtStyleId] = useState<string | null>(null);
   const [characterIds, setCharacterIds] = useState<string[]>([]);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, formAction] = useFormState<CreateOrderState, FormData>(
@@ -63,26 +92,37 @@ export function OrderWizard({
 
   const selectedTemplate = templates.find((template) => template.id === templateId);
   const customFields = selectedTemplate?.customFields ?? [];
+  const artStyles = selectedTemplate?.artStyles ?? [];
+  const selectedArtStyle = artStyles.find((style) => style.id === artStyleId);
   const selectedCharacters = characters.filter((character) =>
     characterIds.includes(character.id),
   );
 
+  const canSkipArtStyle = artStyles.length === 0;
   const canSkipFields = customFields.length === 0;
 
   function goNext() {
-    if (step === 2 && canSkipFields) {
-      setStep(4);
+    if (step === STEP_TEMPLATE && canSkipArtStyle) {
+      setStep(STEP_CHARACTERS);
       return;
     }
-    setStep((current) => Math.min(current + 1, 4));
+    if (step === STEP_CHARACTERS && canSkipFields) {
+      setStep(STEP_CONFIRM);
+      return;
+    }
+    setStep((current) => Math.min(current + 1, STEP_CONFIRM));
   }
 
   function goPrev() {
-    if (step === 4 && canSkipFields) {
-      setStep(2);
+    if (step === STEP_CONFIRM && canSkipFields) {
+      setStep(STEP_CHARACTERS);
       return;
     }
-    setStep((current) => Math.max(current - 1, 1));
+    if (step === STEP_CHARACTERS && canSkipArtStyle) {
+      setStep(STEP_TEMPLATE);
+      return;
+    }
+    setStep((current) => Math.max(current - 1, STEP_TEMPLATE));
   }
 
   function toggleCharacter(id: string, selectable: boolean) {
@@ -100,26 +140,41 @@ export function OrderWizard({
   }
 
   const canNext = useMemo(() => {
-    if (step === 1) return Boolean(templateId);
-    if (step === 2) return characterIds.length >= 1 && characterIds.length <= 3;
-    if (step === 3) {
+    if (step === STEP_TEMPLATE) return Boolean(templateId);
+    if (step === STEP_ART_STYLE) {
+      return canSkipArtStyle || Boolean(artStyleId);
+    }
+    if (step === STEP_CHARACTERS) {
+      return characterIds.length >= 1 && characterIds.length <= 3;
+    }
+    if (step === STEP_FIELDS) {
       return customFields.every((field) => customValues[field.key]?.trim());
     }
     return true;
-  }, [step, templateId, characterIds, customFields, customValues]);
+  }, [
+    step,
+    templateId,
+    artStyleId,
+    canSkipArtStyle,
+    characterIds,
+    customFields,
+    customValues,
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-4xl">
       <div className="mb-6">
         <p className="text-sm font-medium text-stone-500">
-          {step}/4 · {STEP_LABELS[step - 1]}
+          {step}/{STEP_LABELS.length} · {STEP_LABELS[step - 1]}
         </p>
-        <div className="mt-3 grid grid-cols-4 gap-2">
+        <div className="mt-3 grid grid-cols-5 gap-2">
           {STEP_LABELS.map((label, index) => {
             const number = index + 1;
             const active = number === step;
-            const skipped = canSkipFields && number === 3;
-            const done = number < step || (skipped && step > 3);
+            const skipped =
+              (canSkipArtStyle && number === STEP_ART_STYLE) ||
+              (canSkipFields && number === STEP_FIELDS);
+            const done = number < step || (skipped && step > number);
 
             return (
               <div key={label} className="min-w-0">
@@ -143,7 +198,7 @@ export function OrderWizard({
         </div>
       </div>
 
-      {step === 1 ? (
+      {step === STEP_TEMPLATE ? (
         <section>
           <h2 className="text-lg font-semibold">동화책 유형을 선택해 주세요</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -156,6 +211,7 @@ export function OrderWizard({
                   onClick={() => {
                     setTemplateId(template.id);
                     setCustomValues({});
+                    setArtStyleId(defaultArtStyleId(template.artStyles));
                   }}
                   className={cn(
                     "rounded-2xl border bg-white p-5 text-left shadow-sm transition",
@@ -175,7 +231,52 @@ export function OrderWizard({
         </section>
       ) : null}
 
-      {step === 2 ? (
+      {step === STEP_ART_STYLE ? (
+        <section>
+          <h2 className="text-lg font-semibold">그림체를 선택해 주세요</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            동화책 전체에 적용될 그림 스타일입니다. 하나만 고를 수 있어요.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {artStyles.map((style) => {
+              const selected = style.id === artStyleId;
+              return (
+                <label
+                  key={style.id}
+                  className={cn(
+                    "relative cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm",
+                    selected
+                      ? "border-sky-400 ring-2 ring-sky-300"
+                      : "border-stone-200 hover:border-stone-400",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="artStyle"
+                    className="sr-only"
+                    checked={selected}
+                    onChange={() => setArtStyleId(style.id)}
+                  />
+                  <div className="relative aspect-[4/5] bg-stone-100">
+                    <AppImage
+                      src={style.referenceImageUrl}
+                      alt={style.label}
+                      fill
+                      className="pointer-events-none object-cover"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    />
+                  </div>
+                  <div className="p-4">
+                    <p className="font-semibold">{style.label}</p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {step === STEP_CHARACTERS ? (
         <section>
           <h2 className="text-lg font-semibold">등장할 캐릭터를 선택해 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
@@ -277,7 +378,7 @@ export function OrderWizard({
         </section>
       ) : null}
 
-      {step === 3 ? (
+      {step === STEP_FIELDS ? (
         <section>
           <h2 className="text-lg font-semibold">추가 정보를 입력해 주세요</h2>
           <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
@@ -305,7 +406,7 @@ export function OrderWizard({
         </section>
       ) : null}
 
-      {step === 4 ? (
+      {step === STEP_CONFIRM ? (
         <section>
           <h2 className="text-lg font-semibold">주문 내용을 확인해 주세요</h2>
           <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
@@ -313,6 +414,12 @@ export function OrderWizard({
               <p className="text-sm text-stone-500">동화책</p>
               <p className="mt-1 font-medium">{selectedTemplate?.title}</p>
             </div>
+            {selectedArtStyle ? (
+              <div>
+                <p className="text-sm text-stone-500">그림체</p>
+                <p className="mt-1 font-medium">{selectedArtStyle.label}</p>
+              </div>
+            ) : null}
             <div>
               <p className="text-sm text-stone-500">선택한 캐릭터</p>
               <ul className="mt-1 space-y-1">
@@ -346,6 +453,7 @@ export function OrderWizard({
 
           <form action={formAction} className="mt-6">
             <input type="hidden" name="templateId" value={templateId ?? ""} />
+            <input type="hidden" name="artStyleId" value={artStyleId ?? ""} />
             {characterIds.map((id) => (
               <input key={id} type="hidden" name="characterIds" value={id} />
             ))}
@@ -367,9 +475,9 @@ export function OrderWizard({
         </section>
       ) : null}
 
-      {step !== 4 ? (
+      {step !== STEP_CONFIRM ? (
         <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-          {step > 1 ? (
+          {step > STEP_TEMPLATE ? (
             <button
               type="button"
               onClick={goPrev}
@@ -378,7 +486,12 @@ export function OrderWizard({
               이전
             </button>
           ) : (
-            <span />
+            <Link
+              href="/dashboard"
+              className="flex h-12 items-center justify-center rounded-xl border border-stone-300 px-6 text-sm font-medium hover:bg-white"
+            >
+              대시보드로
+            </Link>
           )}
           <button
             type="button"

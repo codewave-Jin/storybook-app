@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AppImage } from "@/components/AppImage";
-import { storybookStartHref } from "@/components/home/media";
 
 function ComingSoonCard({
   title,
@@ -99,7 +98,7 @@ function AvailableCard({
   );
 }
 
-export function MakeMore({ isLoggedIn }: { isLoggedIn: boolean }) {
+export function MakeMore() {
   return (
     <section
       id="products"
@@ -117,14 +116,14 @@ export function MakeMore({ isLoggedIn }: { isLoggedIn: boolean }) {
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
         <AvailableCard
-          href={storybookStartHref(isLoggedIn)}
+          href="/dashboard"
           image="/landing/make-storybook.jpg"
           title="동화책"
           description="우리 가족이 주인공인 특별한 이야기"
         />
 
         <AvailableCard
-          href={isLoggedIn ? "/dashboard" : "/signup"}
+          href="/dashboard"
           image="/landing/make-sticker.jpg"
           title="스티커"
           description="일기장, 편지, 선물 포장에 붙이는 우리 가족 스티커"

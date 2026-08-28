@@ -3,8 +3,8 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const DEMO_EMAIL = "demo@storybook.app";
-const DEMO_PASSWORD = "demo1234";
+const DEMO_EMAIL = "test@codewave.im";
+const DEMO_PASSWORD = "1234";
 const ADMIN_EMAIL = "admin@codewave.im";
 const ADMIN_PASSWORD = "1234";
 
@@ -97,22 +97,77 @@ const templates = [
   },
 ];
 
+const STICKER_TEMPLATE_PUBLIC_BASE =
+  "https://sflnuarzjushssbxpged.supabase.co/storage/v1/object/public/sticker-templates";
+
+const FIRST_BIRTHDAY_TEMPLATE_KEY = "first-birthday";
+const FIRST_BIRTHDAY_TEMPLATE_LABEL = "첫돌 답례품";
+
 const stickerTemplates = [
   {
+    key: "basic",
     label: "기본",
     promptModifier: "keeping the original outfit",
+    designReferenceImageUrl: null as string | null,
   },
   {
+    key: "dinosaur",
     label: "공룡옷",
     promptModifier: "wearing a cute dinosaur costume",
+    designReferenceImageUrl: null as string | null,
   },
   {
+    key: "crown",
     label: "왕관복",
     promptModifier: "wearing a royal outfit with a small crown",
+    designReferenceImageUrl: null as string | null,
+  },
+  {
+    key: FIRST_BIRTHDAY_TEMPLATE_KEY,
+    label: FIRST_BIRTHDAY_TEMPLATE_LABEL,
+    promptModifier:
+      "first-birthday thank-you sticker, circular commemorative composition",
+    designReferenceImageUrl: `${STICKER_TEMPLATE_PUBLIC_BASE}/birthday.png`,
   },
 ];
 
-const stickerPhrasePresets = ["화이팅", "사랑해", "고마워", "안녕", "축하해"];
+const defaultStickerCostumes = [
+  {
+    key: "none",
+    label: "코스튬 없음 (원래 모습)",
+    promptHint:
+      "Keep the character in their original outfit, no costume change",
+    sortOrder: 0,
+    isActive: true,
+  },
+  {
+    key: "butterfly",
+    label: "나비 코스튬",
+    promptHint:
+      "Transform the character into a butterfly costume with wings and antennae, keeping the face identity unchanged",
+    sortOrder: 1,
+    isActive: true,
+  },
+  {
+    key: "formal",
+    label: "정장",
+    promptHint:
+      "Dress the character in a small formal outfit like a tiny suit or dress, keeping the face identity unchanged",
+    sortOrder: 2,
+    isActive: true,
+  },
+];
+
+const stickerPhrasePresets = [
+  "화이팅",
+  "사랑해",
+  "고마워",
+  "안녕",
+  "축하해",
+  "첫번째 생일을 축하해주셔서 감사합니다 :)",
+  "감사합니다",
+  "첫돌을 축하해요",
+];
 
 const stickerSizeOptions = [
   {
@@ -166,6 +221,412 @@ const dummyCharacters = [
   },
 ];
 
+const ART_STYLE_PUBLIC_BASE =
+  "https://sflnuarzjushssbxpged.supabase.co/storage/v1/object/public/art-styles";
+
+const defaultArtStyles = [
+  {
+    key: "basic",
+    label: "기본",
+    referenceImageUrl: `${ART_STYLE_PUBLIC_BASE}/basic_style.png`,
+    sortOrder: 0,
+    isActive: true,
+  },
+  {
+    key: "watercolor",
+    label: "수채화",
+    referenceImageUrl: `${ART_STYLE_PUBLIC_BASE}/watercolor_style.png`,
+    sortOrder: 1,
+    isActive: true,
+  },
+  {
+    key: "crayon",
+    label: "색연필",
+    referenceImageUrl: `${ART_STYLE_PUBLIC_BASE}/Colored%20pencil_style.png`,
+    sortOrder: 2,
+    isActive: true,
+  },
+];
+
+const FOREST_TEMPLATE_TITLE = "숲속 친구들과의 하루";
+
+const forestTemplateQuestions = [
+  {
+    key: "favorite_color",
+    label: "좋아하는 색깔이 뭐예요?",
+    answerType: "text",
+    required: true,
+    sortOrder: 1,
+  },
+  {
+    key: "favorite_animal",
+    label: "좋아하는 동물이 뭐예요?",
+    answerType: "text",
+    required: true,
+    sortOrder: 2,
+  },
+  {
+    key: "favorite_place",
+    label: "가고 싶은 곳이 어디예요?",
+    answerType: "text",
+    required: false,
+    sortOrder: 3,
+  },
+];
+
+const forestPageTemplates: Array<{
+  pageNumber: number;
+  pageType: "COVER" | "PAGE";
+  promptTemplate: string;
+  characterSlots: number;
+}> = [
+  {
+    pageNumber: 1,
+    pageType: "COVER",
+    characterSlots: 1,
+    promptTemplate:
+      "{{character_1}}이(가) 초록빛 숲 입구에 서서 손을 흔들고, 좋아하는 색깔 {{answer.favorite_color}} 풍선이 하늘로 떠오른다.",
+  },
+  {
+    pageNumber: 2,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "아침 햇살이 내려앉은 오솔길에서 {{character_1}}이(가) {{answer.favorite_color}} 배낭을 메고 숲속 친구들을 만나러 첫걸음을 뗀다.",
+  },
+  {
+    pageNumber: 3,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "작은 시냇가에서 {{character_1}}이(가) 물에 비친 얼굴을 들여다보다가, 멀리서 {{answer.favorite_animal}}의 발자국을 발견한다.",
+  },
+  {
+    pageNumber: 4,
+    pageType: "PAGE",
+    characterSlots: 2,
+    promptTemplate:
+      "{{character_1}}이(가) 덤불 사이로 손을 내밀자 {{answer.favorite_animal}}이(가) 살며시 다가와, 함께 {{answer.favorite_color}} 꽃길을 걸어간다.",
+  },
+  {
+    pageNumber: 5,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "키 큰 나무 아래에서 {{character_1}}이(가) 이끼 방석에 앉아 도시락을 펼치고, {{answer.favorite_animal}}에게도 간식을 나눠 준다.",
+  },
+  {
+    pageNumber: 6,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "갑자기 바람이 불어 {{answer.favorite_color}} 나뭇잎이 흩날리고, {{character_1}}이(가) 신나게 뛰어다니며 잎사귀를 모아 둔다.",
+  },
+  {
+    pageNumber: 7,
+    pageType: "PAGE",
+    characterSlots: 2,
+    promptTemplate:
+      "{{character_1}}과(와) {{character_2}}이(가) 통나무 다리를 조심조심 건너며, 건너편에 있을 {{answer.favorite_place}}를(을) 상상해 이야기한다.",
+  },
+  {
+    pageNumber: 8,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "반짝이는 반딧불이 {{answer.favorite_color}} 빛처럼 맴돌고, {{character_1}}이(가) 조용히 손을 모아 길을 밝힌다.",
+  },
+  {
+    pageNumber: 9,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "오래된 나무집 앞에서 {{character_1}}이(가) 문을 두드리자, 안에서 {{answer.favorite_animal}}이(가) 반가운 얼굴로 맞이한다.",
+  },
+  {
+    pageNumber: 10,
+    pageType: "PAGE",
+    characterSlots: 2,
+    promptTemplate:
+      "{{character_1}}과(와) {{character_2}}이(가) 나무집 창가에 앉아, 언젠가 꼭 가 보고 싶은 {{answer.favorite_place}}에 대해 그림을 그린다.",
+  },
+  {
+    pageNumber: 11,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "저녁노을이 {{answer.favorite_color}}로 물든 언덕에서 {{character_1}}이(가) {{answer.favorite_animal}}과(와) 나란히 서서 멀리 {{answer.favorite_place}} 쪽 하늘을 바라본다.",
+  },
+  {
+    pageNumber: 12,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "집으로 돌아가는 길에 {{character_1}}이(가) 주운 {{answer.favorite_color}} 돌을 주머니에 넣고, 오늘 만난 숲속 친구들에게 작별 인사를 한다.",
+  },
+  {
+    pageNumber: 13,
+    pageType: "PAGE",
+    characterSlots: 2,
+    promptTemplate:
+      "{{character_1}}과(와) {{character_2}}이(가) 손전등을 들고 밤길을 비추며, 내일은 {{answer.favorite_place}}로 떠나는 꿈을 속삭인다.",
+  },
+  {
+    pageNumber: 14,
+    pageType: "PAGE",
+    characterSlots: 1,
+    promptTemplate:
+      "따뜻한 이불 속에서 {{character_1}}이(가) 미소 지으며 잠들고, 꿈속에 {{answer.favorite_animal}}과(와) 함께 {{answer.favorite_place}}를(을) 다시 거닌다.",
+  },
+];
+
+type CustomFieldSeed = {
+  key: string;
+  label: string;
+  type: string;
+  placeholder?: string;
+};
+
+function parseCustomFieldSeed(value: unknown): CustomFieldSeed[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((field) => {
+    if (
+      !field ||
+      typeof field !== "object" ||
+      typeof (field as CustomFieldSeed).key !== "string" ||
+      typeof (field as CustomFieldSeed).label !== "string" ||
+      typeof (field as CustomFieldSeed).type !== "string"
+    ) {
+      return [];
+    }
+
+    const parsed = field as CustomFieldSeed;
+    return [
+      {
+        key: parsed.key,
+        label: parsed.label,
+        type: parsed.type,
+        placeholder:
+          typeof parsed.placeholder === "string"
+            ? parsed.placeholder
+            : undefined,
+      },
+    ];
+  });
+}
+
+async function syncTemplateQuestionsFromCustomFields(
+  templateId: string,
+  customFields: unknown,
+) {
+  const fields = parseCustomFieldSeed(customFields);
+
+  for (const [index, field] of fields.entries()) {
+    await prisma.templateQuestion.upsert({
+      where: {
+        storybookTemplateId_key: {
+          storybookTemplateId: templateId,
+          key: field.key,
+        },
+      },
+      update: {
+        label: field.label,
+        answerType: field.type || "text",
+        placeholder: field.placeholder ?? null,
+        required: true,
+        sortOrder: index,
+      },
+      create: {
+        storybookTemplateId: templateId,
+        key: field.key,
+        label: field.label,
+        answerType: field.type || "text",
+        placeholder: field.placeholder ?? null,
+        required: true,
+        sortOrder: index,
+      },
+    });
+  }
+}
+
+async function migrateLegacyArtStyleKeys() {
+  const watercolor = await prisma.artStyle.findUnique({
+    where: { key: "watercolor" },
+  });
+  const storybook = await prisma.artStyle.findUnique({
+    where: { key: "storybook" },
+  });
+  const basic = await prisma.artStyle.findUnique({ where: { key: "basic" } });
+
+  const watercolorIsActuallyBasic =
+    Boolean(watercolor) &&
+    !basic &&
+    (watercolor?.label === "기본" ||
+      watercolor?.referenceImageUrl?.includes("basic_style.png"));
+
+  if (!watercolor || !watercolorIsActuallyBasic) {
+    return;
+  }
+
+  await prisma.artStyle.update({
+    where: { id: watercolor.id },
+    data: { key: "__tmp_rename_basic__" },
+  });
+  if (storybook) {
+    await prisma.artStyle.update({
+      where: { id: storybook.id },
+      data: { key: "watercolor" },
+    });
+  }
+  await prisma.artStyle.update({
+    where: { id: watercolor.id },
+    data: { key: "basic" },
+  });
+}
+
+async function seedArtStyles() {
+  await migrateLegacyArtStyleKeys();
+  const styles = [];
+
+  for (const style of defaultArtStyles) {
+    const row = await prisma.artStyle.upsert({
+      where: { key: style.key },
+      update: {
+        label: style.label,
+        referenceImageUrl: style.referenceImageUrl,
+        sortOrder: style.sortOrder,
+        isActive: style.isActive,
+      },
+      create: style,
+    });
+    styles.push(row);
+  }
+
+  await prisma.artStyle.updateMany({
+    where: { key: { notIn: defaultArtStyles.map((style) => style.key) } },
+    data: { isActive: false },
+  });
+
+  return styles;
+}
+
+async function linkArtStylesToTemplate(
+  templateId: string,
+  artStyles: Array<{ id: string; sortOrder: number }>,
+) {
+  for (const style of artStyles) {
+    await prisma.templateArtStyle.upsert({
+      where: {
+        storybookTemplateId_artStyleId: {
+          storybookTemplateId: templateId,
+          artStyleId: style.id,
+        },
+      },
+      update: { sortOrder: style.sortOrder },
+      create: {
+        storybookTemplateId: templateId,
+        artStyleId: style.id,
+        sortOrder: style.sortOrder,
+      },
+    });
+  }
+}
+
+async function linkArtStylesToAllTemplates(
+  artStyles: Array<{ id: string; sortOrder: number }>,
+) {
+  const storybookTemplates = await prisma.storybookTemplate.findMany({
+    select: { id: true },
+  });
+
+  for (const template of storybookTemplates) {
+    await linkArtStylesToTemplate(template.id, artStyles);
+  }
+}
+
+async function seedForestFriendsTemplate(
+  artStyles: Array<{ id: string; sortOrder: number }>,
+) {
+  const existing = await prisma.storybookTemplate.findFirst({
+    where: { title: FOREST_TEMPLATE_TITLE },
+  });
+
+  const templateData = {
+    title: FOREST_TEMPLATE_TITLE,
+    description: "숲속 친구들과 하루를 보내며 좋아하는 색깔·동물·장소를 담는 테스트용 동화책",
+    category: "FUN" as const,
+    customFields: forestTemplateQuestions.map((q) => ({
+      key: q.key,
+      label: q.label,
+      type: q.answerType,
+    })),
+    topicPresets: [],
+  };
+
+  const template = existing
+    ? await prisma.storybookTemplate.update({
+        where: { id: existing.id },
+        data: templateData,
+      })
+    : await prisma.storybookTemplate.create({
+        data: templateData,
+      });
+
+  for (const question of forestTemplateQuestions) {
+    await prisma.templateQuestion.upsert({
+      where: {
+        storybookTemplateId_key: {
+          storybookTemplateId: template.id,
+          key: question.key,
+        },
+      },
+      update: {
+        label: question.label,
+        answerType: question.answerType,
+        required: question.required,
+        sortOrder: question.sortOrder,
+      },
+      create: {
+        storybookTemplateId: template.id,
+        key: question.key,
+        label: question.label,
+        answerType: question.answerType,
+        required: question.required,
+        sortOrder: question.sortOrder,
+      },
+    });
+  }
+
+  for (const page of forestPageTemplates) {
+    await prisma.pageTemplate.upsert({
+      where: {
+        storybookTemplateId_pageNumber: {
+          storybookTemplateId: template.id,
+          pageNumber: page.pageNumber,
+        },
+      },
+      update: {
+        pageType: page.pageType,
+        promptTemplate: page.promptTemplate,
+        characterSlots: page.characterSlots,
+      },
+      create: {
+        storybookTemplateId: template.id,
+        pageNumber: page.pageNumber,
+        pageType: page.pageType,
+        promptTemplate: page.promptTemplate,
+        characterSlots: page.characterSlots,
+      },
+    });
+  }
+
+  await linkArtStylesToTemplate(template.id, artStyles);
+  return template.id;
+}
+
 async function seedTemplates() {
   for (const template of templates) {
     const existing = await prisma.storybookTemplate.findFirst({
@@ -182,30 +643,84 @@ async function seedTemplates() {
           topicPresets: template.topicPresets,
         },
       });
+      await syncTemplateQuestionsFromCustomFields(
+        existing.id,
+        template.customFields,
+      );
       continue;
     }
 
-    await prisma.storybookTemplate.create({
+    const created = await prisma.storybookTemplate.create({
       data: template,
+    });
+    await syncTemplateQuestionsFromCustomFields(
+      created.id,
+      template.customFields,
+    );
+  }
+}
+
+async function seedStickerCostumes() {
+  const costumes = [];
+
+  for (const costume of defaultStickerCostumes) {
+    const row = await prisma.stickerCostume.upsert({
+      where: { key: costume.key },
+      update: {
+        label: costume.label,
+        promptHint: costume.promptHint,
+        sortOrder: costume.sortOrder,
+        isActive: costume.isActive,
+      },
+      create: costume,
+    });
+    costumes.push(row);
+  }
+
+  return costumes;
+}
+
+async function linkCostumesToStickerTemplate(
+  templateId: string,
+  costumes: Array<{ id: string; sortOrder: number }>,
+) {
+  for (const costume of costumes) {
+    await prisma.templateCostume.upsert({
+      where: {
+        stickerTemplateId_costumeId: {
+          stickerTemplateId: templateId,
+          costumeId: costume.id,
+        },
+      },
+      update: { sortOrder: costume.sortOrder },
+      create: {
+        stickerTemplateId: templateId,
+        costumeId: costume.id,
+        sortOrder: costume.sortOrder,
+      },
     });
   }
 }
 
 async function seedStickerCatalog() {
   for (const template of stickerTemplates) {
-    const existing = await prisma.stickerTemplate.findFirst({
-      where: { label: template.label },
+    await prisma.stickerTemplate.upsert({
+      where: { key: template.key },
+      update: {
+        label: template.label,
+        promptModifier: template.promptModifier,
+        designReferenceImageUrl: template.designReferenceImageUrl,
+      },
+      create: template,
     });
+  }
 
-    if (existing) {
-      await prisma.stickerTemplate.update({
-        where: { id: existing.id },
-        data: { promptModifier: template.promptModifier },
-      });
-      continue;
-    }
-
-    await prisma.stickerTemplate.create({ data: template });
+  const costumes = await seedStickerCostumes();
+  const firstBirthday = await prisma.stickerTemplate.findUnique({
+    where: { key: FIRST_BIRTHDAY_TEMPLATE_KEY },
+  });
+  if (firstBirthday) {
+    await linkCostumesToStickerTemplate(firstBirthday.id, costumes);
   }
 
   for (const text of stickerPhrasePresets) {
@@ -339,9 +854,23 @@ async function seedAdminUser() {
 
 async function main() {
   await seedTemplates();
+  const artStyles = await seedArtStyles();
+  await seedForestFriendsTemplate(artStyles);
+  await linkArtStylesToAllTemplates(artStyles);
   await seedStickerCatalog();
   await seedDemoUser();
   await seedAdminUser();
+
+  // Backfill TemplateQuestion from any remaining legacy customFields.
+  const allTemplates = await prisma.storybookTemplate.findMany({
+    select: { id: true, customFields: true },
+  });
+  for (const template of allTemplates) {
+    await syncTemplateQuestionsFromCustomFields(
+      template.id,
+      template.customFields,
+    );
+  }
 
   const users = await prisma.user.findMany({
     where: { email: { notIn: [DEMO_EMAIL, ADMIN_EMAIL] } },

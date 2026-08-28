@@ -37,65 +37,70 @@ const SLIDES = [
 
 const TRUST_ITEMS = [
   {
-    title: "사진 한 장이면",
-    subtitle: "캐릭터 완성",
+    title: "사진 한 장이면 끝",
+    subtitle: "잘 나온 사진 한 장만 올리면 캐릭터가 완성됩니다",
     color: "#E07A5F",
-    icon: PhotoIcon,
+    icon: CameraIcon,
   },
   {
-    title: "우리 가족이",
-    subtitle: "그림 속 주인공",
+    title: "우리 아이가 주인공",
+    subtitle: "얼굴도 이름도 그대로 담긴 단 하나의 이야기",
     color: "#3D9A6A",
-    icon: BookIcon,
+    icon: ChildIcon,
   },
   {
-    title: "동화책 · 스티커로",
-    subtitle: "이어서 만들어요",
+    title: "다양한 상품으로",
+    subtitle: "만든 캐릭터를 동화책, 스티커, 이모티콘까지",
     color: "#3B82C4",
-    icon: SparkIcon,
+    icon: GiftIcon,
   },
   {
-    title: "안전한 결제 &",
-    subtitle: "개인정보 보호",
+    title: "사진은 안전하게",
+    subtitle: "AI 학습에 쓰지 않고, 제작 완료 후 삭제합니다",
     color: "#7B6BBF",
     icon: LockIcon,
   },
 ] as const;
 
-function PhotoIcon({ color }: { color: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className="h-8 w-8" fill="none" aria-hidden>
-      <rect x="4" y="8" width="24" height="18" rx="3" stroke={color} strokeWidth="2" />
-      <circle cx="12" cy="15" r="2.5" stroke={color} strokeWidth="2" />
-      <path d="M8 24l6-7 5 5 3-3 6 5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BookIcon({ color }: { color: string }) {
+function CameraIcon({ color }: { color: string }) {
   return (
     <svg viewBox="0 0 32 32" className="h-8 w-8" fill="none" aria-hidden>
       <path
-        d="M6 7h9a4 4 0 0 1 4 4v14H10a4 4 0 0 1-4-4V7z"
-        stroke={color}
-        strokeWidth="2"
-      />
-      <path d="M19 7h7v14a4 4 0 0 1-4 4h-7V11a4 4 0 0 1 4-4z" stroke={color} strokeWidth="2" />
-      <path d="M16 11v14" stroke={color} strokeWidth="2" />
-    </svg>
-  );
-}
-
-function SparkIcon({ color }: { color: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className="h-8 w-8" fill="none" aria-hidden>
-      <path
-        d="M16 5l1.8 7.2L25 14l-7.2 1.8L16 23l-1.8-7.2L7 14l7.2-1.8L16 5z"
+        d="M10 10l1.5-2.5h9L22 10h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V12a2 2 0 0 1 2-2h3z"
         stroke={color}
         strokeWidth="2"
         strokeLinejoin="round"
       />
-      <path d="M24 6v4M26 8h-4M8 22v3M9.5 23.5h-3" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <circle cx="16" cy="18" r="5" stroke={color} strokeWidth="2" />
+    </svg>
+  );
+}
+
+function ChildIcon({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className="h-8 w-8" fill="none" aria-hidden>
+      <circle cx="16" cy="12" r="5" stroke={color} strokeWidth="2" />
+      <path
+        d="M8 26c1.5-4.5 4.5-7 8-7s6.5 2.5 8 7"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function GiftIcon({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className="h-8 w-8" fill="none" aria-hidden>
+      <rect x="6" y="14" width="20" height="12" rx="2" stroke={color} strokeWidth="2" />
+      <path d="M6 18h20M16 14v12" stroke={color} strokeWidth="2" />
+      <path
+        d="M16 14c-2.5-4-6-4-6-1.5S13 14 16 14c2.5-4 6-4 6-1.5S19 14 16 14z"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -166,16 +171,18 @@ export function StoryShowcase() {
       <div className="mt-6 rounded-[24px] bg-white px-4 py-5 shadow-sm ring-1 ring-sky-100 sm:px-6">
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {TRUST_ITEMS.map((item) => (
-            <li key={item.title} className="flex items-center gap-3">
+            <li key={item.title} className="flex items-start gap-3">
               <span
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
                 style={{ backgroundColor: `${item.color}18` }}
               >
                 <item.icon color={item.color} />
               </span>
-              <p className="text-sm font-medium leading-snug text-stone-700">
+              <p className="min-w-0 text-sm font-semibold leading-snug text-stone-700">
                 {item.title}
-                <span className="mt-0.5 block text-stone-500">{item.subtitle}</span>
+                <span className="mt-0.5 block font-normal text-stone-500">
+                  {item.subtitle}
+                </span>
               </p>
             </li>
           ))}

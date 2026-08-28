@@ -1,4 +1,4 @@
-export function PreviewWatermark({ text = "스토리북" }: { text?: string }) {
+export function PreviewWatermark({ text = "판바기" }: { text?: string }) {
   return (
     <div
       aria-hidden

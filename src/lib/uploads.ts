@@ -136,6 +136,18 @@ export async function persistGeneratedIllustrationImage(sourcePath: string) {
   return persistGeneratedImage(sourcePath, "illustrations");
 }
 
+export async function persistGeneratedIllustrationBuffer(
+  buffer: Buffer,
+  contentType = "image/png",
+) {
+  return saveBuffer(
+    buffer,
+    "illustrations",
+    extensionFromMime(contentType),
+    contentType,
+  );
+}
+
 async function persistGeneratedImage(
   sourcePath: string,
   publicFolder: "characters" | "illustrations",

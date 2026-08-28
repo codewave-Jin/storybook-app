@@ -392,7 +392,12 @@ export function StickerWizard({
               이전
             </button>
           ) : (
-            <span />
+            <Link
+              href="/dashboard"
+              className="flex h-12 items-center justify-center rounded-xl border border-stone-300 px-6 text-sm font-medium hover:bg-white"
+            >
+              대시보드로
+            </Link>
           )}
           <button
             type="button"

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/BrandLogo";
 import { CharacterPipeline } from "@/components/landing/CharacterPipeline";
 import { CreateWithCharacter } from "@/components/landing/CreateWithCharacter";
 import { FaqList } from "@/components/landing/FaqList";
@@ -170,7 +171,7 @@ export function LandingHome() {
       <footer className="border-t border-sky-100 px-4 py-10 text-sm text-stone-500 sm:px-6">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 sm:flex-row sm:justify-between">
           <div>
-            <p className="font-semibold text-sky-500">스토리북</p>
+            <BrandLogo href="/" size="md" />
             <p className="mt-2 max-w-xs leading-relaxed">
               아이 사진으로 캐릭터를 만들고, 그 캐릭터로 동화책·스티커·이모티콘·영상을
               이어 가는 서비스.
