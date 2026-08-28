@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MyPageSidebar } from "@/components/mypage/MyPageSidebar";
