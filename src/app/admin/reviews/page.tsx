@@ -1,9 +1,14 @@
+import type { Prisma } from "@prisma/client";
 import { AdminReviewsBoard } from "@/components/admin/AdminReviewsBoard";
 import { signReviewImageUrls } from "@/lib/review-images";
 import { featuredReviewIds, reviewListInclude } from "@/lib/review-query";
 import { reviewProductTitle } from "@/lib/reviews";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
+
+type AdminReviewRow = Prisma.ReviewGetPayload<{
+  include: typeof reviewListInclude;
+}>;
 
 function reviewsHref(filter?: string) {
   return filter && filter !== "ALL" ? `/admin/reviews?filter=${filter}` : "/admin/reviews";
@@ -16,7 +21,7 @@ export default async function AdminReviewsPage({
 }) {
   const featuredOnly = searchParams.filter === "featured";
 
-  let reviews: Awaited<ReturnType<typeof prisma.review.findMany>> = [];
+  let reviews: AdminReviewRow[] = [];
   let featuredIds = new Set<string>();
   let loadError: string | null = null;
 
