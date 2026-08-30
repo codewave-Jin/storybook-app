@@ -13,3 +13,28 @@ export const REVIEW_IMAGE_TYPES = new Set([
 export function isReviewEditable(updatedAt: Date, now = new Date()) {
   return now.getTime() - updatedAt.getTime() <= REVIEW_EDIT_WINDOW_MS;
 }
+
+export function reviewProductTitle(review: {
+  storybookOrder?: { template: { title: string } } | null;
+  stickerOrder?: {
+    template: { label: string };
+    character: { label: string };
+  } | null;
+}) {
+  if (review.storybookOrder) {
+    return review.storybookOrder.template.title;
+  }
+  if (review.stickerOrder) {
+    return `${review.stickerOrder.character.label} · ${review.stickerOrder.template.label}`;
+  }
+  return "리뷰";
+}
+
+export type LandingReviewCard = {
+  id: string;
+  name: string;
+  role: string;
+  body: string;
+  image: string | null;
+  rating: number;
+};

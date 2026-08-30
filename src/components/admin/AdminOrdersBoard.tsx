@@ -16,6 +16,7 @@ import {
   FULFILLMENT_STATUS_LABEL,
   SHIPPING_CARRIERS,
 } from "@/lib/fulfillment";
+import { DeleteOrderButton } from "@/components/admin/DeleteOrderButton";
 import { formatDateTime } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
@@ -264,6 +265,10 @@ function OrderDetailModal({
                 >
                   제작 상세
                 </Link>
+                <DeleteOrderButton
+                  orderId={detail.id}
+                  onDeleted={onClose}
+                />
               </div>
             </form>
 
@@ -344,24 +349,31 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
           </p>
         ) : (
           orders.map((order) => (
-            <button
+            <article
               key={order.id}
-              type="button"
-              aria-label={`${order.userName} 주문 상세`}
-              onClick={() => setSelectedId(order.id)}
-              className="w-full rounded-2xl border border-stone-200 bg-white p-4 text-left hover:bg-stone-50"
+              className="rounded-2xl border border-stone-200 bg-white p-4"
             >
-              <div className="flex items-start justify-between gap-2">
-                <p className="font-medium">{order.userName}</p>
-                <StatusBadge status={order.fulfillmentStatus} />
+              <button
+                type="button"
+                aria-label={`${order.userName} 주문 상세`}
+                onClick={() => setSelectedId(order.id)}
+                className="w-full text-left"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium">{order.userName}</p>
+                  <StatusBadge status={order.fulfillmentStatus} />
+                </div>
+                <p className="mt-1 break-all text-sm text-stone-500">{order.userEmail}</p>
+                <p className="mt-2 text-sm text-stone-700">{order.productTitle}</p>
+                <p className="mt-1 break-all text-xs text-stone-400">{order.id}</p>
+                <p className="mt-2 text-xs text-stone-500">
+                  주문 {order.createdAt} · 배송예정 {order.expectedDeliveryAt}
+                </p>
+              </button>
+              <div className="mt-3 flex justify-end">
+                <DeleteOrderButton orderId={order.id} />
               </div>
-              <p className="mt-1 break-all text-sm text-stone-500">{order.userEmail}</p>
-              <p className="mt-2 text-sm text-stone-700">{order.productTitle}</p>
-              <p className="mt-1 break-all text-xs text-stone-400">{order.id}</p>
-              <p className="mt-2 text-xs text-stone-500">
-                주문 {order.createdAt} · 배송예정 {order.expectedDeliveryAt}
-              </p>
-            </button>
+            </article>
           ))
         )}
       </div>
@@ -377,12 +389,13 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
               <th className="px-4 py-3 font-medium">현재 상태</th>
               <th className="px-4 py-3 font-medium">주문일</th>
               <th className="px-4 py-3 font-medium">배송예정일</th>
+              <th className="px-4 py-3 font-medium">관리</th>
             </tr>
           </thead>
           <tbody>
             {orders.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-stone-400">
+                <td colSpan={8} className="px-4 py-12 text-center text-stone-400">
                   주문이 없습니다.
                 </td>
               </tr>
@@ -414,6 +427,13 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
                   <td className="px-4 py-3 whitespace-nowrap">{order.createdAt}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {order.expectedDeliveryAt}
+                  </td>
+                  <td
+                    className="px-4 py-3"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <DeleteOrderButton orderId={order.id} />
                   </td>
                 </tr>
               ))

@@ -24,6 +24,8 @@ export type ReviewFormState = {
 function revalidateReviewPages() {
   revalidatePath("/mypage");
   revalidatePath("/mypage/reviews");
+  revalidatePath("/");
+  revalidatePath("/home");
 }
 
 function parseRatingContent(formData: FormData) {

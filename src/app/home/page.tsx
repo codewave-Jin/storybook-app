@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { CharacterFloatingBanner } from "@/components/home/CharacterFloatingBanner";
 import { HomeLanding } from "@/components/home/HomeLanding";
+import { getFeaturedLandingReviews } from "@/lib/landing-reviews";
 
 export const metadata: Metadata = {
   title: "판바기 | 우리 가족의 얼굴로 만드는 맞춤 동화책",
@@ -10,11 +11,17 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const session = await auth();
+  const [session, reviews] = await Promise.all([
+    auth(),
+    getFeaturedLandingReviews(),
+  ]);
 
   return (
     <>
-      <HomeLanding isLoggedIn={Boolean(session?.user)} />
+      <HomeLanding
+        isLoggedIn={Boolean(session?.user)}
+        reviews={reviews}
+      />
       <CharacterFloatingBanner />
     </>
   );

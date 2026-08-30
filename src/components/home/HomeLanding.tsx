@@ -11,29 +11,37 @@ import {
   characterStartHref,
   HOME_MEDIA,
 } from "@/components/home/media";
+import type { LandingReviewCard } from "@/lib/reviews";
 
 type HomeLandingProps = {
   isLoggedIn: boolean;
+  reviews?: LandingReviewCard[];
 };
 
-const REVIEWS = [
+const SAMPLE_REVIEWS: LandingReviewCard[] = [
   {
+    id: "sample-1",
     name: "김서연",
     role: "5세 아이 엄마",
     image: "/landing/child-after.png",
     body: "샘플 보고 깜짝 놀랐어요ㅎ 너무 귀여워서 동화책, 스티커 전부 구매해서 잘 쓰고 있어요ㅎ 특히 동화책은 우리 아이가 이 책밖에 안 봐요ㅎㅎ",
+    rating: 5,
   },
   {
+    id: "sample-2",
     name: "박지훈",
     role: "돌잔치 준비 아빠",
     image: "/landing/sample-stickers.jpg",
     body: "돌잔치 답례품으로 스티커 만들었어요. 하객분들이 너무 귀엽다고 물어보셔서, 어디서 만들었는지 계속 자랑했습니다.",
+    rating: 5,
   },
   {
+    id: "sample-3",
     name: "이하늘",
     role: "쌍둥이 엄마",
     image: "/landing/sample-cover.jpg",
     body: "무료로 먼저 확인하니까 결제 부담이 없었어요. 마음에 들어서 바로 완성했는데, 아이들이 자기 얼굴 동화책을 몇 번이나 펼쳐 봐요.",
+    rating: 5,
   },
 ];
 
@@ -97,8 +105,10 @@ function CreateButton({
   );
 }
 
-export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
+export function HomeLanding({ isLoggedIn, reviews }: HomeLandingProps) {
   const createHref = characterStartHref();
+  const landingReviews =
+    reviews && reviews.length > 0 ? reviews : SAMPLE_REVIEWS;
 
   return (
     <div className="home-landing min-h-dvh overflow-x-hidden bg-stone-50 text-stone-800">
@@ -243,22 +253,34 @@ export function HomeLanding({ isLoggedIn }: HomeLandingProps) {
               먼저 만들어 본 부모님들의 이야기
             </h2>
             <div className="mt-10 space-y-3">
-              {REVIEWS.map((item) => (
+              {landingReviews.map((item) => (
                 <article
-                  key={item.name}
+                  key={item.id}
                   className="flex items-center gap-4 rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-sky-100 sm:gap-5 sm:p-5"
                 >
                   <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-sky-50 sm:h-24 sm:w-24">
-                    <AppImage
-                      src={item.image}
-                      alt={`${item.name} 리뷰 사진`}
-                      fill
-                      className="object-cover"
-                      sizes="96px"
-                    />
+                    {item.image ? (
+                      <AppImage
+                        src={item.image}
+                        alt={`${item.name} 리뷰 사진`}
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                      />
+                    ) : (
+                      <span className="flex h-full items-center justify-center text-lg font-semibold text-sky-400">
+                        {item.name.slice(0, 1)}
+                      </span>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-relaxed text-stone-600">
+                    <p className="text-amber-500" aria-label={`${item.rating}점`}>
+                      {"★".repeat(item.rating)}
+                      <span className="text-stone-300">
+                        {"★".repeat(5 - item.rating)}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-stone-600">
                       “{item.body}”
                     </p>
                     <p className="mt-2 text-sm font-semibold text-stone-800">

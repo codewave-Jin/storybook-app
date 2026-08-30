@@ -101,24 +101,24 @@ const STICKER_TEMPLATE_PUBLIC_BASE =
   "https://sflnuarzjushssbxpged.supabase.co/storage/v1/object/public/sticker-templates";
 
 const FIRST_BIRTHDAY_TEMPLATE_KEY = "first-birthday";
-const FIRST_BIRTHDAY_TEMPLATE_LABEL = "첫돌 답례품";
+const FIRST_BIRTHDAY_TEMPLATE_LABEL = "답례품";
 
 const stickerTemplates = [
   {
     key: "basic",
-    label: "기본",
+    label: "스승의날",
     promptModifier: "keeping the original outfit",
     designReferenceImageUrl: null as string | null,
   },
   {
     key: "dinosaur",
-    label: "공룡옷",
+    label: "어버이날",
     promptModifier: "wearing a cute dinosaur costume",
     designReferenceImageUrl: null as string | null,
   },
   {
     key: "crown",
-    label: "왕관복",
+    label: "일반 스티커",
     promptModifier: "wearing a royal outfit with a small crown",
     designReferenceImageUrl: null as string | null,
   },

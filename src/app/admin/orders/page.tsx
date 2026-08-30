@@ -72,6 +72,7 @@ export default async function AdminOrdersPage({
       <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">주문 관리</h1>
       <p className="mt-1 text-sm text-stone-500">
         행을 클릭하면 배송 상태를 변경하고 캐릭터 이미지를 확인할 수 있습니다.
+        삭제하면 주문과 연결된 삽화가 함께 지워집니다.
       </p>
 
       <form

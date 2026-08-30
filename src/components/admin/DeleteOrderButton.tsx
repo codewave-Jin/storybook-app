@@ -7,9 +7,11 @@ import { deleteOrder } from "@/app/actions/admin";
 export function DeleteOrderButton({
   orderId,
   redirectTo,
+  onDeleted,
 }: {
   orderId: string;
   redirectTo?: string;
+  onDeleted?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -19,6 +21,7 @@ export function DeleteOrderButton({
     startTransition(async () => {
       await deleteOrder(orderId);
       setOpen(false);
+      onDeleted?.();
       if (redirectTo) {
         router.push(redirectTo);
         router.refresh();

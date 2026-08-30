@@ -58,7 +58,7 @@ export function CharacterPhotoPicker({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const [mode, setMode] = useState<Mode>("camera");
+  const [mode, setMode] = useState<Mode>("album");
   const [cameraPhase, setCameraPhase] = useState<CameraPhase>("live");
   const [albumPhase, setAlbumPhase] = useState<AlbumPhase>("pick");
   const [cameraError, setCameraError] = useState<CameraError | null>(null);

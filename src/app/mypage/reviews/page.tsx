@@ -6,7 +6,7 @@ import { ReviewBoard } from "@/components/mypage/ReviewBoard";
 import { formatDateTime } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { signReviewImageUrls } from "@/lib/review-images";
-import { isReviewEditable } from "@/lib/reviews";
+import { isReviewEditable, reviewProductTitle } from "@/lib/reviews";
 
 export default async function MyReviewsPage() {
   const session = await auth();
@@ -105,11 +105,7 @@ export default async function MyReviewsPage() {
       rating: review.rating,
       content: review.content,
       canEdit: isReviewEditable(review.updatedAt),
-      title:
-        review.storybookOrder?.template.title ??
-        (review.stickerOrder
-          ? `${review.stickerOrder.character.label} · ${review.stickerOrder.template.label}`
-          : "리뷰"),
+      title: reviewProductTitle(review),
       images: await signReviewImageUrls(review.images.map((image) => image.imageUrl)),
     })),
   );

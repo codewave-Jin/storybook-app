@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
+import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { StickerPreviewPayButton } from "@/components/StickerPreviewPayButton";
-import { StickerPreviewSheet } from "@/components/StickerPreviewSheet";
+import { StickerPreviewViews } from "@/components/StickerPreviewViews";
+import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
 import { prisma } from "@/lib/prisma";
 
 export default async function StickerPreviewPage({
@@ -30,10 +32,27 @@ export default async function StickerPreviewPage({
   }
 
   const paid = order.paymentStatus === "PAID";
-  const previewSrc = order.previewImagePath;
+  if (!order.previewImagePath) {
+    void enqueueStickerGeneration(order.id);
+  }
+  const characterSrc =
+    order.character.generatedImagePath ?? order.character.originalPhotoPath;
+  const stickerSrc = order.previewImagePath ?? characterSrc;
+  const overlayPhrase =
+    !order.previewImagePath ||
+    order.previewImagePath === order.character.generatedImagePath ||
+    order.previewImagePath === order.character.originalPhotoPath;
+  const waitingForGenerated = !order.previewImagePath;
 
   return (
     <DashboardShell title="스티커 미리보기">
+      {waitingForGenerated ? (
+        <IntervalRefresher
+          active
+          href={`/api/stickers/${order.id}/status`}
+          initialSignature={order.previewImagePath ?? ""}
+        />
+      ) : null}
       <Link
         href="/dashboard"
         className="text-sm font-medium text-stone-500 underline-offset-4 hover:underline"
@@ -42,15 +61,21 @@ export default async function StickerPreviewPage({
       </Link>
 
       <div className="mx-auto mt-6 w-full max-w-xl">
-        {previewSrc ? (
-          <StickerPreviewSheet src={previewSrc} alt={`${order.phrase} 스티커 시트`} />
+        {stickerSrc ? (
+          <StickerPreviewViews
+            src={stickerSrc}
+            phrase={order.phrase}
+            quantity={order.quantity}
+            overlayPhrase={overlayPhrase}
+            showWatermark={!paid}
+          />
         ) : (
-          <div className="flex aspect-[210/297] flex-col items-center justify-center rounded-2xl bg-white px-6 text-center shadow-sm ring-1 ring-stone-200">
+          <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-stone-200">
             <p className="text-lg font-semibold text-stone-800">
-              제작 준비 중입니다
+              미리볼 이미지가 없습니다
             </p>
             <p className="mt-2 text-sm text-stone-500">
-              A4 미리보기 시트가 완성되면 이 화면에 표시됩니다.
+              캐릭터 생성이 끝난 뒤에 다시 열어 주세요.
             </p>
           </div>
         )}

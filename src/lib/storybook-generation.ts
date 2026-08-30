@@ -1,4 +1,6 @@
+import { enqueueIllustrationGenerations } from "@/lib/enqueue-illustration-generation";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
+import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
 import {
   buildOrderPromptVariables,
   substitutePromptTemplate,
@@ -7,11 +9,22 @@ import { parseIdList, parseStringRecord } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { markOrderPreviewGeneratedIfReady } from "@/lib/preview-status";
 
+export {
+  ILLUSTRATION_GENERATE_MAX_DURATION_SECONDS,
+  isStaleProcessing,
+  shouldGenerateIllustration,
+  shouldKickPendingIllustration,
+  STALE_PROCESSING_MS,
+} from "@/lib/illustration-generation-policy";
+
 /** 표지 1 + 본문 — 랜딩 카피(13~15p)에 맞춘 전체 권 분량 */
 export const TOTAL_STORYBOOK_PAGES = 14;
 
 /** 결제 전 미리보기: 표지 + 본문 2장 */
 export const PREVIEW_PAGE_NUMBERS = [1, 2, 3] as const;
+
+/** false면 결제 후에도 4~14장을 만들지 않는다. 배포 전에 다시 켜면 된다. */
+export const FULL_BOOK_GENERATION_ENABLED = false;
 
 export function paidPageNumbers(
   totalPages: number = TOTAL_STORYBOOK_PAGES,
@@ -107,10 +120,7 @@ async function generatePages(options: {
   });
 
   for (const page of pages) {
-    if (page.status === "COMPLETED" || page.status === "PROCESSING") {
-      continue;
-    }
-    if (!page.prompt.trim()) {
+    if (!shouldGenerateIllustration(page)) {
       continue;
     }
 
@@ -226,19 +236,29 @@ export async function ensureIllustrationsAndGenerate(options: {
     );
   }
 
-  const run = () =>
-    generatePages({
+  const readyPages =
+    needPromptFill.length > 0
+      ? await prisma.illustration.findMany({
+          where: {
+            orderId,
+            pageNumber: { in: pageNumbers },
+          },
+          orderBy: { pageNumber: "asc" },
+        })
+      : pages;
+
+  if (wait) {
+    await generatePages({
       orderId,
       pageNumbers,
       characterIds,
     });
-
-  if (!wait) {
-    void run().catch((error) => {
-      console.error("[storybook-generation] background generate failed", error);
-    });
     return;
   }
 
-  await run();
+  await enqueueIllustrationGenerations(
+    readyPages
+      .filter((page) => shouldGenerateIllustration(page))
+      .map((page) => page.id),
+  );
 }

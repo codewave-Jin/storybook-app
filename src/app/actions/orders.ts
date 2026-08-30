@@ -10,7 +10,10 @@ import {
 import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
 import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
-import { parseCustomFields } from "@/lib/templates";
+import {
+  isStorybookTemplateSelectable,
+  parseCustomFields,
+} from "@/lib/templates";
 import { deleteIllustrationFile } from "@/lib/uploads";
 import {
   buildPreviewBookPages,
@@ -60,6 +63,10 @@ export async function createOrder(
 
   if (!template) {
     return { error: "선택한 동화책을 찾을 수 없습니다." };
+  }
+
+  if (!isStorybookTemplateSelectable(template.title)) {
+    return { error: "아직 준비 중인 동화책입니다." };
   }
 
   const characters = await prisma.character.findMany({

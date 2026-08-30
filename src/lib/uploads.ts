@@ -23,6 +23,12 @@ const ILLUSTRATIONS_UPLOAD_DIR = path.join(
   "uploads",
   "illustrations",
 );
+const STICKERS_UPLOAD_DIR = path.join(
+  process.cwd(),
+  "public",
+  "uploads",
+  "stickers",
+);
 
 function extensionFromMime(type: string): string {
   if (type === "image/png") return "png";
@@ -36,7 +42,10 @@ function blobStorageEnabled() {
 }
 
 function requireBlobStorage() {
-  if (!blobStorageEnabled()) {
+  if (blobStorageEnabled()) {
+    return;
+  }
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
     throw new Error(
       "BLOB_READ_WRITE_TOKEN is required to store generated images",
     );
@@ -58,7 +67,7 @@ export function isRemoteAsset(value: string | null | undefined) {
 
 async function saveBuffer(
   buffer: Buffer,
-  folder: "characters" | "illustrations",
+  folder: "characters" | "illustrations" | "stickers",
   extension: string,
   contentType?: string,
 ) {
@@ -74,7 +83,11 @@ async function saveBuffer(
   }
 
   const destDir =
-    folder === "characters" ? CHARACTERS_UPLOAD_DIR : ILLUSTRATIONS_UPLOAD_DIR;
+    folder === "characters"
+      ? CHARACTERS_UPLOAD_DIR
+      : folder === "stickers"
+        ? STICKERS_UPLOAD_DIR
+        : ILLUSTRATIONS_UPLOAD_DIR;
   await mkdir(destDir, { recursive: true });
   await writeFile(path.join(destDir, filename), buffer);
   return `/uploads/${folder}/${filename}`;
@@ -143,6 +156,18 @@ export async function persistGeneratedIllustrationBuffer(
   return saveBuffer(
     buffer,
     "illustrations",
+    extensionFromMime(contentType),
+    contentType,
+  );
+}
+
+export async function persistGeneratedStickerBuffer(
+  buffer: Buffer,
+  contentType = "image/png",
+) {
+  return saveBuffer(
+    buffer,
+    "stickers",
     extensionFromMime(contentType),
     contentType,
   );

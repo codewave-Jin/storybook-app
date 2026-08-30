@@ -248,21 +248,27 @@ export async function deleteOrder(orderId: string) {
     where: { id: orderId },
     include: {
       illustrations: {
-        select: { imagePath: true, upscaledImagePath: true },
+        select: {
+          imagePath: true,
+          sceneImagePath: true,
+          upscaledImagePath: true,
+        },
       },
     },
   });
 
   if (!order) {
-    return;
+    return { error: "주문을 찾을 수 없습니다." };
   }
 
   for (const illustration of order.illustrations) {
     await deleteIllustrationFile(illustration.imagePath);
+    await deleteIllustrationFile(illustration.sceneImagePath);
     await deleteIllustrationFile(illustration.upscaledImagePath);
   }
 
   await prisma.$transaction([
+    prisma.review.deleteMany({ where: { storybookOrderId: orderId } }),
     prisma.illustration.deleteMany({ where: { orderId } }),
     prisma.photoAlbumPage.deleteMany({ where: { orderId } }),
     prisma.storybookOrder.delete({ where: { id: orderId } }),
@@ -274,4 +280,7 @@ export async function deleteOrder(orderId: string) {
   revalidatePath(`/admin/illustrations/${orderId}`);
   revalidatePath("/admin/upscale");
   revalidatePath(`/admin/upscale/${orderId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/mypage");
+  return { success: true };
 }

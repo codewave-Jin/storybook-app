@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
+import { isStickerTemplateSelectable } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 
 export type CreateStickerOrderState = {
@@ -62,6 +64,9 @@ export async function createStickerOrder(
   if (!template) {
     return { error: "선택한 템플릿을 찾을 수 없습니다." };
   }
+  if (!isStickerTemplateSelectable(template.key)) {
+    return { error: "아직 준비 중인 스티커입니다." };
+  }
   if (!sizeOption) {
     return { error: "선택한 사이즈를 찾을 수 없습니다." };
   }
@@ -78,6 +83,8 @@ export async function createStickerOrder(
       productionStatus: "WAITING",
     },
   });
+
+  await enqueueStickerGeneration(order.id);
 
   redirect(`/dashboard/sticker/${order.id}/preview`);
 }

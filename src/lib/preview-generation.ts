@@ -5,6 +5,7 @@ import {
 } from "@/lib/preview-status";
 import {
   ensureIllustrationsAndGenerate,
+  FULL_BOOK_GENERATION_ENABLED,
   paidPageNumbers,
   PREVIEW_PAGE_NUMBERS,
 } from "@/lib/storybook-generation";
@@ -29,6 +30,14 @@ export async function startOrderPaidGeneration(
   orderId: string,
   options?: { wait?: boolean },
 ) {
+  if (!FULL_BOOK_GENERATION_ENABLED) {
+    console.log(
+      "[storybook-generation] full book generation is disabled; skip paid pages",
+      orderId,
+    );
+    return;
+  }
+
   const order = await prisma.storybookOrder.findUnique({
     where: { id: orderId },
     select: { id: true, paymentStatus: true },

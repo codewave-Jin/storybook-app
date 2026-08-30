@@ -5,6 +5,28 @@ export type CustomField = {
   placeholder?: string;
 };
 
+export const ACTIVE_STORYBOOK_TEMPLATE_TITLE = "숲속 친구들과의 하루";
+export const ACTIVE_STICKER_TEMPLATE_KEY = "first-birthday";
+
+const STICKER_TEMPLATE_LABELS: Record<string, string> = {
+  basic: "스승의날",
+  dinosaur: "어버이날",
+  crown: "일반 스티커",
+  "first-birthday": "답례품",
+};
+
+export function isStorybookTemplateSelectable(title: string) {
+  return title === ACTIVE_STORYBOOK_TEMPLATE_TITLE;
+}
+
+export function isStickerTemplateSelectable(key: string) {
+  return key === ACTIVE_STICKER_TEMPLATE_KEY;
+}
+
+export function stickerTemplateLabel(key: string, fallback: string) {
+  return STICKER_TEMPLATE_LABELS[key] ?? fallback;
+}
+
 export function parseCustomFields(value: unknown): CustomField[] {
   if (!Array.isArray(value)) {
     return [];

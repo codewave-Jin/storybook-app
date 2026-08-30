@@ -4,7 +4,10 @@ import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { OrderWizard } from "@/components/OrderWizard";
 import { prisma } from "@/lib/prisma";
-import { parseCustomFields } from "@/lib/templates";
+import {
+  isStorybookTemplateSelectable,
+  parseCustomFields,
+} from "@/lib/templates";
 
 export default async function NewOrderPage() {
   const session = await auth();
@@ -53,26 +56,29 @@ export default async function NewOrderPage() {
       </Link>
       <div className="mt-4">
         <OrderWizard
-          templates={templates.map((template) => ({
-            id: template.id,
-            title: template.title,
-            description: template.description,
-            customFields: parseCustomFields(template.customFields),
-            artStyles: template.artStyles.flatMap((link) => {
-              const url = link.artStyle.referenceImageUrl;
-              if (!url) {
-                return [];
-              }
-              return [
-                {
-                  id: link.artStyle.id,
-                  key: link.artStyle.key,
-                  label: link.artStyle.label,
-                  referenceImageUrl: url,
-                },
-              ];
-            }),
-          }))}
+          templates={templates
+            .map((template) => ({
+              id: template.id,
+              title: template.title,
+              description: template.description,
+              available: isStorybookTemplateSelectable(template.title),
+              customFields: parseCustomFields(template.customFields),
+              artStyles: template.artStyles.flatMap((link) => {
+                const url = link.artStyle.referenceImageUrl;
+                if (!url) {
+                  return [];
+                }
+                return [
+                  {
+                    id: link.artStyle.id,
+                    key: link.artStyle.key,
+                    label: link.artStyle.label,
+                    referenceImageUrl: url,
+                  },
+                ];
+              }),
+            }))
+            .sort((left, right) => Number(right.available) - Number(left.available))}
           characters={characters.map((character) => ({
             id: character.id,
             label: character.label,

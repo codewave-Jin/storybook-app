@@ -20,6 +20,7 @@ export type OrderTemplateOption = {
   id: string;
   title: string;
   description: string | null;
+  available: boolean;
   customFields: CustomField[];
   artStyles: OrderArtStyleOption[];
 };
@@ -208,7 +209,11 @@ export function OrderWizard({
                 <button
                   key={template.id}
                   type="button"
+                  disabled={!template.available}
                   onClick={() => {
+                    if (!template.available) {
+                      return;
+                    }
                     setTemplateId(template.id);
                     setCustomValues({});
                     setArtStyleId(defaultArtStyleId(template.artStyles));
@@ -217,10 +222,20 @@ export function OrderWizard({
                     "rounded-2xl border bg-white p-5 text-left shadow-sm transition",
                     selected
                       ? "border-sky-400 ring-2 ring-sky-300"
-                      : "border-stone-200 hover:border-stone-400",
+                      : "border-stone-200",
+                    template.available
+                      ? "hover:border-stone-400"
+                      : "cursor-not-allowed opacity-55",
                   )}
                 >
-                  <h3 className="text-base font-semibold">{template.title}</h3>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-base font-semibold">{template.title}</h3>
+                    {template.available ? null : (
+                      <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-500">
+                        준비 중
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-2 text-sm text-stone-500">
                     {template.description}
                   </p>

@@ -3,6 +3,10 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StickerWizard } from "@/components/StickerWizard";
+import {
+  isStickerTemplateSelectable,
+  stickerTemplateLabel,
+} from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 
 export default async function NewStickerPage() {
@@ -45,11 +49,14 @@ export default async function NewStickerPage() {
             generatedImagePath: character.generatedImagePath,
             originalPhotoPath: character.originalPhotoPath,
           }))}
-          templates={templates.map((template) => ({
-            id: template.id,
-            label: template.label,
-            thumbnailPath: template.thumbnailPath,
-          }))}
+          templates={templates
+            .map((template) => ({
+              id: template.id,
+              label: stickerTemplateLabel(template.key, template.label),
+              thumbnailPath: template.thumbnailPath,
+              available: isStickerTemplateSelectable(template.key),
+            }))
+            .sort((left, right) => Number(right.available) - Number(left.available))}
           phrases={phrases.map((phrase) => ({
             id: phrase.id,
             text: phrase.text,

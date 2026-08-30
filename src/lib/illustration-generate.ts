@@ -8,6 +8,10 @@ import {
 import { prisma } from "@/lib/prisma";
 import { markOrderPreviewGeneratedIfReady } from "@/lib/preview-status";
 import { revalidateIllustrationWork } from "@/lib/revalidate-admin";
+import {
+  isStaleProcessing,
+  staleProcessingBefore,
+} from "@/lib/illustration-generation-policy";
 import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
 
 export type IllustrationGenerateResult = {
@@ -70,7 +74,10 @@ export async function runIllustrationGeneration(options: {
     return { error: "생성된 캐릭터 이미지가 없습니다." };
   }
 
-  if (illustration.status === "PROCESSING") {
+  if (
+    illustration.status === "PROCESSING" &&
+    !isStaleProcessing(illustration.updatedAt)
+  ) {
     return { error: "이미 생성 중입니다." };
   }
 
@@ -113,7 +120,10 @@ export async function runIllustrationGeneration(options: {
   const claimed = await prisma.illustration.updateMany({
     where: {
       id: illustrationId,
-      NOT: { status: "PROCESSING" },
+      OR: [
+        { NOT: { status: "PROCESSING" } },
+        { status: "PROCESSING", updatedAt: { lt: staleProcessingBefore() } },
+      ],
     },
     data: {
       prompt,

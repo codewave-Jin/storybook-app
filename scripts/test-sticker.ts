@@ -6,6 +6,7 @@
  *
  * Usage:
  *   npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "첫돌 축하해요"
+ *   npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "선생님 사랑해요" --simple
  */
 import { readFileSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";
@@ -35,28 +36,43 @@ type CliArgs = {
   template: string;
   costume: string;
   phrase: string;
+  simple: boolean;
   out?: string;
 };
 
 function printUsage(): never {
   console.error(`Usage:
-  npx tsx scripts/test-sticker.ts --character <localImagePath> --template <stickerTemplateKey> --costume <stickerCostumeKey> --phrase "<text>" [--out <pngPath>]
+  npx tsx scripts/test-sticker.ts --character <localImagePath> --template <stickerTemplateKey> --costume <stickerCostumeKey> --phrase "<text>" [--simple] [--out <pngPath>]
 
 Example:
-  npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "첫돌 축하해요"
-  npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume none --phrase "감사합니다"
+  npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "선생님 사랑해요"
+  npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "선생님 사랑해요" --simple
 `);
   process.exit(1);
 }
 
 function parseArgs(argv: string[]): CliArgs {
   const args: Record<string, string> = {};
+  let simple = false;
+
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token.startsWith("--")) {
       continue;
     }
     const key = token.slice(2);
+    if (key === "simple") {
+      const next = argv[i + 1];
+      if (next && !next.startsWith("--")) {
+        const normalized = next.trim().toLowerCase();
+        simple = normalized !== "false" && normalized !== "0" && normalized !== "no";
+        i += 1;
+      } else {
+        simple = true;
+      }
+      continue;
+    }
+
     const value = argv[i + 1];
     if (!value || value.startsWith("--")) {
       console.error(`Missing value for --${key}`);
@@ -88,6 +104,7 @@ function parseArgs(argv: string[]): CliArgs {
     template: args.template.trim(),
     costume: args.costume.trim(),
     phrase: args.phrase.trim(),
+    simple,
     out: args.out?.trim(),
   };
 }
@@ -158,6 +175,16 @@ function slugPhrase(phrase: string): string {
     .replace(/[^\w가-힣-]/g, "")
     .slice(0, 24);
   return slug || "sticker";
+}
+
+function buildSimpleStickerPrompt(input: {
+  phrase: string;
+  costumeHint: string;
+}): string {
+  return (
+    `첫 번째 사진 캐릭터를 ${input.costumeHint} 입은 미소짓는 모습으로 바꿔주고, ` +
+    `두 번째 레퍼런스를 참고해서 원형 스티커로 만들어주는데 문구는 '${input.phrase}'로 해줘`
+  );
 }
 
 function buildStickerPrompt(input: {
@@ -237,15 +264,22 @@ async function main() {
       );
     }
 
-    const prompt = buildStickerPrompt({
-      phrase: cli.phrase,
-      costumeHint: costume.promptHint,
-    });
+    const prompt = cli.simple
+      ? buildSimpleStickerPrompt({
+          phrase: cli.phrase,
+          costumeHint: costume.promptHint,
+        })
+      : buildStickerPrompt({
+          phrase: cli.phrase,
+          costumeHint: costume.promptHint,
+        });
 
     console.log("=== Final prompt ===");
     console.log(prompt);
     console.log("====================");
-    console.log(`size=${IMAGE_GEN_SIZE} quality=${IMAGE_GEN_QUALITY}`);
+    console.log(
+      `mode=${cli.simple ? "simple" : "full"} size=${IMAGE_GEN_SIZE} quality=${IMAGE_GEN_QUALITY}`,
+    );
     console.log(
       `template=${template.key} (${template.label}) design=${template.designReferenceImageUrl}`,
     );
@@ -272,7 +306,8 @@ async function main() {
     const outDir = path.join(process.cwd(), "scripts", "output");
     await mkdir(outDir, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const defaultName = `sticker-${template.key}-${costume.key}-${slugPhrase(cli.phrase)}-${stamp}.png`;
+    const modeSuffix = cli.simple ? "simple" : "full";
+    const defaultName = `sticker-${modeSuffix}-${template.key}-${costume.key}-${slugPhrase(cli.phrase)}-${stamp}.png`;
     const outPath = path.resolve(cli.out ?? path.join(outDir, defaultName));
     await mkdir(path.dirname(outPath), { recursive: true });
     await writeFile(outPath, Buffer.from(generated.b64, "base64"));

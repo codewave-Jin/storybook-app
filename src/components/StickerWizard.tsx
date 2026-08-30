@@ -22,6 +22,7 @@ export type StickerTemplateOption = {
   id: string;
   label: string;
   thumbnailPath: string | null;
+  available: boolean;
 };
 
 export type StickerPhraseOption = {
@@ -220,12 +221,21 @@ export function StickerWizard({
                   <button
                     key={template.id}
                     type="button"
-                    onClick={() => setTemplateId(template.id)}
+                    disabled={!template.available}
+                    onClick={() => {
+                      if (!template.available) {
+                        return;
+                      }
+                      setTemplateId(template.id);
+                    }}
                     className={cn(
                       "overflow-hidden rounded-2xl border bg-white text-left shadow-sm",
                       selected
                         ? "border-sky-400 ring-2 ring-sky-300"
-                        : "border-stone-200 hover:border-stone-300",
+                        : "border-stone-200",
+                      template.available
+                        ? "hover:border-stone-300"
+                        : "cursor-not-allowed opacity-55",
                     )}
                   >
                     <div className="relative aspect-square bg-[#F6E7C1]/40">
@@ -241,6 +251,11 @@ export function StickerWizard({
                         <div className="flex h-full items-center justify-center text-3xl font-semibold text-[#8A5A12]">
                           {template.label.slice(0, 1)}
                         </div>
+                      )}
+                      {template.available ? null : (
+                        <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-medium text-stone-500">
+                          준비 중
+                        </span>
                       )}
                     </div>
                     <p className="p-3 font-semibold">{template.label}</p>

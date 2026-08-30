@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/admin", label: "대시보드", exact: true },
   { href: "/admin/orders", label: "주문 관리" },
+  { href: "/admin/reviews", label: "리뷰 관리" },
   { href: "/admin/illustrations", label: "삽화 생성" },
   { href: "/admin/upscale", label: "업스케일" },
 ];
