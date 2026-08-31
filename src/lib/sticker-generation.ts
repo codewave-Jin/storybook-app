@@ -4,33 +4,17 @@ import {
   loadImageAsset,
 } from "@/lib/openai-illustration";
 import { prisma } from "@/lib/prisma";
+import { buildStickerPreviewPrompt } from "@/lib/sticker-prompt";
 import { persistGeneratedStickerBuffer } from "@/lib/uploads";
 
-function buildStickerPrompt(input: {
-  phrase: string;
-  costumeHint: string;
-  hasDesign: boolean;
-}) {
-  return [
-    "Image roles:",
-    "- The first image is the character reference.",
-    input.hasDesign
-      ? "- The second image is the sticker frame/design reference."
-      : "- If a second image is present, treat it as extra character reference.",
-    "",
-    "Character identity (first image):",
-    "Keep the same child as the reference. Copy face, hairstyle, hair color, and skin tone closely.",
-    "Clothing follows the costume instruction below.",
-    "",
-    "Costume:",
-    input.costumeHint.trim() || "Keep the character in their original outfit.",
-    "",
-    input.hasDesign
-      ? `Frame / design: match the second image's decorative frame. Replace any text with exactly '${input.phrase}'. Keep a clean circular sticker border. Outside the circle must be plain white.`
-      : `Create a circular die-cut sticker of this character with the phrase '${input.phrase}' on the design. Plain white background outside the circle.`,
-    "",
-    "Output: gentle child-friendly sticker illustration, isolated, no shadows.",
-  ].join("\n");
+async function markPreviewFailed(orderId: string, error: string) {
+  await prisma.stickerOrder.update({
+    where: { id: orderId },
+    data: {
+      previewStatus: "FAILED",
+      errorReason: error,
+    },
+  });
 }
 
 export async function runStickerPreviewGeneration(orderId: string) {
@@ -45,7 +29,6 @@ export async function runStickerPreviewGeneration(orderId: string) {
       },
       template: {
         select: {
-          promptModifier: true,
           designReferenceImageUrl: true,
         },
       },
@@ -59,27 +42,48 @@ export async function runStickerPreviewGeneration(orderId: string) {
     return { error: "스티커 주문을 찾을 수 없습니다." };
   }
 
-  if (order.previewImagePath) {
+  if (order.previewImagePath || order.previewStatus === "COMPLETED") {
     return { success: true, skipped: true };
-  }
-
-  const characterImage =
-    order.character.generatedImagePath ?? order.character.originalPhotoPath;
-  if (!characterImage) {
-    return { error: "캐릭터 이미지가 없습니다." };
   }
 
   const claimed = await prisma.stickerOrder.updateMany({
     where: {
       id: orderId,
       previewImagePath: null,
-      productionStatus: { in: ["WAITING", "ILLUSTRATING"] },
+      previewStatus: { in: ["IDLE", "FAILED"] },
     },
-    data: { productionStatus: "ILLUSTRATING" },
+    data: {
+      previewStatus: "PROCESSING",
+      errorReason: null,
+    },
   });
 
-  if (claimed.count === 0 && order.productionStatus === "ILLUSTRATING") {
-    return { success: true, skipped: true };
+  if (claimed.count === 0) {
+    if (order.previewStatus === "PROCESSING") {
+      return { success: true, skipped: true };
+    }
+    return { error: "스티커 생성을 시작할 수 없습니다." };
+  }
+
+  const fail = async (error: string) => {
+    await markPreviewFailed(orderId, error);
+    return { error };
+  };
+
+  const characterImage =
+    order.character.generatedImagePath ?? order.character.originalPhotoPath;
+  if (!characterImage) {
+    return fail("캐릭터 이미지가 없습니다.");
+  }
+
+  const costumeHint = order.costume?.promptHint?.trim() ?? "";
+  if (!order.costume || !costumeHint) {
+    return fail("선택한 코스튬을 확인할 수 없습니다.");
+  }
+
+  const designUrl = order.template.designReferenceImageUrl?.trim() || null;
+  if (!designUrl) {
+    return fail("템플릿 레퍼런스 이미지가 없습니다.");
   }
 
   if (isComfyMockEnabled()) {
@@ -87,28 +91,21 @@ export async function runStickerPreviewGeneration(orderId: string) {
       where: { id: orderId },
       data: {
         previewImagePath: characterImage,
-        productionStatus: "WAITING",
+        previewStatus: "COMPLETED",
+        errorReason: null,
       },
     });
     return { success: true, mock: true };
   }
 
   try {
-    const costumeHint =
-      order.costume?.promptHint?.trim() ||
-      order.template.promptModifier.trim() ||
-      "Keep the character in their original outfit";
-    const designUrl = order.template.designReferenceImageUrl?.trim() || null;
     const characterAsset = await loadImageAsset(characterImage);
-    const styleAsset = designUrl
-      ? await loadImageAsset(designUrl)
-      : characterAsset;
+    const styleAsset = await loadImageAsset(designUrl);
 
     const generated = await generateIllustrationViaResponsesAPI({
-      prompt: buildStickerPrompt({
+      prompt: buildStickerPreviewPrompt({
         phrase: order.phrase,
         costumeHint,
-        hasDesign: Boolean(designUrl),
       }),
       characters: [characterAsset],
       style: styleAsset,
@@ -122,22 +119,15 @@ export async function runStickerPreviewGeneration(orderId: string) {
       where: { id: orderId },
       data: {
         previewImagePath: imagePath,
-        productionStatus: "WAITING",
+        previewStatus: "COMPLETED",
+        errorReason: null,
       },
     });
     return { success: true };
   } catch (error) {
     console.error("[sticker-generation] preview failed", orderId, error);
-    await prisma.stickerOrder.update({
-      where: { id: orderId },
-      data: {
-        previewImagePath: characterImage,
-        productionStatus: "WAITING",
-      },
-    });
-    return {
-      error:
-        error instanceof Error ? error.message : "스티커 생성에 실패했습니다.",
-    };
+    const message =
+      error instanceof Error ? error.message : "스티커 생성에 실패했습니다.";
+    return fail(message);
   }
 }

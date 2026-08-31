@@ -3,6 +3,7 @@ export type CustomField = {
   label: string;
   type: string;
   placeholder?: string;
+  required?: boolean;
 };
 
 export const ACTIVE_STORYBOOK_TEMPLATE_TITLE = "숲속 친구들과의 하루";
@@ -21,6 +22,10 @@ export function isStorybookTemplateSelectable(title: string) {
 
 export function isStickerTemplateSelectable(key: string) {
   return key === ACTIVE_STICKER_TEMPLATE_KEY;
+}
+
+export function isStickerSizeSelectable(label: string) {
+  return label.startsWith("중형");
 }
 
 export function stickerTemplateLabel(key: string, fallback: string) {
@@ -53,6 +58,8 @@ export function parseCustomFields(value: unknown): CustomField[] {
           typeof parsed.placeholder === "string"
             ? parsed.placeholder
             : undefined,
+        required:
+          typeof parsed.required === "boolean" ? parsed.required : true,
       },
     ];
   });

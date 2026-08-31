@@ -135,24 +135,21 @@ const defaultStickerCostumes = [
   {
     key: "none",
     label: "코스튬 없음 (원래 모습)",
-    promptHint:
-      "Keep the character in their original outfit, no costume change",
+    promptHint: "원래 옷을",
     sortOrder: 0,
     isActive: true,
   },
   {
     key: "butterfly",
     label: "나비 코스튬",
-    promptHint:
-      "Transform the character into a butterfly costume with wings and antennae, keeping the face identity unchanged",
+    promptHint: "나비 날개와 더듬이가 있는 코스튬을",
     sortOrder: 1,
     isActive: true,
   },
   {
     key: "formal",
     label: "정장",
-    promptHint:
-      "Dress the character in a small formal outfit like a tiny suit or dress, keeping the face identity unchanged",
+    promptHint: "작은 정장(또는 원피스)을",
     sortOrder: 2,
     isActive: true,
   },
@@ -221,8 +218,7 @@ const dummyCharacters = [
   },
 ];
 
-const ART_STYLE_PUBLIC_BASE =
-  "https://sflnuarzjushssbxpged.supabase.co/storage/v1/object/public/art-styles";
+const ART_STYLE_PUBLIC_BASE = "/art-styles";
 
 const defaultArtStyles = [
   {
@@ -242,8 +238,22 @@ const defaultArtStyles = [
   {
     key: "crayon",
     label: "색연필",
-    referenceImageUrl: `${ART_STYLE_PUBLIC_BASE}/Colored%20pencil_style.png`,
+    referenceImageUrl: `${ART_STYLE_PUBLIC_BASE}/colored-pencil_style.png`,
     sortOrder: 2,
+    isActive: true,
+  },
+  {
+    key: "flat-digital",
+    label: "플랫 디지털",
+    referenceImageUrl: `${ART_STYLE_PUBLIC_BASE}/flat-digital.png`,
+    sortOrder: 3,
+    isActive: true,
+  },
+  {
+    key: "oil-painting",
+    label: "유화",
+    referenceImageUrl: `${ART_STYLE_PUBLIC_BASE}/oil-painting.png`,
+    sortOrder: 4,
     isActive: true,
   },
 ];
@@ -292,14 +302,14 @@ const forestPageTemplates: Array<{
     pageType: "PAGE",
     characterSlots: 1,
     promptTemplate:
-      "아침 햇살이 내려앉은 오솔길에서 {{character_1}}이(가) {{answer.favorite_color}} 배낭을 메고 숲속 친구들을 만나러 첫걸음을 뗀다.",
+      "{{character_1}}가 아침 햇살이 들어오는 방에서 침대에 일어나 기지개를 켜고 있다.\n포인트 색깔은 {{answer.favorite_color}}이다.",
   },
   {
     pageNumber: 3,
     pageType: "PAGE",
     characterSlots: 1,
     promptTemplate:
-      "작은 시냇가에서 {{character_1}}이(가) 물에 비친 얼굴을 들여다보다가, 멀리서 {{answer.favorite_animal}}의 발자국을 발견한다.",
+      "{{character_1}}가 오두막을 나와 숲속 길을 산책하다가, 앞에서 {{answer.favorite_animal}}을(를) 만난다.",
   },
   {
     pageNumber: 4,
@@ -385,6 +395,7 @@ type CustomFieldSeed = {
   label: string;
   type: string;
   placeholder?: string;
+  required?: boolean;
 };
 
 function parseCustomFieldSeed(value: unknown): CustomFieldSeed[] {
@@ -413,6 +424,8 @@ function parseCustomFieldSeed(value: unknown): CustomFieldSeed[] {
           typeof parsed.placeholder === "string"
             ? parsed.placeholder
             : undefined,
+        required:
+          typeof parsed.required === "boolean" ? parsed.required : true,
       },
     ];
   });
@@ -436,7 +449,7 @@ async function syncTemplateQuestionsFromCustomFields(
         label: field.label,
         answerType: field.type || "text",
         placeholder: field.placeholder ?? null,
-        required: true,
+        required: field.required !== false,
         sortOrder: index,
       },
       create: {
@@ -445,7 +458,7 @@ async function syncTemplateQuestionsFromCustomFields(
         label: field.label,
         answerType: field.type || "text",
         placeholder: field.placeholder ?? null,
-        required: true,
+        required: field.required !== false,
         sortOrder: index,
       },
     });
@@ -562,6 +575,7 @@ async function seedForestFriendsTemplate(
       key: q.key,
       label: q.label,
       type: q.answerType,
+      required: q.required,
     })),
     topicPresets: [],
   };

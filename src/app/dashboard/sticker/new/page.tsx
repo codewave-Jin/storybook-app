@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StickerWizard } from "@/components/StickerWizard";
 import {
+  isStickerSizeSelectable,
   isStickerTemplateSelectable,
   stickerTemplateLabel,
 } from "@/lib/templates";
@@ -15,13 +16,25 @@ export default async function NewStickerPage() {
     redirect("/login?callbackUrl=/dashboard/sticker/new");
   }
 
-  const [characters, templates, phrases, sizes] = await Promise.all([
+  const [characters, templates, costumes, phrases, sizes] = await Promise.all([
     prisma.character.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
     }),
     prisma.stickerTemplate.findMany({
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.stickerCostume.findMany({
+      where: { isActive: true },
+      include: {
+        templates: {
+          select: {
+            stickerTemplateId: true,
+            sortOrder: true,
+          },
+        },
+      },
+      orderBy: { sortOrder: "asc" },
     }),
     prisma.stickerPhrasePreset.findMany({
       orderBy: { text: "asc" },
@@ -57,6 +70,15 @@ export default async function NewStickerPage() {
               available: isStickerTemplateSelectable(template.key),
             }))
             .sort((left, right) => Number(right.available) - Number(left.available))}
+          costumes={costumes.flatMap((costume) =>
+            costume.templates.map((link) => ({
+              id: costume.id,
+              label: costume.label,
+              referenceImageUrl: costume.referenceImageUrl,
+              templateId: link.stickerTemplateId,
+              sortOrder: link.sortOrder,
+            })),
+          )}
           phrases={phrases.map((phrase) => ({
             id: phrase.id,
             text: phrase.text,
@@ -67,6 +89,7 @@ export default async function NewStickerPage() {
             widthMm: size.widthMm,
             heightMm: size.heightMm,
             quantityPerA4: size.quantityPerA4,
+            available: isStickerSizeSelectable(size.label),
           }))}
         />
       </div>

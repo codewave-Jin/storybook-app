@@ -15,6 +15,8 @@ export async function GET(
     where: { id: params.id, userId: session.user.id },
     select: {
       previewImagePath: true,
+      previewStatus: true,
+      errorReason: true,
       productionStatus: true,
     },
   });
@@ -25,6 +27,8 @@ export async function GET(
 
   return NextResponse.json({
     previewImagePath: order.previewImagePath,
+    previewStatus: order.previewStatus,
+    errorReason: order.errorReason,
     productionStatus: order.productionStatus,
   });
 }

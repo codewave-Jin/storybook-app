@@ -17,15 +17,19 @@ export async function POST(
 
   const order = await prisma.stickerOrder.findUnique({
     where: { id: params.id },
-    select: { id: true, previewImagePath: true },
+    select: { id: true, previewImagePath: true, previewStatus: true },
   });
 
   if (!order) {
     return NextResponse.json({ error: "Sticker order not found" }, { status: 404 });
   }
 
-  if (order.previewImagePath) {
+  if (order.previewImagePath || order.previewStatus === "COMPLETED") {
     return NextResponse.json({ ok: true, skipped: true, reason: "has preview" });
+  }
+
+  if (order.previewStatus === "PROCESSING") {
+    return NextResponse.json({ ok: true, skipped: true, reason: "processing" });
   }
 
   waitUntil(

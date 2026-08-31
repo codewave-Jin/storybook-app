@@ -25,6 +25,14 @@ export type StickerTemplateOption = {
   available: boolean;
 };
 
+export type StickerCostumeOption = {
+  id: string;
+  label: string;
+  referenceImageUrl: string | null;
+  templateId: string;
+  sortOrder: number;
+};
+
 export type StickerPhraseOption = {
   id: string;
   text: string;
@@ -36,11 +44,13 @@ export type StickerSizeOption = {
   widthMm: number;
   heightMm: number;
   quantityPerA4: number;
+  available: boolean;
 };
 
-const STEP_LABELS = ["캐릭터", "템플릿", "문구", "사이즈", "제작 요청"] as const;
+const STEP_COUNT = 6;
+const STEP_LABELS = ["캐릭터", "용도", "옷", "문구", "사이즈", "제작 요청"] as const;
 const CUSTOM_PHRASE = "__custom__";
-const MAX_PHRASE_LENGTH = 16;
+const MAX_PHRASE_LENGTH = 25;
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -59,17 +69,20 @@ function SubmitButton() {
 export function StickerWizard({
   characters,
   templates,
+  costumes,
   phrases,
   sizes,
 }: {
   characters: StickerCharacterOption[];
   templates: StickerTemplateOption[];
+  costumes: StickerCostumeOption[];
   phrases: StickerPhraseOption[];
   sizes: StickerSizeOption[];
 }) {
   const [step, setStep] = useState(1);
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [costumeId, setCostumeId] = useState<string | null>(null);
   const [phraseKey, setPhraseKey] = useState<string | null>(null);
   const [customPhrase, setCustomPhrase] = useState("");
   const [sizeOptionId, setSizeOptionId] = useState<string | null>(null);
@@ -80,6 +93,14 @@ export function StickerWizard({
 
   const selectedCharacter = characters.find((item) => item.id === characterId);
   const selectedTemplate = templates.find((item) => item.id === templateId);
+  const templateCostumes = useMemo(
+    () =>
+      costumes
+        .filter((item) => item.templateId === templateId)
+        .sort((left, right) => left.sortOrder - right.sortOrder),
+    [costumes, templateId],
+  );
+  const selectedCostume = templateCostumes.find((item) => item.id === costumeId);
   const selectedSize = sizes.find((item) => item.id === sizeOptionId);
   const phrase =
     phraseKey === CUSTOM_PHRASE
@@ -89,18 +110,23 @@ export function StickerWizard({
   const canNext = useMemo(() => {
     if (step === 1) return Boolean(characterId);
     if (step === 2) return Boolean(templateId);
-    if (step === 3) return phrase.length > 0 && phrase.length <= MAX_PHRASE_LENGTH;
-    if (step === 4) return Boolean(sizeOptionId);
+    if (step === 3) return Boolean(costumeId);
+    if (step === 4) return phrase.length > 0 && phrase.length <= MAX_PHRASE_LENGTH;
+    if (step === 5) {
+      return Boolean(
+        sizeOptionId && sizes.find((item) => item.id === sizeOptionId)?.available,
+      );
+    }
     return true;
-  }, [step, characterId, templateId, phrase, sizeOptionId]);
+  }, [step, characterId, templateId, costumeId, phrase, sizeOptionId, sizes]);
 
   return (
     <div className="mx-auto w-full max-w-4xl">
       <div className="mb-6">
         <p className="text-sm font-medium text-stone-500">
-          {step}/5 · {STEP_LABELS[step - 1]}
+          {step}/{STEP_COUNT} · {STEP_LABELS[step - 1]}
         </p>
-        <div className="mt-3 grid grid-cols-5 gap-1.5 sm:gap-2">
+        <div className="mt-3 grid grid-cols-6 gap-1.5 sm:gap-2">
           {STEP_LABELS.map((label, index) => {
             const number = index + 1;
             const active = number === step;
@@ -205,13 +231,13 @@ export function StickerWizard({
 
       {step === 2 ? (
         <section>
-          <h2 className="text-lg font-semibold">옷을 골라 주세요</h2>
+          <h2 className="text-lg font-semibold">용도를 골라 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            스티커에 입힐 모습을 선택해요.
+            스티커를 어디에 쓸지 선택해요.
           </p>
           {templates.length === 0 ? (
             <p className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-12 text-center text-sm text-stone-500">
-              선택 가능한 템플릿이 없습니다.
+              선택 가능한 용도가 없습니다.
             </p>
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
@@ -227,6 +253,7 @@ export function StickerWizard({
                         return;
                       }
                       setTemplateId(template.id);
+                      setCostumeId(null);
                     }}
                     className={cn(
                       "overflow-hidden rounded-2xl border bg-white text-left shadow-sm",
@@ -268,6 +295,52 @@ export function StickerWizard({
       ) : null}
 
       {step === 3 ? (
+        <section>
+          <h2 className="text-lg font-semibold">옷을 골라 주세요</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            스티커에 입힐 모습을 선택해요.
+          </p>
+          {templateCostumes.length === 0 ? (
+            <p className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-12 text-center text-sm text-stone-500">
+              이 용도에 선택할 수 있는 옷이 없습니다.
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {templateCostumes.map((costume) => {
+                const selected = costume.id === costumeId;
+                return (
+                  <button
+                    key={costume.id}
+                    type="button"
+                    onClick={() => setCostumeId(costume.id)}
+                    className={cn(
+                      "overflow-hidden rounded-2xl border bg-white text-left shadow-sm hover:border-stone-300",
+                      selected
+                        ? "border-sky-400 ring-2 ring-sky-300"
+                        : "border-stone-200",
+                    )}
+                  >
+                    {costume.referenceImageUrl ? (
+                      <div className="relative aspect-square bg-[#F6E7C1]/40">
+                        <AppImage
+                          src={costume.referenceImageUrl}
+                          alt={costume.label}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 640px) 100vw, 33vw"
+                        />
+                      </div>
+                    ) : null}
+                    <p className="p-5 font-semibold">{costume.label}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {step === 4 ? (
         <section>
           <h2 className="text-lg font-semibold">문구를 넣어 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
@@ -329,7 +402,7 @@ export function StickerWizard({
         </section>
       ) : null}
 
-      {step === 4 ? (
+      {step === 5 ? (
         <section>
           <h2 className="text-lg font-semibold">사이즈를 선택해 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
@@ -342,14 +415,28 @@ export function StickerWizard({
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => setSizeOptionId(option.id)}
+                  disabled={!option.available}
+                  onClick={() => {
+                    if (!option.available) {
+                      return;
+                    }
+                    setSizeOptionId(option.id);
+                  }}
                   className={cn(
-                    "rounded-2xl border bg-white p-5 text-left shadow-sm",
+                    "relative rounded-2xl border bg-white p-5 text-left shadow-sm",
                     selected
                       ? "border-sky-400 ring-2 ring-sky-300"
-                      : "border-stone-200 hover:border-stone-300",
+                      : "border-stone-200",
+                    option.available
+                      ? "hover:border-stone-300"
+                      : "cursor-not-allowed opacity-55",
                   )}
                 >
+                  {option.available ? null : (
+                    <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-medium text-stone-500 ring-1 ring-stone-200">
+                      준비 중
+                    </span>
+                  )}
                   <p className="font-semibold">{option.label}</p>
                   <p className="mt-1 text-sm text-stone-500">
                     {option.widthMm} × {option.heightMm}mm
@@ -364,12 +451,13 @@ export function StickerWizard({
         </section>
       ) : null}
 
-      {step === 5 ? (
+      {step === 6 ? (
         <section>
           <h2 className="text-lg font-semibold">이대로 제작할까요?</h2>
           <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
             <SummaryRow label="캐릭터" value={selectedCharacter?.label} />
-            <SummaryRow label="템플릿" value={selectedTemplate?.label} />
+            <SummaryRow label="용도" value={selectedTemplate?.label} />
+            <SummaryRow label="옷" value={selectedCostume?.label} />
             <SummaryRow label="문구" value={phrase} />
             <SummaryRow
               label="사이즈"
@@ -384,6 +472,7 @@ export function StickerWizard({
           <form action={formAction} className="mt-6">
             <input type="hidden" name="characterId" value={characterId ?? ""} />
             <input type="hidden" name="templateId" value={templateId ?? ""} />
+            <input type="hidden" name="costumeId" value={costumeId ?? ""} />
             <input type="hidden" name="phrase" value={phrase} />
             <input type="hidden" name="sizeOptionId" value={sizeOptionId ?? ""} />
             {state?.error ? (
@@ -396,7 +485,7 @@ export function StickerWizard({
         </section>
       ) : null}
 
-      {step !== 5 ? (
+      {step !== 6 ? (
         <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
           {step > 1 ? (
             <button
@@ -416,7 +505,7 @@ export function StickerWizard({
           )}
           <button
             type="button"
-            onClick={() => setStep((current) => Math.min(current + 1, 5))}
+            onClick={() => setStep((current) => Math.min(current + 1, STEP_COUNT))}
             disabled={!canNext}
             className="flex h-12 items-center justify-center rounded-xl bg-sky-400 px-8 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -426,7 +515,7 @@ export function StickerWizard({
       ) : (
         <button
           type="button"
-          onClick={() => setStep(4)}
+          onClick={() => setStep(5)}
           className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-stone-300 px-6 text-sm font-medium hover:bg-white sm:w-auto"
         >
           이전

@@ -23,6 +23,7 @@ export default async function StickerPreviewPage({
     include: {
       character: true,
       template: true,
+      costume: true,
       sizeOption: true,
     },
   });
@@ -32,25 +33,28 @@ export default async function StickerPreviewPage({
   }
 
   const paid = order.paymentStatus === "PAID";
-  if (!order.previewImagePath) {
+  const generating =
+    order.previewStatus === "IDLE" || order.previewStatus === "PROCESSING";
+  const failed = order.previewStatus === "FAILED";
+  const completed = order.previewStatus === "COMPLETED" && order.previewImagePath;
+
+  if (order.previewStatus === "IDLE") {
     void enqueueStickerGeneration(order.id);
   }
-  const characterSrc =
-    order.character.generatedImagePath ?? order.character.originalPhotoPath;
-  const stickerSrc = order.previewImagePath ?? characterSrc;
-  const overlayPhrase =
-    !order.previewImagePath ||
-    order.previewImagePath === order.character.generatedImagePath ||
-    order.previewImagePath === order.character.originalPhotoPath;
-  const waitingForGenerated = !order.previewImagePath;
+
+  const stickerSrc = completed ? order.previewImagePath : null;
 
   return (
     <DashboardShell title="스티커 미리보기">
-      {waitingForGenerated ? (
+      {generating ? (
         <IntervalRefresher
           active
           href={`/api/stickers/${order.id}/status`}
-          initialSignature={order.previewImagePath ?? ""}
+          initialSignature={JSON.stringify({
+            previewImagePath: order.previewImagePath,
+            previewStatus: order.previewStatus,
+            errorReason: order.errorReason,
+          })}
         />
       ) : null}
       <Link
@@ -61,21 +65,30 @@ export default async function StickerPreviewPage({
       </Link>
 
       <div className="mx-auto mt-6 w-full max-w-xl">
-        {stickerSrc ? (
+        {completed && stickerSrc ? (
           <StickerPreviewViews
             src={stickerSrc}
             phrase={order.phrase}
             quantity={order.quantity}
-            overlayPhrase={overlayPhrase}
+            overlayPhrase={false}
             showWatermark={!paid}
           />
+        ) : failed ? (
+          <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-stone-200">
+            <p className="text-lg font-semibold text-stone-800">
+              스티커 생성에 실패했어요
+            </p>
+            <p className="mt-2 text-sm text-stone-500">
+              {order.errorReason ?? "잠시 후 다시 시도해 주세요."}
+            </p>
+          </div>
         ) : (
           <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-stone-200">
             <p className="text-lg font-semibold text-stone-800">
-              미리볼 이미지가 없습니다
+              스티커를 만들고 있어요
             </p>
             <p className="mt-2 text-sm text-stone-500">
-              캐릭터 생성이 끝난 뒤에 다시 열어 주세요.
+              잠시만 기다려 주세요. 끝나면 미리보기가 나타나요.
             </p>
           </div>
         )}
@@ -83,7 +96,9 @@ export default async function StickerPreviewPage({
         <div className="mt-5 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-stone-200">
           <p className="text-lg font-semibold">{order.phrase}</p>
           <p className="mt-1 text-sm text-stone-500">
-            {order.character.label} · {order.template.label} · {order.sizeOption.label}
+            {order.character.label} · {order.template.label}
+            {order.costume ? ` · ${order.costume.label}` : ""} ·{" "}
+            {order.sizeOption.label}
           </p>
           <p className="mt-1 text-sm text-stone-500">
             A4 한 장에 {order.quantity}개
@@ -106,8 +121,16 @@ export default async function StickerPreviewPage({
                 대시보드로 돌아가기
               </Link>
             </div>
-          ) : (
+          ) : completed ? (
             <StickerPreviewPayButton orderId={order.id} />
+          ) : failed ? (
+            <p className="text-center text-sm text-stone-500">
+              생성이 끝난 뒤에 결제할 수 있어요.
+            </p>
+          ) : (
+            <p className="text-center text-sm text-stone-500">
+              미리보기가 나오면 결제할 수 있어요.
+            </p>
           )}
         </div>
       </div>
