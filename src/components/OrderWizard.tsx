@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { createOrder, type CreateOrderState } from "@/app/actions/orders";
+import { CUSTOM_INPUT_MAX_LENGTH } from "@/lib/custom-input-guard";
 import type { CustomField } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
@@ -133,7 +134,7 @@ export function OrderWizard({
       if (current.includes(id)) {
         return current.filter((value) => value !== id);
       }
-      if (current.length >= 3) {
+      if (current.length >= 1) {
         return current;
       }
       return [...current, id];
@@ -146,10 +147,15 @@ export function OrderWizard({
       return canSkipArtStyle || Boolean(artStyleId);
     }
     if (step === STEP_CHARACTERS) {
-      return characterIds.length >= 1 && characterIds.length <= 3;
+      return characterIds.length >= 1 && characterIds.length <= 1;
     }
     if (step === STEP_FIELDS) {
-      return customFields.every((field) => customValues[field.key]?.trim());
+      return customFields.every((field) => {
+        if (field.required === false) {
+          return true;
+        }
+        return Boolean(customValues[field.key]?.trim());
+      });
     }
     return true;
   }, [
@@ -252,14 +258,14 @@ export function OrderWizard({
           <p className="mt-1 text-sm text-stone-500">
             동화책 전체에 적용될 그림 스타일입니다. 하나만 고를 수 있어요.
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-5">
             {artStyles.map((style) => {
               const selected = style.id === artStyleId;
               return (
                 <label
                   key={style.id}
                   className={cn(
-                    "relative cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm",
+                    "relative cursor-pointer overflow-hidden rounded-xl border bg-white shadow-sm",
                     selected
                       ? "border-sky-400 ring-2 ring-sky-300"
                       : "border-stone-200 hover:border-stone-400",
@@ -272,17 +278,19 @@ export function OrderWizard({
                     checked={selected}
                     onChange={() => setArtStyleId(style.id)}
                   />
-                  <div className="relative aspect-[4/5] bg-stone-100">
+                  <div className="relative aspect-square bg-stone-100">
                     <AppImage
                       src={style.referenceImageUrl}
                       alt={style.label}
                       fill
                       className="pointer-events-none object-cover"
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      sizes="(max-width: 640px) 33vw, 160px"
                     />
                   </div>
-                  <div className="p-4">
-                    <p className="font-semibold">{style.label}</p>
+                  <div className="px-1 py-1.5">
+                    <p className="truncate text-center text-xs font-medium sm:text-sm">
+                      {style.label}
+                    </p>
                   </div>
                 </label>
               );
@@ -295,7 +303,10 @@ export function OrderWizard({
         <section>
           <h2 className="text-lg font-semibold">등장할 캐릭터를 선택해 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            생성이 완료된 캐릭터만 선택할 수 있습니다. 최대 3명.
+            생성이 완료된 캐릭터만 선택할 수 있습니다. 최대 3명.{" "}
+            <span className="font-medium text-red-500">
+              (현재 테스트중이라 1명만 선택)
+            </span>
           </p>
 
           {characters.length === 0 ? (
@@ -314,9 +325,9 @@ export function OrderWizard({
           ) : (
             <>
               <p className="mt-3 text-sm text-stone-500">
-                {characterIds.length}/3명 선택됨
+                {characterIds.length}/1명 선택됨
               </p>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 lg:grid-cols-5">
                 {characters.map((character) => {
                   const selectable = character.status === "COMPLETED";
                   const selected = characterIds.includes(character.id);
@@ -329,7 +340,7 @@ export function OrderWizard({
                     <label
                       key={character.id}
                       className={cn(
-                        "relative overflow-hidden rounded-2xl border bg-white shadow-sm",
+                        "relative overflow-hidden rounded-xl border bg-white shadow-sm",
                         selectable ? "cursor-pointer" : "cursor-not-allowed",
                         selected
                           ? "border-sky-400 ring-2 ring-sky-300"
@@ -344,7 +355,7 @@ export function OrderWizard({
                         disabled={!selectable}
                         onChange={() => toggleCharacter(character.id, selectable)}
                       />
-                      <div className="no-image-save relative aspect-[4/5] bg-stone-100">
+                      <div className="no-image-save relative aspect-square bg-stone-100">
                         <AppImage
                           src={imageSrc}
                           alt={character.label}
@@ -355,7 +366,7 @@ export function OrderWizard({
                             "pointer-events-none object-cover",
                             !selectable && "grayscale",
                           )}
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 20vw"
                         />
                         <div
                           className="pointer-events-none absolute inset-0"
@@ -364,11 +375,11 @@ export function OrderWizard({
                         {!selectable ? (
                           <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45">
                             {character.status === "FAILED" ? (
-                              <span className="rounded-full bg-white px-3 py-1 text-sm font-medium">
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium">
                                 생성 실패
                               </span>
                             ) : (
-                              <div className="rounded-2xl bg-white/95 px-4 py-3">
+                              <div className="rounded-xl bg-white/95 px-2 py-1.5">
                                 <GenerationProgress
                                   kind="character"
                                   id={character.id}
@@ -378,9 +389,11 @@ export function OrderWizard({
                           </div>
                         ) : null}
                       </div>
-                      <div className="p-4">
-                        <p className="font-semibold">{character.label}</p>
-                        <p className="text-sm text-stone-500">
+                      <div className="px-1.5 py-1.5">
+                        <p className="truncate text-center text-xs font-semibold sm:text-sm">
+                          {character.label}
+                        </p>
+                        <p className="truncate text-center text-[11px] text-stone-500">
                           {GENDER_LABEL[character.gender]}
                         </p>
                       </div>
@@ -397,26 +410,47 @@ export function OrderWizard({
         <section>
           <h2 className="text-lg font-semibold">추가 정보를 입력해 주세요</h2>
           <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
-            {customFields.map((field) => (
-              <label
-                key={field.key}
-                className="flex flex-col gap-1.5 text-sm font-medium text-stone-700"
-              >
-                {field.label}
-                <input
-                  type="text"
-                  value={customValues[field.key] ?? ""}
-                  placeholder={field.placeholder}
-                  onChange={(event) =>
-                    setCustomValues((current) => ({
-                      ...current,
-                      [field.key]: event.target.value,
-                    }))
-                  }
-                  className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                />
-              </label>
-            ))}
+            {customFields.map((field) => {
+              const isRequired = field.required !== false;
+              const current = customValues[field.key] ?? "";
+              return (
+                <label
+                  key={field.key}
+                  className="flex flex-col gap-1.5 text-sm font-medium text-stone-700"
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span>
+                      {field.label}
+                      {isRequired ? null : (
+                        <span className="ml-1 font-normal text-stone-400">
+                          (선택)
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs font-normal tabular-nums text-stone-400">
+                      {current.length}/{CUSTOM_INPUT_MAX_LENGTH}
+                    </span>
+                  </span>
+                  <input
+                    type="text"
+                    value={current}
+                    required={isRequired}
+                    maxLength={CUSTOM_INPUT_MAX_LENGTH}
+                    placeholder={field.placeholder}
+                    onChange={(event) =>
+                      setCustomValues((currentValues) => ({
+                        ...currentValues,
+                        [field.key]: event.target.value.slice(
+                          0,
+                          CUSTOM_INPUT_MAX_LENGTH,
+                        ),
+                      }))
+                    }
+                    className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+                  />
+                </label>
+              );
+            })}
           </div>
         </section>
       ) : null}
@@ -477,7 +511,10 @@ export function OrderWizard({
                 key={field.key}
                 type="hidden"
                 name={`custom:${field.key}`}
-                value={customValues[field.key] ?? ""}
+                value={(customValues[field.key] ?? "").slice(
+                  0,
+                  CUSTOM_INPUT_MAX_LENGTH,
+                )}
               />
             ))}
             {state?.error ? (

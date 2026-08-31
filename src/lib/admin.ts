@@ -13,7 +13,7 @@ export async function requireAdmin() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    redirect("/login");
+    redirect("/admin/login");
   }
 
   const user = await loadAdminUser(session.user.id);

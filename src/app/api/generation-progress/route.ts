@@ -4,7 +4,13 @@ import { getAdminOrNull } from "@/lib/admin";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
 import { prisma } from "@/lib/prisma";
 
-async function authorizeRead(kind: "character" | "illustration", id: string) {
+type ProgressKind = "character" | "illustration" | "sticker";
+
+function isProgressKind(value: string | null): value is ProgressKind {
+  return value === "character" || value === "illustration" || value === "sticker";
+}
+
+async function authorizeRead(kind: ProgressKind, id: string) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
@@ -24,9 +30,29 @@ async function authorizeRead(kind: "character" | "illustration", id: string) {
     return null;
   }
 
-  const admin = await getAdminOrNull();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (kind === "sticker") {
+    const order = await prisma.stickerOrder.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+    if (!order || order.userId !== session.user.id) {
+      const admin = await getAdminOrNull();
+      if (!admin) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+    return null;
+  }
+
+  const illustration = await prisma.illustration.findUnique({
+    where: { id },
+    select: { order: { select: { userId: true } } },
+  });
+  if (!illustration || illustration.order.userId !== session.user.id) {
+    const admin = await getAdminOrNull();
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
   return null;
 }
@@ -36,7 +62,7 @@ export async function GET(request: Request) {
   const kind = searchParams.get("kind");
   const id = searchParams.get("id");
 
-  if ((kind !== "character" && kind !== "illustration") || !id) {
+  if (!isProgressKind(kind) || !id) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 
@@ -61,6 +87,28 @@ export async function GET(request: Request) {
           : (character?.progressLabel ?? "생성 중"),
       active:
         character?.status === "PENDING" || character?.status === "PROCESSING",
+    });
+  }
+
+  if (kind === "sticker") {
+    const order = await prisma.stickerOrder.findUnique({
+      where: { id },
+      select: { previewStatus: true },
+    });
+    const completed = order?.previewStatus === "COMPLETED";
+    const failed = order?.previewStatus === "FAILED";
+    return NextResponse.json({
+      percent: completed ? 100 : 0,
+      label: failed
+        ? "실패"
+        : completed
+          ? "완료"
+          : order?.previewStatus === "IDLE"
+            ? "준비 중"
+            : "스티커 생성 중",
+      active:
+        order?.previewStatus === "IDLE" ||
+        order?.previewStatus === "PROCESSING",
     });
   }
 

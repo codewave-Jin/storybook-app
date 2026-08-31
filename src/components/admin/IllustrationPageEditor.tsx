@@ -62,6 +62,7 @@ export function IllustrationPageEditor({
     sceneImagePath: string | null;
     status: "IDLE" | "PROCESSING" | "COMPLETED" | "FAILED";
     selectedCharacterIds: string[];
+    errorReason?: string | null;
   };
   characters: WorkCharacter[];
 }) {
@@ -169,7 +170,13 @@ export function IllustrationPageEditor({
         ) : failed ? (
           <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 px-4 text-center">
             <span className="text-sm font-medium text-red-600">생성 실패</span>
-            <span className="text-xs text-stone-500">다시 생성해 주세요</span>
+            {illustration.errorReason ? (
+              <span className="max-w-full break-words text-xs text-stone-500">
+                {illustration.errorReason}
+              </span>
+            ) : (
+              <span className="text-xs text-stone-500">다시 생성해 주세요</span>
+            )}
           </div>
         ) : (
           <div className="flex h-full min-h-[220px] items-center justify-center px-4 text-center text-sm text-stone-400">
@@ -185,9 +192,16 @@ export function IllustrationPageEditor({
 
       <div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <h3 className="text-lg font-semibold">
-            {illustration.pageNumber}페이지
-          </h3>
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold">
+              {illustration.pageNumber}페이지
+            </h3>
+            {failed && illustration.errorReason ? (
+              <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                {illustration.errorReason}
+              </p>
+            ) : null}
+          </div>
           <div className="flex flex-wrap gap-2">
             {illustration.imagePath ? (
               <a

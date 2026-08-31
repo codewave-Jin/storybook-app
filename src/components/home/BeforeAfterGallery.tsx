@@ -62,8 +62,8 @@ function ComparisonSlider({ pair }: { pair: HomeMediaPair }) {
         />
       </div>
       <div className="flex items-center justify-between px-3 py-2 text-[11px] font-medium text-stone-600 sm:text-xs">
-        <span>Before · 사진</span>
-        <span>After · 캐릭터</span>
+        <span>Before · {pair.beforeLabel ?? "사진"}</span>
+        <span>After · {pair.afterLabel ?? "캐릭터"}</span>
       </div>
     </div>
   );
@@ -83,7 +83,7 @@ export function BeforeAfterGallery() {
           </div>
         </div>
 
-        <div className="flex w-[64px] shrink-0 flex-col justify-start gap-2 pt-1 sm:w-[72px] sm:gap-2.5 sm:pt-2">
+        <div className="flex w-[64px] shrink-0 flex-col justify-start gap-1.5 pt-1 sm:w-[72px] sm:gap-2 sm:pt-2">
           {HOME_MEDIA.heroPairs.map((item, index) => (
             <button
               key={item.id}

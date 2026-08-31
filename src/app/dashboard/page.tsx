@@ -1,10 +1,16 @@
-import type { Character, PaymentStatus, ProductionStatus } from "@prisma/client";
+import type {
+  Character,
+  PaymentStatus,
+  ProductionStatus,
+  StickerPreviewStatus,
+} from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AddCharacterSlot, CharacterCard } from "@/components/CharacterCard";
 import { DashboardCreateActions } from "@/components/DashboardCreateActions";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
+import { GenerationProgress } from "@/components/GenerationProgress";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { DashboardShell } from "@/components/DashboardShell";
 import { characterStatusPayload } from "@/lib/generation-status";
@@ -18,6 +24,51 @@ const PRODUCTION_BADGE: Record<ProductionStatus, string> = {
   UPSCALING: "bg-sky-100 text-sky-700",
   COMPLETED: "bg-emerald-50 text-emerald-700",
 };
+
+const FAILED_BADGE = "bg-red-50 text-red-700";
+const RECENT_WORK_LIMIT = 5;
+
+type RecentWorkItem = {
+  id: string;
+  kind: "storybook" | "sticker";
+  title: string;
+  href: string;
+  createdAt: Date;
+  paymentStatus: PaymentStatus;
+  statusLabel: string;
+  statusClass: string;
+  canDelete: boolean;
+  generating?: {
+    href: string;
+    signature: string;
+  };
+};
+
+function stickerWorkStatus(order: {
+  previewStatus: StickerPreviewStatus;
+  paymentStatus: PaymentStatus;
+  productionStatus: ProductionStatus;
+}): { label: string; badgeClass: string } {
+  if (
+    order.previewStatus === "IDLE" ||
+    order.previewStatus === "PROCESSING"
+  ) {
+    return { label: "생성중", badgeClass: PRODUCTION_BADGE.ILLUSTRATING };
+  }
+  if (order.previewStatus === "FAILED") {
+    return { label: "실패", badgeClass: FAILED_BADGE };
+  }
+  if (order.paymentStatus !== "PAID") {
+    return {
+      label: PRODUCTION_STATUS_LABEL.WAITING,
+      badgeClass: PRODUCTION_BADGE.WAITING,
+    };
+  }
+  return {
+    label: PRODUCTION_STATUS_LABEL[order.productionStatus],
+    badgeClass: PRODUCTION_BADGE[order.productionStatus],
+  };
+}
 
 function StatCard({
   label,
@@ -41,81 +92,120 @@ function StatCard({
       : "bg-[#FFF6F3] ring-[#E07A5F]/25";
 
   return (
-    <div className={`rounded-2xl p-4 shadow-sm ring-1 ${tint}`}>
-      <p className="text-xs font-medium text-stone-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-stone-800">
-        {value}
-        <span className="text-base font-medium text-stone-400">/{max}</span>
-      </p>
-      <div className={`mt-3 h-1.5 overflow-hidden rounded-full ${track}`}>
+    <div className={`inline-flex shrink-0 flex-col rounded-lg px-2 py-1 ring-1 ${tint}`}>
+      <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+        <p className="text-[11px] font-medium leading-none text-stone-500">
+          {label}
+        </p>
+        <p className="text-sm font-semibold leading-none tabular-nums text-stone-800">
+          {value}
+          <span className="text-[11px] font-medium text-stone-400">/{max}</span>
+        </p>
+      </div>
+      <div className={`mt-1 h-0.5 overflow-hidden rounded-full ${track}`}>
         <div
           className={`h-full rounded-full ${fill}`}
           style={{ width: `${Math.max(ratio * 100, value > 0 ? 8 : 0)}%` }}
         />
       </div>
-      {hint ? <p className="mt-2 text-xs text-stone-500">{hint}</p> : null}
+      {hint ? (
+        <p className="mt-1 text-[10px] leading-tight text-stone-500">{hint}</p>
+      ) : null}
     </div>
   );
 }
 
-function RecentOrders({
-  orders,
+function DashboardStats({
+  freeTokens,
+  slotUsed,
+  slotMax,
 }: {
-  orders: Array<{
-    id: string;
-    paymentStatus: PaymentStatus;
-    productionStatus: ProductionStatus;
-    createdAt: Date;
-    title: string;
-  }>;
+  freeTokens: number;
+  slotUsed: number;
+  slotMax: number;
 }) {
   return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <StatCard
+        label="오늘 무료 토큰"
+        value={freeTokens}
+        max={FREE_TOKEN_DAILY_MAX}
+        accent="yellow"
+      />
+      <StatCard
+        label="캐릭터 슬롯"
+        value={slotUsed}
+        max={slotMax}
+        accent="coral"
+      />
+    </div>
+  );
+}
+
+function RecentWork({ items }: { items: RecentWorkItem[] }) {
+  return (
     <section className="mt-8">
-      <h2 className="text-base font-semibold text-stone-800">최근 동화책</h2>
-      {orders.length === 0 ? (
+      <h2 className="text-base font-semibold text-stone-800">최근 작업</h2>
+      {items.length === 0 ? (
         <p className="mt-3 rounded-2xl bg-white px-4 py-8 text-center text-sm text-stone-500 ring-1 ring-stone-200">
-          아직 만든 동화책이 없습니다
+          아직 작업이 없습니다
         </p>
       ) : (
         <ul className="mt-3 space-y-2">
-          {orders.map((order) => {
-            const href = `/dashboard/orders/${order.id}/preview`;
-            const canDelete = order.paymentStatus !== "PAID";
-
-            return (
-              <li
-                key={order.id}
-                className="flex items-center gap-1 rounded-2xl bg-white pr-2 shadow-sm ring-1 ring-stone-200"
+          {items.map((item) => (
+            <li
+              key={`${item.kind}-${item.id}`}
+              className="flex items-center gap-1 rounded-2xl bg-white pr-2 shadow-sm ring-1 ring-stone-200"
+            >
+              <Link
+                href={item.href}
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition hover:bg-sky-50/70"
               >
-                <Link
-                  href={href}
-                  className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition hover:bg-sky-50/70"
-                >
-                  <div className="min-w-0">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        item.kind === "storybook"
+                          ? "bg-sky-100 text-sky-700"
+                          : "bg-[#FDE8E0] text-[#E07A5F]"
+                      }`}
+                    >
+                      {item.kind === "storybook" ? "동화책" : "스티커"}
+                    </span>
                     <p className="truncate text-sm font-medium text-stone-800">
-                      {order.title}
-                    </p>
-                    <p className="mt-0.5 text-xs text-stone-500">
-                      {formatDateTime(order.createdAt)}
+                      {item.title}
                     </p>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${PRODUCTION_BADGE[order.productionStatus]}`}
-                  >
-                    {PRODUCTION_STATUS_LABEL[order.productionStatus]}
-                  </span>
-                </Link>
-                {canDelete ? (
-                  <DeleteDraftOrderButton
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    {formatDateTime(item.createdAt)}
+                  </p>
+                </div>
+                {item.generating && item.kind === "sticker" ? (
+                  <GenerationProgress
+                    kind="sticker"
+                    id={item.id}
                     compact
-                    orderId={order.id}
-                    title={order.title}
-                    redirectTo="/dashboard"
+                    startedAt={item.createdAt.getTime()}
                   />
-                ) : null}
-              </li>
-            );
-          })}
+                ) : (
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${item.statusClass}`}
+                  >
+                    {item.statusLabel}
+                  </span>
+                )}
+              </Link>
+              {item.canDelete ? (
+                <DeleteDraftOrderButton
+                  compact
+                  kind={item.kind}
+                  orderId={item.id}
+                  title={item.title}
+                  redirectTo="/dashboard"
+                />
+              ) : null}
+            </li>
+          ))}
         </ul>
       )}
     </section>
@@ -132,7 +222,7 @@ function CharacterGrid({
   addHref: string;
 }) {
   return (
-    <section className="mt-8">
+    <section>
       <h2 className="text-base font-semibold text-stone-800">내 캐릭터</h2>
       <div className="mt-3 grid grid-cols-4 gap-1.5 sm:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
         {characters.map((character) => (
@@ -155,21 +245,12 @@ export default async function DashboardPage() {
 
   if (!userId) {
     return (
-      <DashboardShell title="대시보드">
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            label="오늘 무료 토큰"
-            value={0}
-            max={FREE_TOKEN_DAILY_MAX}
-            accent="yellow"
-          />
-          <StatCard
-            label="캐릭터 슬롯"
-            value={0}
-            max={5}
-            accent="coral"
-          />
-        </div>
+      <DashboardShell
+        title="대시보드"
+        titleAccessory={
+          <DashboardStats freeTokens={0} slotUsed={0} slotMax={5} />
+        }
+      >
         <CharacterGrid
           characters={[]}
           canCreate
@@ -192,13 +273,28 @@ export default async function DashboardPage() {
       characters: { orderBy: { createdAt: "desc" } },
       orders: {
         orderBy: { createdAt: "desc" },
-        take: 5,
+        take: RECENT_WORK_LIMIT,
         select: {
           id: true,
           paymentStatus: true,
           productionStatus: true,
           createdAt: true,
           template: { select: { title: true } },
+        },
+      },
+      stickerOrders: {
+        orderBy: { createdAt: "desc" },
+        take: RECENT_WORK_LIMIT,
+        select: {
+          id: true,
+          paymentStatus: true,
+          productionStatus: true,
+          previewStatus: true,
+          previewImagePath: true,
+          errorReason: true,
+          createdAt: true,
+          phrase: true,
+          character: { select: { label: true } },
         },
       },
     },
@@ -219,37 +315,73 @@ export default async function DashboardPage() {
     (character) =>
       character.status === "PENDING" || character.status === "PROCESSING",
   );
-  const orders = (user?.orders ?? []).map((order) => ({
-    id: order.id,
-    paymentStatus: order.paymentStatus,
-    productionStatus: order.productionStatus,
-    createdAt: order.createdAt,
-    title: order.template.title,
-  }));
+  const recentWork: RecentWorkItem[] = [
+    ...(user?.orders ?? []).map((order) => ({
+      id: order.id,
+      kind: "storybook" as const,
+      title: order.template.title,
+      href: `/dashboard/orders/${order.id}/preview`,
+      createdAt: order.createdAt,
+      paymentStatus: order.paymentStatus,
+      statusLabel: PRODUCTION_STATUS_LABEL[order.productionStatus],
+      statusClass: PRODUCTION_BADGE[order.productionStatus],
+      canDelete: order.paymentStatus !== "PAID",
+    })),
+    ...(user?.stickerOrders ?? []).map((order) => {
+      const status = stickerWorkStatus(order);
+      const generating =
+        order.previewStatus === "IDLE" || order.previewStatus === "PROCESSING";
+      return {
+        id: order.id,
+        kind: "sticker" as const,
+        title: `${order.character.label} · ${order.phrase}`,
+        href: `/dashboard/sticker/${order.id}/preview`,
+        createdAt: order.createdAt,
+        paymentStatus: order.paymentStatus,
+        statusLabel: status.label,
+        statusClass: status.badgeClass,
+        canDelete: order.paymentStatus !== "PAID",
+        generating: generating
+          ? {
+              href: `/api/stickers/${order.id}/status`,
+              signature: JSON.stringify({
+                previewImagePath: order.previewImagePath,
+                previewStatus: order.previewStatus,
+                errorReason: order.errorReason,
+              }),
+            }
+          : undefined,
+      };
+    }),
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, RECENT_WORK_LIMIT);
+
+  const generatingWork = recentWork.find((item) => item.generating);
 
   return (
-    <DashboardShell title="대시보드">
+    <DashboardShell
+      title="대시보드"
+      titleAccessory={
+        <DashboardStats
+          freeTokens={freeTokens}
+          slotUsed={characters.length}
+          slotMax={limit}
+        />
+      }
+    >
       <IntervalRefresher
         active={waitingForGeneration}
         href="/api/characters/status"
         initialSignature={JSON.stringify(characterStatusPayload(characters))}
       />
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard
-          label="오늘 무료 토큰"
-          value={freeTokens}
-          max={FREE_TOKEN_DAILY_MAX}
-          accent="yellow"
+      {generatingWork?.generating ? (
+        <IntervalRefresher
+          active
+          href={generatingWork.generating.href}
+          initialSignature={generatingWork.generating.signature}
         />
-        <StatCard
-          label="캐릭터 슬롯"
-          value={characters.length}
-          max={limit}
-          accent="coral"
-        />
-      </div>
-
-      {hasCompleted ? <DashboardCreateActions /> : null}
+      ) : null}
 
       <CharacterGrid
         characters={characters}
@@ -257,7 +389,9 @@ export default async function DashboardPage() {
         addHref="/dashboard/characters/new"
       />
 
-      <RecentOrders orders={orders} />
+      {hasCompleted ? <DashboardCreateActions /> : null}
+
+      <RecentWork items={recentWork} />
     </DashboardShell>
   );
 }

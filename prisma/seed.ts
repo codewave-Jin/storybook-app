@@ -135,21 +135,21 @@ const defaultStickerCostumes = [
   {
     key: "none",
     label: "코스튬 없음 (원래 모습)",
-    promptHint: "원래 옷을",
+    promptHint: "",
     sortOrder: 0,
     isActive: true,
   },
   {
     key: "butterfly",
     label: "나비 코스튬",
-    promptHint: "나비 날개와 더듬이가 있는 코스튬을",
+    promptHint: "나비 코스튬",
     sortOrder: 1,
     isActive: true,
   },
   {
     key: "formal",
     label: "정장",
-    promptHint: "작은 정장(또는 원피스)을",
+    promptHint: "정장",
     sortOrder: 2,
     isActive: true,
   },
@@ -184,37 +184,6 @@ const stickerSizeOptions = [
     widthMm: 80,
     heightMm: 80,
     quantityPerA4: 6,
-  },
-];
-
-const dummyCharacters = [
-  {
-    label: "엄마",
-    gender: "FEMALE" as const,
-    originalPhotoPath: "/dummy/mom.svg",
-    generatedImagePath: "/dummy/mom.svg",
-    status: "COMPLETED" as const,
-  },
-  {
-    label: "아빠",
-    gender: "MALE" as const,
-    originalPhotoPath: "/dummy/dad.svg",
-    generatedImagePath: "/dummy/dad.svg",
-    status: "COMPLETED" as const,
-  },
-  {
-    label: "딸",
-    gender: "FEMALE" as const,
-    originalPhotoPath: "/dummy/daughter.svg",
-    generatedImagePath: "/dummy/daughter.svg",
-    status: "COMPLETED" as const,
-  },
-  {
-    label: "아들",
-    gender: "MALE" as const,
-    originalPhotoPath: "/dummy/son.svg",
-    generatedImagePath: null,
-    status: "PENDING" as const,
   },
 ];
 
@@ -768,30 +737,25 @@ async function seedStickerCatalog() {
   }
 }
 
-async function seedCharactersForUser(userId: string) {
-  for (const character of dummyCharacters) {
-    const existing = await prisma.character.findFirst({
-      where: {
-        userId,
-        originalPhotoPath: character.originalPhotoPath,
-      },
-    });
-
-    if (existing) {
-      await prisma.character.update({
-        where: { id: existing.id },
-        data: character,
-      });
-      continue;
-    }
-
-    await prisma.character.create({
-      data: {
-        userId,
-        ...character,
-      },
-    });
+async function removeDummyCharacters() {
+  const dummyCharacters = await prisma.character.findMany({
+    where: { originalPhotoPath: { startsWith: "/dummy/" } },
+    select: { id: true },
+  });
+  const ids = dummyCharacters.map((character) => character.id);
+  if (ids.length === 0) {
+    return;
   }
+
+  await prisma.review.deleteMany({
+    where: { stickerOrder: { characterId: { in: ids } } },
+  });
+  await prisma.stickerOrder.deleteMany({
+    where: { characterId: { in: ids } },
+  });
+  await prisma.character.deleteMany({
+    where: { id: { in: ids } },
+  });
 }
 
 async function seedDemoUser() {
@@ -826,7 +790,6 @@ async function seedDemoUser() {
     });
   }
 
-  await seedCharactersForUser(user.id);
   return user.id;
 }
 
@@ -874,6 +837,7 @@ async function main() {
   await seedStickerCatalog();
   await seedDemoUser();
   await seedAdminUser();
+  await removeDummyCharacters();
 
   // Backfill TemplateQuestion from any remaining legacy customFields.
   const allTemplates = await prisma.storybookTemplate.findMany({
@@ -884,21 +848,6 @@ async function main() {
       template.id,
       template.customFields,
     );
-  }
-
-  const users = await prisma.user.findMany({
-    where: { email: { notIn: [DEMO_EMAIL, ADMIN_EMAIL] } },
-    select: { id: true },
-  });
-
-  for (const user of users) {
-    const completedCount = await prisma.character.count({
-      where: { userId: user.id, status: "COMPLETED" },
-    });
-
-    if (completedCount === 0) {
-      await seedCharactersForUser(user.id);
-    }
   }
 }
 

@@ -5,14 +5,24 @@ import { authConfig } from "@/auth.config";
 const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
-  const isOnAdmin = req.nextUrl.pathname.startsWith("/admin");
+  const pathname = req.nextUrl.pathname;
+  const isOnAdmin = pathname.startsWith("/admin");
   if (!isOnAdmin) {
     return;
   }
 
+  const isAdminLogin = pathname === "/admin/login";
   const session = req.auth;
+
+  if (isAdminLogin) {
+    if (session?.user?.isAdmin) {
+      return NextResponse.redirect(new URL("/admin", req.nextUrl.origin));
+    }
+    return;
+  }
+
   if (!session?.user) {
-    const loginUrl = new URL("/login", req.nextUrl.origin);
+    const loginUrl = new URL("/admin/login", req.nextUrl.origin);
     loginUrl.searchParams.set(
       "callbackUrl",
       `${req.nextUrl.pathname}${req.nextUrl.search}`,

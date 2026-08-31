@@ -324,6 +324,7 @@ async function main() {
 
     let sceneDescription: string;
     let templateLog: string | undefined;
+    let pageType: "COVER" | "PAGE" = "PAGE";
     if (cli.scene) {
       sceneDescription = cli.scene;
     } else {
@@ -351,11 +352,14 @@ async function main() {
         pageTemplate.promptTemplate,
         TEST_ILLUSTRATION_VARIABLES,
       );
+      pageType = pageTemplate.pageType === "COVER" ? "COVER" : "PAGE";
       templateLog = `template="${pageTemplate.storybookTemplate.title}" page=${pageTemplate.pageNumber} type=${pageTemplate.pageType}`;
     }
 
     const prompt = buildIllustrationEditPrompt({
       sceneDescription,
+      pageType,
+      character1Name: TEST_ILLUSTRATION_VARIABLES.character_1,
       characterCount: cli.characters.length,
     });
 

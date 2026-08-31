@@ -8,6 +8,7 @@ export const authConfig = {
   trustHost: true,
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   session: {
     strategy: "jwt",
@@ -26,12 +27,8 @@ export const authConfig = {
       }
       return session;
     },
-    authorized({ auth, request: { nextUrl } }) {
-      if (!nextUrl.pathname.startsWith("/admin")) {
-        return true;
-      }
-
-      return Boolean(auth?.user);
+    authorized() {
+      return true;
     },
   },
   providers: [],

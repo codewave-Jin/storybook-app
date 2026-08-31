@@ -1,19 +1,23 @@
-export function PreviewWatermark({ text = "판바기" }: { text?: string }) {
+export function PreviewWatermark({
+  text = "판바기",
+  url = "www.panbagi.co.kr",
+}: {
+  text?: string;
+  url?: string;
+}) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 overflow-hidden select-none"
+      className="pointer-events-none absolute inset-0 flex items-center justify-center select-none"
     >
-      <div className="absolute left-1/2 top-1/2 flex w-[240%] -translate-x-1/2 -translate-y-1/2 -rotate-[30deg] flex-wrap content-center justify-center gap-x-10 gap-y-12 opacity-[0.15]">
-        {Array.from({ length: 48 }, (_, index) => (
-          <span
-            key={index}
-            className="whitespace-nowrap text-xl font-semibold tracking-wide text-stone-900 sm:text-2xl"
-          >
-            {text}
-          </span>
-        ))}
-      </div>
+      <span className="flex flex-col items-center text-center text-black/45 drop-shadow-[0_1px_1px_rgba(255,255,255,0.65)]">
+        <span className="text-3xl font-bold tracking-wide sm:text-4xl">
+          {text}
+        </span>
+        <span className="mt-0.5 text-sm font-semibold tracking-wide sm:text-base">
+          {url}
+        </span>
+      </span>
     </div>
   );
 }

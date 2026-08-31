@@ -1,6 +1,5 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
@@ -9,8 +8,6 @@ import { prisma } from "@/lib/prisma";
 export type AuthFormState = {
   error?: string;
 } | undefined;
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function safeCallbackPath(value: unknown) {
   if (typeof value !== "string") {
@@ -24,50 +21,34 @@ function safeCallbackPath(value: unknown) {
   return value;
 }
 
-export async function register(
-  _prevState: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
-  const email = String(formData.get("email") ?? "")
-    .trim()
-    .toLowerCase();
-  const password = String(formData.get("password") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-
-  if (!email || !password || !name) {
-    return { error: "모든 항목을 입력해 주세요." };
+function safeAdminCallbackPath(value: unknown) {
+  const path = safeCallbackPath(value);
+  if (!path) {
+    return null;
   }
-
-  if (!EMAIL_PATTERN.test(email)) {
-    return { error: "올바른 이메일 주소를 입력해 주세요." };
+  if (path === "/admin/login" || path.startsWith("/admin/login/")) {
+    return null;
   }
-
-  if (password.length < 8) {
-    return { error: "비밀번호는 8자 이상이어야 합니다." };
+  if (path === "/admin" || path.startsWith("/admin/")) {
+    return path;
   }
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return { error: "이미 사용 중인 이메일입니다." };
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  await prisma.user.create({
-    data: {
-      email,
-      password: hashedPassword,
-      name,
-      tokenBalance: {
-        create: { freeBalance: 0, paidBalance: 0 },
-      },
-    },
-  });
-
-  redirect("/login?registered=1");
+  return null;
 }
 
-export async function authenticate(
+function safeUserCallbackPath(value: unknown) {
+  const path = safeCallbackPath(value);
+  if (!path) {
+    return null;
+  }
+  if (path === "/admin" || path.startsWith("/admin/")) {
+    return null;
+  }
+  return path;
+}
+
+const TEST_USER_EMAIL = "test@codewave.im";
+
+export async function authenticateAdmin(
   _prevState: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
@@ -86,12 +67,21 @@ export async function authenticate(
       select: { isAdmin: true },
     });
 
+    if (!user) {
+      return { error: "이메일 또는 비밀번호가 올바르지 않습니다." };
+    }
+
+    const isTestUser = email === TEST_USER_EMAIL;
+    if (!user.isAdmin && !isTestUser) {
+      return { error: "관리자 또는 테스트 계정만 로그인할 수 있습니다." };
+    }
+
     await signIn("credentials", {
       email,
       password,
-      redirectTo: user?.isAdmin
-        ? "/admin"
-        : (safeCallbackPath(formData.get("callbackUrl")) ?? "/dashboard"),
+      redirectTo: user.isAdmin
+        ? (safeAdminCallbackPath(formData.get("callbackUrl")) ?? "/admin")
+        : (safeUserCallbackPath(formData.get("callbackUrl")) ?? "/dashboard"),
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -107,4 +97,24 @@ export async function authenticate(
 
 export async function logout() {
   await signOut({ redirectTo: "/login" });
+}
+
+const SOCIAL_PROVIDERS = ["google", "kakao", "naver"] as const;
+
+export async function signInWithProvider(formData: FormData) {
+  const provider = String(formData.get("provider") ?? "");
+  if (!SOCIAL_PROVIDERS.includes(provider as (typeof SOCIAL_PROVIDERS)[number])) {
+    redirect("/login?error=Configuration");
+  }
+
+  try {
+    await signIn(provider, {
+      redirectTo: safeCallbackPath(formData.get("callbackUrl")) ?? "/dashboard",
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      redirect(`/login?error=${error.type}`);
+    }
+    throw error;
+  }
 }

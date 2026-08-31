@@ -6,9 +6,13 @@ export function buildStickerPreviewPrompt(input: {
   costumeHint: string;
 }): string {
   const costumeHint = input.costumeHint.trim();
+  const characterClause = costumeHint
+    ? `첫번째 이미지의 캐릭터 초상화를 ${costumeHint}을 입혀주고`
+    : "첫번째 이미지의 캐릭터 초상화를 그대로 유지해서";
   const simple =
-    `첫 번째 사진 캐릭터를 ${costumeHint} 입은 모습으로 바꿔주고, ` +
-    `두 번째 레퍼런스를 참고해서 원형 스티커로 만들어주는데 문구는 '${input.phrase}'로 해줘`;
+    `${characterClause}\n` +
+    `두번째 이미지 레퍼런스처럼 원형 스티커 만들어야해\n` +
+    `문구는 "${input.phrase}"로 해줘`;
 
   return `${simple}\n\n${CIRCULAR_DIE_CUT_INSTRUCTION}`;
 }

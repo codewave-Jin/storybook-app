@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
-import { register, type AuthFormState } from "@/app/actions/auth";
+import { authenticateAdmin, type AuthFormState } from "@/app/actions/auth";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -12,30 +12,22 @@ function SubmitButton() {
       disabled={pending}
       className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "가입 중..." : "회원가입"}
+      {pending ? "로그인 중..." : "관리자 로그인"}
     </button>
   );
 }
 
-export function SignupForm() {
+export function AdminLoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, formAction] = useFormState<AuthFormState, FormData>(
-    register,
+    authenticateAdmin,
     undefined,
   );
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
-        이름
-        <input
-          name="name"
-          type="text"
-          autoComplete="name"
-          required
-          placeholder="홍길동"
-          className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
-        />
-      </label>
+      {callbackUrl ? (
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+      ) : null}
 
       <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
         이메일
@@ -44,7 +36,7 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           required
-          placeholder="you@example.com"
+          placeholder="admin@example.com"
           className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
         />
       </label>
@@ -54,10 +46,9 @@ export function SignupForm() {
         <input
           name="password"
           type="password"
-          autoComplete="new-password"
+          autoComplete="current-password"
           required
-          minLength={8}
-          placeholder="8자 이상"
+          placeholder="비밀번호"
           className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none ring-sky-400 placeholder:text-stone-400 focus:border-sky-400 focus:ring-2"
         />
       </label>

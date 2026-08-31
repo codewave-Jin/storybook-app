@@ -162,6 +162,7 @@ export default async function AdminIllustrationWorkPage({
                 selectedCharacterIds: parseIdList(
                   illustration.selectedCharacterIds,
                 ),
+                errorReason: illustration.errorReason,
               }}
             />
           ))

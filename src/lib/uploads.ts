@@ -296,3 +296,18 @@ export async function deleteIllustrationFile(
 
   await deletePublicFile(publicPath);
 }
+
+export async function deleteStickerFile(
+  publicPath: string | null | undefined,
+) {
+  if (isRemoteAsset(publicPath)) {
+    await deletePublicFile(publicPath);
+    return;
+  }
+
+  if (!publicPath?.startsWith("/uploads/stickers/")) {
+    return;
+  }
+
+  await deletePublicFile(publicPath);
+}

@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AppImage } from "@/components/AppImage";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { OrderPreviewPayButton } from "@/components/OrderPreviewPayButton";
-import { OrderPreviewShareButton } from "@/components/OrderPreviewShareButton";
 import { PreviewWatermark } from "@/components/PreviewWatermark";
 import type { PreviewBookPage } from "@/lib/preview-pages";
 import { cn } from "@/lib/utils";
@@ -28,70 +27,13 @@ export function OrderPreviewBook({
   bookComplete: boolean;
   orderId: string;
 }) {
-  const [isDesktop, setIsDesktop] = useState(false);
   const [index, setIndex] = useState(0);
-  const pageRefs = useRef<Array<HTMLElement | null>>([]);
-
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 768px)");
-    const apply = () => setIsDesktop(media.matches);
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, []);
-
-  const desktopLastIndex = Math.max(
-    0,
-    Math.ceil(Math.max(pages.length - 1, 0) / 2),
-  );
-  const lastIndex = isDesktop ? desktopLastIndex : pages.length - 1;
+  const lastIndex = Math.max(pages.length - 1, 0);
   const safeIndex = Math.min(index, lastIndex);
 
   useEffect(() => {
     setIndex((current) => Math.min(current, lastIndex));
   }, [lastIndex]);
-
-  useEffect(() => {
-    if (isDesktop) {
-      return;
-    }
-    pageRefs.current[safeIndex]?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-  }, [safeIndex, isDesktop]);
-
-  useEffect(() => {
-    if (isDesktop) {
-      return;
-    }
-
-    const nodes = pageRefs.current.filter((node): node is HTMLElement =>
-      Boolean(node),
-    );
-    if (nodes.length === 0) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (!visible?.target) {
-          return;
-        }
-        const nextIndex = nodes.findIndex((node) => node === visible.target);
-        if (nextIndex >= 0) {
-          setIndex(nextIndex);
-        }
-      },
-      { threshold: 0.55 },
-    );
-
-    nodes.forEach((node) => observer.observe(node));
-    return () => observer.disconnect();
-  }, [isDesktop, pages.length]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -107,16 +49,12 @@ export function OrderPreviewBook({
     return () => window.removeEventListener("keydown", onKey);
   }, [lastIndex]);
 
-  const spread = getDesktopSpread(pages, safeIndex);
   const completedCount = pages.filter(
     (page) => page.status === "COMPLETED" && page.imagePath,
   ).length;
   const showProgress = paid && !bookComplete;
   const useSkeleton = paid;
-
-  const counterLabel = isDesktop
-    ? desktopCounterLabel(pages, safeIndex)
-    : `${safeIndex + 1} / ${pages.length}`;
+  const counterLabel = `${safeIndex + 1} / ${pages.length}`;
 
   return (
     <div className="flex min-h-dvh flex-col bg-[#eaf4fb] text-stone-800">
@@ -145,14 +83,15 @@ export function OrderPreviewBook({
           <h1 className="min-w-0 flex-1 truncate text-center text-base font-semibold tracking-tight sm:text-lg">
             {title}
           </h1>
-          {paid ? null : (
+          {paid ? (
+            <span className="h-10 w-10 shrink-0" aria-hidden />
+          ) : (
             <DeleteDraftOrderButton
               orderId={orderId}
               title={title}
               redirectTo="/dashboard"
             />
           )}
-          <OrderPreviewShareButton title={title} />
         </div>
       </header>
 
@@ -176,27 +115,17 @@ export function OrderPreviewBook({
           </div>
         ) : null}
 
-        <div className="hidden md:flex md:flex-1 md:items-center md:justify-center">
-          <Spread
-            left={spread.left}
-            right={spread.right}
-            coverMode={spread.coverMode}
-            skeleton={useSkeleton}
-          />
-        </div>
-
-        <div className="flex flex-col gap-5 md:hidden">
-          {pages.map((page, pageIndex) => (
-            <article
-              key={`${page.kind}-${page.pageNumber}-${page.id ?? pageIndex}`}
-              ref={(node) => {
-                pageRefs.current[pageIndex] = node;
-              }}
-              className="scroll-mt-20"
-            >
-              <BookLeaf page={page} skeleton={useSkeleton} />
-            </article>
-          ))}
+        <div className="flex flex-1 items-center justify-center">
+          <article className="w-full max-w-md sm:max-w-lg">
+            {pages.map((page, pageIndex) => (
+              <div
+                key={`${page.kind}-${page.pageNumber}-${page.id ?? pageIndex}`}
+                hidden={pageIndex !== safeIndex}
+              >
+                <BookLeaf page={page} skeleton={useSkeleton} />
+              </div>
+            ))}
+          </article>
         </div>
       </main>
 
@@ -241,96 +170,17 @@ export function OrderPreviewBook({
   );
 }
 
-function getDesktopSpread(
-  pages: PreviewBookPage[],
-  spreadIndex: number,
-): {
-  left: PreviewBookPage | null;
-  right: PreviewBookPage | null;
-  coverMode: boolean;
-} {
-  if (spreadIndex === 0) {
-    return { left: null, right: pages[0] ?? null, coverMode: true };
-  }
-  const first = 1 + (spreadIndex - 1) * 2;
-  return {
-    left: pages[first] ?? null,
-    right: pages[first + 1] ?? null,
-    coverMode: false,
-  };
-}
-
-function desktopCounterLabel(pages: PreviewBookPage[], spreadIndex: number) {
-  if (spreadIndex === 0) {
-    return `1 / ${pages.length}`;
-  }
-  const first = 1 + (spreadIndex - 1) * 2;
-  const left = pages[first];
-  const right = pages[first + 1];
-  if (left && right) {
-    return `${left.pageNumber}–${right.pageNumber} / ${pages.length}`;
-  }
-  if (left) {
-    return `${left.pageNumber} / ${pages.length}`;
-  }
-  return `${spreadIndex + 1} / ${pages.length}`;
-}
-
-function Spread({
-  left,
-  right,
-  coverMode,
-  skeleton,
-}: {
-  left: PreviewBookPage | null;
-  right: PreviewBookPage | null;
-  coverMode: boolean;
-  skeleton: boolean;
-}) {
-  return (
-    <div className="flex w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_18px_50px_rgba(47,74,95,0.12)] ring-1 ring-sky-100">
-      <div className="w-1/2 border-r border-stone-200/80">
-        {coverMode || !left ? (
-          <EmptyLeaf />
-        ) : (
-          <BookLeaf page={left} flush skeleton={skeleton} />
-        )}
-      </div>
-      <div className="w-1/2">
-        {right ? (
-          <BookLeaf page={right} flush skeleton={skeleton} />
-        ) : (
-          <EmptyLeaf />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EmptyLeaf() {
-  return (
-    <div className="aspect-[3/4] bg-gradient-to-b from-white to-[#F6E7C1]/50" />
-  );
-}
-
 function BookLeaf({
   page,
-  flush = false,
   skeleton = false,
 }: {
   page: PreviewBookPage;
-  flush?: boolean;
   skeleton?: boolean;
 }) {
   const showImage = page.status === "COMPLETED" && page.imagePath;
 
   return (
-    <figure
-      className={cn(
-        "relative overflow-hidden bg-white",
-        !flush && "rounded-2xl shadow-sm ring-1 ring-sky-100",
-      )}
-    >
+    <figure className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100">
       <div
         className="no-image-save relative aspect-[3/4] bg-stone-100"
         onContextMenu={(event) => event.preventDefault()}
@@ -342,7 +192,7 @@ function BookLeaf({
             fill
             draggable={false}
             className="pointer-events-none object-cover"
-            sizes="(max-width: 768px) 100vw, 50vw"
+            sizes="(max-width: 640px) 100vw, 32rem"
           />
         ) : page.status === "FAILED" ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center">

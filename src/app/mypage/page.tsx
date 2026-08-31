@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { MyPageShell } from "@/components/mypage/MyPageShell";
 import {
   formatDateTime,
@@ -91,10 +92,13 @@ export default async function MyPage() {
             );
 
             return (
-              <li key={`${order.kind}-${order.id}`}>
+              <li
+                key={`${order.kind}-${order.id}`}
+                className="flex items-start rounded-[24px] bg-white shadow-sm ring-1 ring-stone-200 transition hover:ring-[#E07A5F]/30"
+              >
                 <Link
                   href={order.href}
-                  className="block rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-stone-200 transition hover:ring-[#E07A5F]/30 sm:p-5"
+                  className="min-w-0 flex-1 p-4 sm:p-5"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span
@@ -121,6 +125,15 @@ export default async function MyPage() {
                     <p className="mt-2 text-sm text-stone-600">{hint}</p>
                   ) : null}
                 </Link>
+                {order.paymentStatus !== "PAID" ? (
+                  <div className="shrink-0 pr-3 pt-3">
+                    <DeleteDraftOrderButton
+                      kind={order.kind}
+                      orderId={order.id}
+                      title={order.title}
+                    />
+                  </div>
+                ) : null}
               </li>
             );
           })}

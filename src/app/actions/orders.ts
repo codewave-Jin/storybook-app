@@ -14,6 +14,7 @@ import {
   isStorybookTemplateSelectable,
   parseCustomFields,
 } from "@/lib/templates";
+import { validateCustomInputValues } from "@/lib/custom-input-guard";
 import { deleteIllustrationFile } from "@/lib/uploads";
 import {
   buildPreviewBookPages,
@@ -85,15 +86,18 @@ export async function createOrder(
   }
 
   const customFields = parseCustomFields(template.customFields);
-  const customInputValues: Record<string, string> = {};
-
+  const rawCustomValues: Record<string, string> = {};
   for (const field of customFields) {
-    const value = String(formData.get(`custom:${field.key}`) ?? "").trim();
-    if (!value) {
-      return { error: `${field.label}을(를) 입력해 주세요.` };
-    }
-    customInputValues[field.key] = value;
+    rawCustomValues[field.key] = String(
+      formData.get(`custom:${field.key}`) ?? "",
+    );
   }
+
+  const validated = validateCustomInputValues(customFields, rawCustomValues);
+  if ("error" in validated) {
+    return { error: validated.error };
+  }
+  const customInputValues = validated.values;
 
   const submittedArtStyleId = String(formData.get("artStyleId") ?? "").trim();
   const resolvedStyle = await resolveOrderArtStyleId({

@@ -2,27 +2,37 @@
 
 import { useEffect, useState } from "react";
 
-function estimatedPercent(elapsedSec: number) {
-  return Math.min(90, Math.round(8 + elapsedSec * 2.2));
+export type GenerationKind = "character" | "illustration" | "sticker";
+
+function estimatedPercent(elapsedSec: number, kind: GenerationKind) {
+  const rate = kind === "sticker" ? 0.5 : 2.2;
+  return Math.min(90, Math.round(8 + elapsedSec * rate));
 }
 
 export function GenerationProgress({
   kind,
   id,
+  compact = false,
+  startedAt,
 }: {
-  kind: "character" | "illustration";
+  kind: GenerationKind;
   id: string;
+  compact?: boolean;
+  startedAt?: number;
 }) {
-  const [percent, setPercent] = useState(8);
+  const origin = startedAt ?? 0;
+  const [percent, setPercent] = useState(() =>
+    Math.max(8, estimatedPercent((Date.now() - (startedAt ?? Date.now())) / 1000, kind)),
+  );
   const [label, setLabel] = useState("생성 중");
 
   useEffect(() => {
     let cancelled = false;
-    const startedAt = Date.now();
+    const baseline = origin || Date.now();
 
     async function poll() {
-      const elapsed = (Date.now() - startedAt) / 1000;
-      const fallback = estimatedPercent(elapsed);
+      const elapsed = (Date.now() - baseline) / 1000;
+      const fallback = estimatedPercent(elapsed, kind);
 
       try {
         const response = await fetch(
@@ -66,7 +76,23 @@ export function GenerationProgress({
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [kind, id]);
+  }, [kind, id, origin]);
+
+  if (compact) {
+    return (
+      <div className="flex w-24 shrink-0 flex-col items-end gap-1">
+        <span className="text-[11px] font-semibold tabular-nums text-[#E07A5F]">
+          {percent}%
+        </span>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-200">
+          <div
+            className="h-full rounded-full bg-[#E07A5F] transition-[width] duration-300"
+            style={{ width: `${Math.max(percent, 4)}%` }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex w-40 flex-col items-center gap-2 px-2 text-center">

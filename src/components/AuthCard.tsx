@@ -5,9 +5,9 @@ type AuthCardProps = {
   title: string;
   subtitle: string;
   children: React.ReactNode;
-  footerText: string;
-  footerHref: string;
-  footerLinkLabel: string;
+  footerText?: string;
+  footerHref?: string;
+  footerLinkLabel?: string;
 };
 
 export function AuthCard({
@@ -18,6 +18,8 @@ export function AuthCard({
   footerHref,
   footerLinkLabel,
 }: AuthCardProps) {
+  const showFooter = Boolean(footerText && footerHref && footerLinkLabel);
+
   return (
     <main className="flex min-h-dvh items-center justify-center bg-stone-50 px-4 py-8 text-stone-900 sm:px-6">
       <div className="w-full max-w-md">
@@ -35,15 +37,17 @@ export function AuthCard({
           {children}
         </div>
 
-        <p className="mt-6 text-center text-sm text-stone-500">
-          {footerText}{" "}
-          <Link
-            href={footerHref}
-            className="font-medium text-sky-600 underline underline-offset-4"
-          >
-            {footerLinkLabel}
-          </Link>
-        </p>
+        {showFooter ? (
+          <p className="mt-6 text-center text-sm text-stone-500">
+            {footerText}{" "}
+            <Link
+              href={footerHref!}
+              className="font-medium text-sky-600 underline underline-offset-4"
+            >
+              {footerLinkLabel}
+            </Link>
+          </p>
+        ) : null}
       </div>
     </main>
   );

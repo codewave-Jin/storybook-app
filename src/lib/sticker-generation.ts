@@ -76,8 +76,9 @@ export async function runStickerPreviewGeneration(orderId: string) {
     return fail("캐릭터 이미지가 없습니다.");
   }
 
-  const costumeHint = order.costume?.promptHint?.trim() ?? "";
-  if (!order.costume || !costumeHint) {
+  const customCostumeHint = order.customCostumeHint.trim();
+  const costumeHint = customCostumeHint || (order.costume?.promptHint?.trim() ?? "");
+  if (!customCostumeHint && !order.costume) {
     return fail("선택한 코스튬을 확인할 수 없습니다.");
   }
 

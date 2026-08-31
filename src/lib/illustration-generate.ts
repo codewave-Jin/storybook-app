@@ -14,6 +14,17 @@ import {
 } from "@/lib/illustration-generation-policy";
 import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
 
+// Prisma client must include Illustration.errorReason (regenerated after that column).
+function illustrationErrorReason(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "unknown error";
+  return message.slice(0, 1000);
+}
+
 export type IllustrationGenerateResult = {
   error?: string;
   success?: boolean;
@@ -55,7 +66,7 @@ export async function runIllustrationGeneration(options: {
 
   const characters = await prisma.character.findMany({
     where: { id: { in: characterIds } },
-    select: { id: true, generatedImagePath: true },
+    select: { id: true, label: true, generatedImagePath: true },
   });
   const characterMap = new Map(
     characters.map((character) => [character.id, character]),
@@ -65,8 +76,11 @@ export async function runIllustrationGeneration(options: {
     .filter(
       (
         character,
-      ): character is { id: string; generatedImagePath: string | null } =>
-        Boolean(character?.generatedImagePath),
+      ): character is {
+        id: string;
+        label: string;
+        generatedImagePath: string | null;
+      } => Boolean(character?.generatedImagePath),
     )
     .slice(0, 3);
 
@@ -132,6 +146,7 @@ export async function runIllustrationGeneration(options: {
       progressPercent: 8,
       progressLabel: "이미지 생성 중",
       imagePath: keepImage ? illustration.imagePath : null,
+      errorReason: null,
     },
   });
 
@@ -151,6 +166,8 @@ export async function runIllustrationGeneration(options: {
 
     const fullPrompt = buildIllustrationEditPrompt({
       sceneDescription: prompt,
+      pageType: illustration.pageType === "COVER" ? "COVER" : "PAGE",
+      character1Name: selectedCharacters[0]?.label ?? "",
       characterCount: characterImages.length,
     });
 
@@ -172,13 +189,20 @@ export async function runIllustrationGeneration(options: {
         sceneImagePath: imagePath,
         progressPercent: 100,
         progressLabel: "완료",
+        errorReason: null,
       },
     });
   } catch (error) {
     console.error("illustration generation failed", error);
+    const errorReason = illustrationErrorReason(error);
     await prisma.illustration.update({
       where: { id: illustrationId },
-      data: { status: "FAILED", progressPercent: 0, progressLabel: null },
+      data: {
+        status: "FAILED",
+        progressPercent: 0,
+        progressLabel: null,
+        errorReason,
+      },
     });
     revalidateIllustrationWork(illustration.orderId);
     await markOrderPreviewGeneratedIfReady(illustration.orderId);

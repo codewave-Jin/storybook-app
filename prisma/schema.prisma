@@ -334,6 +334,7 @@ model StickerOrder {
   template         StickerTemplate   @relation(fields: [templateId], references: [id])
   costumeId        String?
   costume          StickerCostume?   @relation(fields: [costumeId], references: [id], onDelete: SetNull)
+  customCostumeHint String          @default("")
   phrase           String
   sizeOptionId     String
   sizeOption       StickerSizeOption @relation(fields: [sizeOptionId], references: [id])

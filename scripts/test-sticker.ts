@@ -215,11 +215,6 @@ async function main() {
     if (!costume.isActive) {
       throw new Error(`StickerCostume "${cli.costume}" is inactive`);
     }
-    if (!costume.promptHint.trim()) {
-      throw new Error(
-        `StickerCostume "${cli.costume}" has an empty promptHint. Update seed/DB first.`,
-      );
-    }
 
     void cli.simple;
     const prompt = buildStickerPreviewPrompt({

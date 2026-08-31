@@ -7,6 +7,8 @@ export type HomeMediaPair = {
   caption: string;
   before: string | null;
   after: string | null;
+  beforeLabel?: string;
+  afterLabel?: string;
 };
 
 export const HOME_MEDIA = {
@@ -28,6 +30,22 @@ export const HOME_MEDIA = {
       caption: "아빠",
       before: "/landing/dad-before.jpg",
       after: "/landing/dad-after.png",
+    },
+    {
+      id: "sticker",
+      caption: "스티커",
+      before: "/landing/base.png",
+      after: "/landing/birthday.png",
+      beforeLabel: "캐릭터",
+      afterLabel: "스티커",
+    },
+    {
+      id: "emote",
+      caption: "이모티콘",
+      before: "/landing/basebook.png",
+      after: "/landing/base-emote.png",
+      beforeLabel: "동화책",
+      afterLabel: "이모티콘",
     },
   ] satisfies HomeMediaPair[],
   whyPhoto: "/landing/child-before.png" as string | null,

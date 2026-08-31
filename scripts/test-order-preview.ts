@@ -3,8 +3,7 @@
  * through the same path as createOrder: PageTemplate substitution +
  * Responses API (gpt-image-2).
  *
- * Dummy seed characters are SVG and will fail as GPT references — this
- * script copies real PNG/JPG files onto the demo user instead.
+ * This script copies real PNG/JPG files onto the demo user as characters.
  *
  * Usage:
  *   npx tsx scripts/test-order-preview.ts --character ./test-character.png

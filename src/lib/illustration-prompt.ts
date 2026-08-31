@@ -1,3 +1,5 @@
+import { sanitizeCustomInputValue } from "@/lib/custom-input-guard";
+
 export type PromptTemplateVariables = Record<string, string>;
 
 export const TEST_ILLUSTRATION_VARIABLES: PromptTemplateVariables = {
@@ -27,7 +29,7 @@ export function buildOrderPromptVariables(input: {
       continue;
     }
     const answerKey = key.startsWith("answer.") ? key : `answer.${key}`;
-    variables[answerKey] = value;
+    variables[answerKey] = sanitizeCustomInputValue(value);
   }
 
   return variables;
@@ -50,10 +52,15 @@ export function substitutePromptTemplate(
   });
 }
 
+export type IllustrationPageKind = "COVER" | "PAGE";
+
 export type BuildIllustrationEditPromptInput = {
   /** Already-substituted scene description from PageTemplate.promptTemplate */
   sceneDescription: string;
-  /** Number of character reference images (1–3). Defaults to 1. */
+  pageType: IllustrationPageKind;
+  /** First selected character label (`character_1`). */
+  character1Name: string;
+  /** Number of character reference images (1–3). Used only by the legacy prompt. */
   characterCount?: number;
 };
 
@@ -68,19 +75,60 @@ function characterLabelList(count: number): string {
   return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
+/** "소민" → "소민이", "소민이" → "소민이" */
+export function withISuffix(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+  return trimmed.endsWith("이") ? trimmed : `${trimmed}이`;
+}
+
+export function buildCoverTitle(character1Name: string): string {
+  return `${withISuffix(character1Name)}의 숲속 친구들과의 하루`;
+}
+
 /**
- * Compose the full images.edit / Responses image_generation prompt.
- * Scene text comes from admin PageTemplate; role/style/safety wrappers are shared.
- * Single-character wording is unchanged; multi-character roles are used only when count > 1.
+ * Active illustration prompt. Character from image 1, style from image 2,
+ * scene from the substituted PageTemplate, plus cover/page text rules.
  */
 export function buildIllustrationEditPrompt(
   input: BuildIllustrationEditPromptInput,
 ): string {
   const scene = input.sceneDescription.trim();
+  const lines = [
+    "1번 캐릭터가 2번 이미지의 그림체로 새로운 장면에 등장한 것처럼 만들어줘.",
+    "1번 이미지의 캐릭터 얼굴 정체성을 최우선으로 유지하고, 2번 이미지는 오직 그림체 레퍼런스로만 사용해.",
+    "2번 이미지 속 인물의 얼굴 특징은 절대 가져오지 마.",
+    `장면은 ${scene}.`,
+  ];
+
+  if (input.pageType === "COVER") {
+    lines.push(
+      `제목은 "${buildCoverTitle(input.character1Name)}"라고 그림 안에 표지답게 예쁘게 넣어줘.`,
+    );
+  } else {
+    lines.push("글자는 넣지 마.");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Previous long English identity/style/safety wrappers.
+ * Kept for comparison or a later switch-back; not used by generation.
+ */
+export function buildIllustrationEditPromptLegacy(
+  input: Pick<
+    BuildIllustrationEditPromptInput,
+    "sceneDescription" | "characterCount"
+  >,
+): string {
+  const scene = input.sceneDescription.trim();
   const characterCount = input.characterCount ?? 1;
 
   if (characterCount > 1) {
-    return buildMultiCharacterPrompt(scene, characterCount);
+    return buildMultiCharacterPromptLegacy(scene, characterCount);
   }
 
   return [
@@ -112,7 +160,10 @@ export function buildIllustrationEditPrompt(
   ].join("\n");
 }
 
-function buildMultiCharacterPrompt(scene: string, characterCount: number): string {
+function buildMultiCharacterPromptLegacy(
+  scene: string,
+  characterCount: number,
+): string {
   const labels = CHARACTER_LABELS.slice(0, characterCount);
   const styleOrdinal = ORDINALS[characterCount];
   const mixClause = characterLabelList(characterCount);

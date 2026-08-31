@@ -3,16 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteDraftOrder } from "@/app/actions/orders";
+import { deleteDraftStickerOrder } from "@/app/actions/stickers";
 import { cn } from "@/lib/utils";
 
 export function DeleteDraftOrderButton({
   orderId,
   title,
+  kind = "storybook",
   compact = false,
   redirectTo,
 }: {
   orderId: string;
   title: string;
+  kind?: "storybook" | "sticker";
   compact?: boolean;
   redirectTo?: string;
 }) {
@@ -20,10 +23,14 @@ export function DeleteDraftOrderButton({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const heading = kind === "sticker" ? "스티커 삭제" : "동화책 삭제";
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteDraftOrder(orderId);
+      const result =
+        kind === "sticker"
+          ? await deleteDraftStickerOrder(orderId)
+          : await deleteDraftOrder(orderId);
       if (result?.error) {
         setError(result.error);
         return;
@@ -62,10 +69,10 @@ export function DeleteDraftOrderButton({
             aria-modal="true"
             className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl sm:p-6"
           >
-            <h2 className="text-lg font-semibold">동화책 삭제</h2>
+            <h2 className="text-lg font-semibold">{heading}</h2>
             <p className="mt-2 text-sm text-stone-500">
               <span className="font-medium text-stone-800">{title}</span> 작업을
-              삭제할까요? 미리보기와 생성된 그림이 함께 지워지고, 되돌릴 수
+              삭제할까요? 미리보기와 생성된 파일이 함께 지워지고, 되돌릴 수
               없습니다.
             </p>
             {error ? (

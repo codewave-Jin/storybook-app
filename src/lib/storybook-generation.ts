@@ -8,6 +8,7 @@ import {
 import { parseIdList, parseStringRecord } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { markOrderPreviewGeneratedIfReady } from "@/lib/preview-status";
+import { customInputsContainProfanity } from "@/lib/custom-input-guard";
 
 export {
   ILLUSTRATION_GENERATE_MAX_DURATION_SECONDS,
@@ -119,17 +120,17 @@ async function generatePages(options: {
     orderBy: { pageNumber: "asc" },
   });
 
-  for (const page of pages) {
-    if (!shouldGenerateIllustration(page)) {
-      continue;
-    }
-
-    await runIllustrationGeneration({
-      illustrationId: page.id,
-      prompt: page.prompt,
-      characterIds: options.characterIds,
-    });
-  }
+  await Promise.all(
+    pages
+      .filter((page) => shouldGenerateIllustration(page))
+      .map((page) =>
+        runIllustrationGeneration({
+          illustrationId: page.id,
+          prompt: page.prompt,
+          characterIds: options.characterIds,
+        }),
+      ),
+  );
 
   await markOrderPreviewGeneratedIfReady(options.orderId);
 }
@@ -150,6 +151,15 @@ export async function ensureIllustrationsAndGenerate(options: {
 
   const ctx = await loadOrderContext(orderId);
   if (!ctx) {
+    return;
+  }
+
+  const customValues = parseStringRecord(ctx.order.customInputValues);
+  if (customInputsContainProfanity(customValues)) {
+    console.warn(
+      "[storybook-generation] blocked illustration create due to profanity",
+      orderId,
+    );
     return;
   }
 

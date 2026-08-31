@@ -50,7 +50,9 @@ export type StickerSizeOption = {
 const STEP_COUNT = 6;
 const STEP_LABELS = ["캐릭터", "용도", "옷", "문구", "사이즈", "제작 요청"] as const;
 const CUSTOM_PHRASE = "__custom__";
+const CUSTOM_COSTUME = "__custom__";
 const MAX_PHRASE_LENGTH = 25;
+const MAX_COSTUME_LENGTH = 20;
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -82,7 +84,8 @@ export function StickerWizard({
   const [step, setStep] = useState(1);
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
-  const [costumeId, setCostumeId] = useState<string | null>(null);
+  const [costumeKey, setCostumeKey] = useState<string | null>(null);
+  const [customCostume, setCustomCostume] = useState("");
   const [phraseKey, setPhraseKey] = useState<string | null>(null);
   const [customPhrase, setCustomPhrase] = useState("");
   const [sizeOptionId, setSizeOptionId] = useState<string | null>(null);
@@ -100,7 +103,11 @@ export function StickerWizard({
         .sort((left, right) => left.sortOrder - right.sortOrder),
     [costumes, templateId],
   );
-  const selectedCostume = templateCostumes.find((item) => item.id === costumeId);
+  const selectedCostume = templateCostumes.find((item) => item.id === costumeKey);
+  const costumeLabel =
+    costumeKey === CUSTOM_COSTUME
+      ? customCostume.trim()
+      : selectedCostume?.label ?? "";
   const selectedSize = sizes.find((item) => item.id === sizeOptionId);
   const phrase =
     phraseKey === CUSTOM_PHRASE
@@ -110,7 +117,15 @@ export function StickerWizard({
   const canNext = useMemo(() => {
     if (step === 1) return Boolean(characterId);
     if (step === 2) return Boolean(templateId);
-    if (step === 3) return Boolean(costumeId);
+    if (step === 3) {
+      if (costumeKey === CUSTOM_COSTUME) {
+        return (
+          customCostume.trim().length > 0 &&
+          customCostume.trim().length <= MAX_COSTUME_LENGTH
+        );
+      }
+      return Boolean(costumeKey);
+    }
     if (step === 4) return phrase.length > 0 && phrase.length <= MAX_PHRASE_LENGTH;
     if (step === 5) {
       return Boolean(
@@ -118,7 +133,7 @@ export function StickerWizard({
       );
     }
     return true;
-  }, [step, characterId, templateId, costumeId, phrase, sizeOptionId, sizes]);
+  }, [step, characterId, templateId, costumeKey, customCostume, phrase, sizeOptionId, sizes]);
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -253,7 +268,8 @@ export function StickerWizard({
                         return;
                       }
                       setTemplateId(template.id);
-                      setCostumeId(null);
+                      setCostumeKey(null);
+                      setCustomCostume("");
                     }}
                     className={cn(
                       "overflow-hidden rounded-2xl border bg-white text-left shadow-sm",
@@ -298,21 +314,19 @@ export function StickerWizard({
         <section>
           <h2 className="text-lg font-semibold">옷을 골라 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            스티커에 입힐 모습을 선택해요.
+            스티커에 입힐 모습을 고르거나, 원하는 코스튬을 짧게 적어 주세요.
           </p>
-          {templateCostumes.length === 0 ? (
-            <p className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-12 text-center text-sm text-stone-500">
-              이 용도에 선택할 수 있는 옷이 없습니다.
-            </p>
-          ) : (
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {templateCostumes.map((costume) => {
-                const selected = costume.id === costumeId;
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {templateCostumes.map((costume) => {
+                const selected = costumeKey === costume.id;
                 return (
                   <button
                     key={costume.id}
                     type="button"
-                    onClick={() => setCostumeId(costume.id)}
+                    onClick={() => {
+                      setCostumeKey(costume.id);
+                      setCustomCostume("");
+                    }}
                     className={cn(
                       "overflow-hidden rounded-2xl border bg-white text-left shadow-sm hover:border-stone-300",
                       selected
@@ -335,8 +349,36 @@ export function StickerWizard({
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => setCostumeKey(CUSTOM_COSTUME)}
+                className={cn(
+                  "rounded-2xl border bg-white p-5 text-left shadow-sm hover:border-stone-300",
+                  costumeKey === CUSTOM_COSTUME
+                    ? "border-[#E07A5F] ring-2 ring-[#E07A5F]/30"
+                    : "border-stone-200",
+                )}
+              >
+                <p className="font-semibold">직접 입력</p>
+                <p className="mt-1 text-sm text-stone-500">원하는 코스튬을 짧게 적어요</p>
+              </button>
             </div>
-          )}
+          {costumeKey === CUSTOM_COSTUME ? (
+            <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+              코스튬
+              <input
+                type="text"
+                value={customCostume}
+                maxLength={MAX_COSTUME_LENGTH}
+                placeholder="간략한 코스튬을 적어주세요 예: 파란 공룡 코스튬"
+                onChange={(event) => setCustomCostume(event.target.value)}
+                className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+              />
+              <span className="text-xs font-normal text-stone-400">
+                {customCostume.length}/{MAX_COSTUME_LENGTH}
+              </span>
+            </label>
+          ) : null}
         </section>
       ) : null}
 
@@ -457,7 +499,7 @@ export function StickerWizard({
           <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
             <SummaryRow label="캐릭터" value={selectedCharacter?.label} />
             <SummaryRow label="용도" value={selectedTemplate?.label} />
-            <SummaryRow label="옷" value={selectedCostume?.label} />
+            <SummaryRow label="옷" value={costumeLabel} />
             <SummaryRow label="문구" value={phrase} />
             <SummaryRow
               label="사이즈"
@@ -472,7 +514,8 @@ export function StickerWizard({
           <form action={formAction} className="mt-6">
             <input type="hidden" name="characterId" value={characterId ?? ""} />
             <input type="hidden" name="templateId" value={templateId ?? ""} />
-            <input type="hidden" name="costumeId" value={costumeId ?? ""} />
+            <input type="hidden" name="costumeId" value={costumeKey === CUSTOM_COSTUME ? "" : (costumeKey ?? "")} />
+            <input type="hidden" name="customCostumeHint" value={costumeKey === CUSTOM_COSTUME ? customCostume.trim() : ""} />
             <input type="hidden" name="phrase" value={phrase} />
             <input type="hidden" name="sizeOptionId" value={sizeOptionId ?? ""} />
             {state?.error ? (

@@ -18,33 +18,6 @@ type HomeLandingProps = {
   reviews?: LandingReviewCard[];
 };
 
-const SAMPLE_REVIEWS: LandingReviewCard[] = [
-  {
-    id: "sample-1",
-    name: "김서연",
-    role: "5세 아이 엄마",
-    image: "/landing/child-after.png",
-    body: "샘플 보고 깜짝 놀랐어요ㅎ 너무 귀여워서 동화책, 스티커 전부 구매해서 잘 쓰고 있어요ㅎ 특히 동화책은 우리 아이가 이 책밖에 안 봐요ㅎㅎ",
-    rating: 5,
-  },
-  {
-    id: "sample-2",
-    name: "박지훈",
-    role: "돌잔치 준비 아빠",
-    image: "/landing/sample-stickers.jpg",
-    body: "돌잔치 답례품으로 스티커 만들었어요. 하객분들이 너무 귀엽다고 물어보셔서, 어디서 만들었는지 계속 자랑했습니다.",
-    rating: 5,
-  },
-  {
-    id: "sample-3",
-    name: "이하늘",
-    role: "쌍둥이 엄마",
-    image: "/landing/sample-cover.jpg",
-    body: "무료로 먼저 확인하니까 결제 부담이 없었어요. 마음에 들어서 바로 완성했는데, 아이들이 자기 얼굴 동화책을 몇 번이나 펼쳐 봐요.",
-    rating: 5,
-  },
-];
-
 const HOW_STEPS = [
   {
     step: "STEP 1",
@@ -105,10 +78,9 @@ function CreateButton({
   );
 }
 
-export function HomeLanding({ isLoggedIn, reviews }: HomeLandingProps) {
+export function HomeLanding({ isLoggedIn, reviews = [] }: HomeLandingProps) {
   const createHref = characterStartHref();
-  const landingReviews =
-    reviews && reviews.length > 0 ? reviews : SAMPLE_REVIEWS;
+  const landingReviews = reviews;
 
   return (
     <div className="home-landing min-h-dvh overflow-x-hidden bg-stone-50 text-stone-800">
@@ -247,6 +219,7 @@ export function HomeLanding({ isLoggedIn, reviews }: HomeLandingProps) {
           </div>
         </section>
 
+        {landingReviews.length > 0 ? (
         <section className="bg-sky-50/80 py-16 sm:py-24">
           <div className="mx-auto max-w-3xl px-4 sm:px-6">
             <h2 className="text-center text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -295,6 +268,7 @@ export function HomeLanding({ isLoggedIn, reviews }: HomeLandingProps) {
             </div>
           </div>
         </section>
+        ) : null}
 
         <section className="bg-sky-50/80">
           <MakeMore />

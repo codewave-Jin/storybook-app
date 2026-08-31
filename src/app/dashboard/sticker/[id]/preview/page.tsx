@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
+import { GenerationProgress } from "@/components/GenerationProgress";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { StickerPreviewPayButton } from "@/components/StickerPreviewPayButton";
 import { StickerPreviewViews } from "@/components/StickerPreviewViews";
@@ -83,12 +84,19 @@ export default async function StickerPreviewPage({
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-stone-200">
-            <p className="text-lg font-semibold text-stone-800">
+          <div className="rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-stone-200">
+            <div className="mx-auto flex h-52 w-52 items-center justify-center rounded-full bg-stone-100 ring-1 ring-stone-200">
+              <GenerationProgress
+                kind="sticker"
+                id={order.id}
+                startedAt={order.createdAt.getTime()}
+              />
+            </div>
+            <p className="mt-6 text-lg font-semibold text-stone-800">
               스티커를 만들고 있어요
             </p>
             <p className="mt-2 text-sm text-stone-500">
-              잠시만 기다려 주세요. 끝나면 미리보기가 나타나요.
+              보통 1~3분 정도 걸려요. 끝나면 미리보기가 나타나요.
             </p>
           </div>
         )}
@@ -97,8 +105,12 @@ export default async function StickerPreviewPage({
           <p className="text-lg font-semibold">{order.phrase}</p>
           <p className="mt-1 text-sm text-stone-500">
             {order.character.label} · {order.template.label}
-            {order.costume ? ` · ${order.costume.label}` : ""} ·{" "}
-            {order.sizeOption.label}
+            {order.customCostumeHint.trim()
+              ? ` · ${order.customCostumeHint.trim()}`
+              : order.costume
+                ? ` · ${order.costume.label}`
+                : ""}{" "}
+            · {order.sizeOption.label}
           </p>
           <p className="mt-1 text-sm text-stone-500">
             A4 한 장에 {order.quantity}개
