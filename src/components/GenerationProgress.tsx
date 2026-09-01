@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 export type GenerationKind = "character" | "illustration" | "sticker";
 
 function estimatedPercent(elapsedSec: number, kind: GenerationKind) {
-  const rate = kind === "sticker" ? 0.5 : 2.2;
+  // Illustrations (OpenAI) often take 1–3+ minutes; climb slowly to 90%.
+  // Characters are usually faster via Comfy.
+  const rate = kind === "sticker" ? 0.5 : kind === "illustration" ? 0.35 : 2.2;
   return Math.min(90, Math.round(8 + elapsedSec * rate));
 }
 

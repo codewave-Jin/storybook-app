@@ -154,6 +154,24 @@ export async function runIllustrationGeneration(options: {
     return { error: "이미 생성 중입니다." };
   }
 
+  const heartbeat = setInterval(() => {
+    void prisma.illustration
+      .update({
+        where: { id: illustrationId },
+        data: {
+          // Touch updatedAt so status polling does not re-enqueue a live job.
+          progressLabel: "이미지 생성 중",
+        },
+      })
+      .catch((error) => {
+        console.warn(
+          "[illustration-generate] heartbeat failed",
+          illustrationId,
+          error,
+        );
+      });
+  }, 20_000);
+
   try {
     const [characterImages, styleImage] = await Promise.all([
       Promise.all(
@@ -212,6 +230,8 @@ export async function runIllustrationGeneration(options: {
           ? error.message
           : "삽화 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     };
+  } finally {
+    clearInterval(heartbeat);
   }
 
   revalidateIllustrationWork(illustration.orderId);

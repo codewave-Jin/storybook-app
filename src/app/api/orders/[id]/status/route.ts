@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { enqueueIllustrationGenerations } from "@/lib/enqueue-illustration-generation";
 import { illustrationStatusPayload } from "@/lib/generation-status";
+import { shouldKickPendingIllustration } from "@/lib/illustration-generation-policy";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -27,8 +29,27 @@ export async function GET(
       id: true,
       status: true,
       imagePath: true,
+      prompt: true,
+      updatedAt: true,
     },
   });
 
-  return NextResponse.json(illustrationStatusPayload(illustrations));
+  const staleIds = illustrations
+    .filter((page) => shouldKickPendingIllustration(page))
+    .map((page) => page.id);
+
+  if (staleIds.length > 0) {
+    // Fire-and-forget retry for IDLE / timed-out PROCESSING pages.
+    void enqueueIllustrationGenerations(staleIds);
+  }
+
+  return NextResponse.json(
+    illustrationStatusPayload(
+      illustrations.map((page) => ({
+        id: page.id,
+        status: page.status,
+        imagePath: page.imagePath,
+      })),
+    ),
+  );
 }

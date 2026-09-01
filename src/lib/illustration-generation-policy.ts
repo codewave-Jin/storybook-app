@@ -1,9 +1,12 @@
 /** Pro 상한. Hobby는 Vercel이 60초로 캡한다. */
 export const ILLUSTRATION_GENERATE_MAX_DURATION_SECONDS = 300;
 
-/** 함수가 타임아웃으로 죽은 PROCESSING을 다시 집어가기 위한 여유 */
-export const STALE_PROCESSING_MS =
-  (ILLUSTRATION_GENERATE_MAX_DURATION_SECONDS + 60) * 1000;
+/**
+ * Hobby(60s)에서 waitUntil이 죽은 PROCESSING을 다시 집어가기 위한 대기.
+ * Pro에서도 OpenAI 응답이 길 수 있어 너무 짧으면 중복 실행되므로
+ * 약 75초 이후에만 stale로 본다.
+ */
+export const STALE_PROCESSING_MS = 75_000;
 
 export function staleProcessingBefore(now = Date.now()) {
   return new Date(now - STALE_PROCESSING_MS);
