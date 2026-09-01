@@ -1,7 +1,11 @@
+"use client";
+
 import type { Character } from "@prisma/client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { AppImage } from "@/components/AppImage";
 import { DeleteCharacterButton } from "@/components/DeleteCharacterButton";
+import { PreviewWatermark } from "@/components/PreviewWatermark";
 
 function StatusLabel({ status }: { status: Character["status"] }) {
   if (status === "COMPLETED") {
@@ -38,6 +42,7 @@ function Spinner() {
 }
 
 export function CharacterCard({ character }: { character: Character }) {
+  const [open, setOpen] = useState(false);
   const isGenerating =
     character.status === "PENDING" || character.status === "PROCESSING";
   const completedImage =
@@ -45,10 +50,41 @@ export function CharacterCard({ character }: { character: Character }) {
       ? character.generatedImagePath
       : null;
   const previewImage = completedImage ?? character.originalPhotoPath;
+  const canZoom = Boolean(previewImage) && !isGenerating;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
 
   return (
     <article className="flex flex-col gap-1 sm:gap-2">
       <div className="no-image-save relative aspect-square overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-stone-200 sm:rounded-2xl">
+        {canZoom ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="absolute inset-0 z-[1] cursor-zoom-in"
+            aria-label={`${character.label} 크게 보기`}
+          />
+        ) : null}
+
         {previewImage ? (
           <AppImage
             src={previewImage}
@@ -60,8 +96,12 @@ export function CharacterCard({ character }: { character: Character }) {
           />
         ) : null}
 
+        {previewImage && !isGenerating && character.status !== "FAILED" ? (
+          <PreviewWatermark compact />
+        ) : null}
+
         {isGenerating ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-white/70 sm:gap-2">
+          <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1 bg-white/70 sm:gap-2">
             <Spinner />
             <span className="hidden text-sm font-medium text-[#E07A5F] sm:inline">
               생성 중
@@ -70,7 +110,7 @@ export function CharacterCard({ character }: { character: Character }) {
         ) : null}
 
         {character.status === "FAILED" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-white/85 px-1 text-center sm:px-3">
+          <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1 bg-white/85 px-1 text-center sm:px-3">
             <span className="text-[10px] font-medium text-red-600 sm:text-sm">
               생성 실패
             </span>
@@ -93,6 +133,52 @@ export function CharacterCard({ character }: { character: Character }) {
           label={character.label}
         />
       </div>
+
+      {open && previewImage ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-8"
+          onClick={() => setOpen(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${character.label} 미리보기`}
+            className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              className="no-image-save relative aspect-square bg-stone-100"
+              onContextMenu={(event) => event.preventDefault()}
+            >
+              <AppImage
+                src={previewImage}
+                alt={character.label}
+                fill
+                draggable={false}
+                className="pointer-events-none object-contain"
+                sizes="(max-width: 640px) 100vw, 32rem"
+              />
+              <PreviewWatermark />
+            </div>
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-stone-800">
+                  {character.label}
+                </p>
+                <p className="text-xs text-stone-500">미리보기</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="h-10 shrink-0 rounded-lg border border-stone-300 px-4 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }
