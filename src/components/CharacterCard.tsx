@@ -97,7 +97,7 @@ export function CharacterCard({ character }: { character: Character }) {
         ) : null}
 
         {previewImage && !isGenerating && character.status !== "FAILED" ? (
-          <PreviewWatermark compact />
+          <PreviewWatermark compact placement="bottom" />
         ) : null}
 
         {isGenerating ? (
@@ -159,7 +159,7 @@ export function CharacterCard({ character }: { character: Character }) {
                 className="pointer-events-none object-contain"
                 sizes="(max-width: 640px) 100vw, 32rem"
               />
-              <PreviewWatermark />
+              <PreviewWatermark placement="bottom" />
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
