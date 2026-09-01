@@ -76,6 +76,9 @@ export async function authenticateAdmin(
       return { error: "관리자 또는 테스트 계정만 로그인할 수 있습니다." };
     }
 
+    // Same browser: clear test-user session before admin credentials sign-in.
+    await signOut({ redirect: false });
+
     await signIn("credentials", {
       email,
       password,
