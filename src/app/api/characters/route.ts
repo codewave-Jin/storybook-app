@@ -156,6 +156,12 @@ export async function POST(request: Request) {
     comfyPayload.internal_api_key = internalApiKey;
   }
 
+  console.log("[characters] dispatching generate-character", {
+    characterId,
+    callbackUrl: comfyPayload.callback_url,
+    imagePath,
+  });
+
   try {
     const response = await postToComfy("/generate-character", comfyPayload);
 
