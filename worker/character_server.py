@@ -46,10 +46,12 @@ job_callbacks: dict[str, dict] = {}
 COMFY_URL = "http://127.0.0.1:7523"
 CHARACTER_WORKFLOW_PATH = "character_storybook_v1.json"
 ILLUSTRATION_WORKFLOW_PATH = "storybook_illustration.json"
+
+
 def _normalize_nextjs_base_url(url: str) -> str:
     """panbagi.co.kr is 308-redirected to www; prefer www to avoid callback issues."""
     base = (url or "").rstrip("/")
-    if base == "https://panbagi.co.kr" or base == "http://panbagi.co.kr":
+    if base in ("https://panbagi.co.kr", "http://panbagi.co.kr"):
         return "https://www.panbagi.co.kr"
     return base
 
