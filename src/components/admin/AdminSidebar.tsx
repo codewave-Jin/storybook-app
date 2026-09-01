@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/admin/orders", label: "주문 관리" },
   { href: "/admin/reviews", label: "리뷰 관리" },
   { href: "/admin/illustrations", label: "삽화 생성" },
+  { href: "/admin/generation-logs", label: "생성 로그" },
   { href: "/admin/upscale", label: "업스케일" },
 ];
 

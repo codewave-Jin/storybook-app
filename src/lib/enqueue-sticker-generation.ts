@@ -1,4 +1,5 @@
 import { waitUntil } from "@vercel/functions";
+import { logGenerationEvent } from "@/lib/generation-events";
 import { runStickerPreviewGeneration } from "@/lib/sticker-generation";
 import { shouldKickPendingStickerPreview } from "@/lib/sticker-generation-policy";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,14 @@ export function enqueueStickerGeneration(orderId: string) {
     }
 
     console.log("[sticker-generation] direct generate start", orderId);
+
+    logGenerationEvent({
+      kind: "STICKER",
+      entityId: orderId,
+      orderId,
+      step: "sticker.enqueue_batch",
+      message: "백그라운드 스티커 생성 시작",
+    });
 
     try {
       const result = await runStickerPreviewGeneration(orderId);

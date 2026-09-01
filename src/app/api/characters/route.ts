@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
+import { logGenerationEvent } from "@/lib/generation-events";
 import { prisma } from "@/lib/prisma";
 import { canCreateCharacter, consumeToken, refundToken } from "@/lib/tokens";
 import {
@@ -136,6 +137,15 @@ export async function POST(request: Request) {
     data: { status: "PROCESSING", progressPercent: 8, progressLabel: "준비 중" },
   });
 
+  logGenerationEvent({
+    kind: "CHARACTER",
+    entityId: characterId,
+    userId,
+    step: "character.requested",
+    message: "캐릭터 생성 요청 (Comfy 호출)",
+    detail: { label, gender },
+  });
+
   const imagePath = toAbsolutePublicPath(originalPhotoPath);
 
   try {
@@ -150,7 +160,25 @@ export async function POST(request: Request) {
       console.error("generate-character rejected", response.status, detail);
       throw new Error(`Comfy rejected generate-character (${response.status})`);
     }
+
+    logGenerationEvent({
+      kind: "CHARACTER",
+      entityId: characterId,
+      userId,
+      step: "character.comfy_accepted",
+      message: "Comfy 서버가 생성 작업 수락",
+    });
   } catch (error) {
+    logGenerationEvent({
+      kind: "CHARACTER",
+      entityId: characterId,
+      userId,
+      step: "character.comfy_unreachable",
+      message: "Comfy 서버 연결 실패",
+      detail: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     console.error("generate-character request failed", error);
     await prisma.character.update({
       where: { id: characterId },

@@ -184,6 +184,23 @@ model StorybookOrder {
   @@index([artStyleId])
 }
 
+model GenerationEvent {
+  id        String   @id @default(cuid())
+  kind      String
+  entityId  String   @map("entity_id")
+  orderId   String?  @map("order_id")
+  userId    String?  @map("user_id")
+  step      String
+  message   String?
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entityId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([kind, createdAt])
+  @@map("generation_events")
+}
+
 enum PaymentStatus {
   PENDING
   PAID

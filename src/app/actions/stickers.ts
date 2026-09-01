@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
+import { logGenerationEvent } from "@/lib/generation-events";
 import { isStickerTemplateSelectable, isStickerSizeSelectable } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 import { deleteStickerFile } from "@/lib/uploads";
@@ -114,6 +115,14 @@ export async function createStickerOrder(
   });
 
   enqueueStickerGeneration(order.id);
+  logGenerationEvent({
+    kind: "STICKER",
+    entityId: order.id,
+    orderId: order.id,
+    userId,
+    step: "sticker.order_created",
+    message: "스티커 주문 생성 및 생성 트리거",
+  });
 
   redirect(`/dashboard/sticker/${order.id}/preview`);
 }

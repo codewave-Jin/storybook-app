@@ -1,4 +1,5 @@
 import { waitUntil } from "@vercel/functions";
+import { logGenerationEvent } from "@/lib/generation-events";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
 import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
 import { parseIdList } from "@/lib/orders";
@@ -19,14 +20,32 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
       where: { id: { in: illustrationIds } },
       select: {
         id: true,
+        orderId: true,
         prompt: true,
         selectedCharacterIds: true,
         status: true,
         updatedAt: true,
+        order: { select: { userId: true } },
       },
     });
 
     const targets = pages.filter((page) => shouldGenerateIllustration(page));
+    const first = pages[0];
+    if (first) {
+      logGenerationEvent({
+        kind: "STORYBOOK_ORDER",
+        entityId: first.orderId,
+        orderId: first.orderId,
+        userId: first.order.userId,
+        step: "illustration.enqueue_batch",
+        message: "백그라운드 삽화 생성 시작",
+        detail: {
+          illustrationIds: targets.map((page) => page.id),
+          count: targets.length,
+        },
+      });
+    }
+
     console.log(
       "[storybook-generation] direct generate start",
       targets.map((page) => page.id),

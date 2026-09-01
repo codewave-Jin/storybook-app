@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { logGenerationEvent } from "@/lib/generation-events";
 import { prisma } from "@/lib/prisma";
 import { persistGeneratedCharacterImage } from "@/lib/uploads";
 
@@ -76,10 +77,25 @@ export async function POST(
     return NextResponse.json({ error: "Character not found" }, { status: 404 });
   }
 
+  logGenerationEvent({
+    kind: "CHARACTER",
+    entityId: params.id,
+    step: "character.complete_callback",
+    message: "Comfy 워커 콜백 수신",
+    detail: { success: body.success },
+  });
+
   const errorMessage =
     asNonEmptyString(body.errorMessage) ?? asNonEmptyString(body.error_message);
 
   if (!body.success) {
+    logGenerationEvent({
+      kind: "CHARACTER",
+      entityId: params.id,
+      step: "character.worker_failed",
+      message: "Comfy 워커가 실패 보고",
+      detail: { errorMessage },
+    });
     console.error(
       errorMessage
         ? `[character complete] ${params.id} failed: ${errorMessage}`
@@ -132,6 +148,14 @@ export async function POST(
       progressLabel: "완료",
       ...(seed !== undefined ? { seed } : {}),
     },
+  });
+
+  logGenerationEvent({
+    kind: "CHARACTER",
+    entityId: params.id,
+    step: "character.completed",
+    message: "캐릭터 이미지 저장 완료",
+    detail: { generatedImagePath },
   });
 
   revalidatePath("/dashboard");

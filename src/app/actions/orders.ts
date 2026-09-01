@@ -7,6 +7,7 @@ import {
   startOrderPaidGeneration,
   startOrderPreviewGeneration,
 } from "@/lib/preview-generation";
+import { logGenerationEvent } from "@/lib/generation-events";
 import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
 import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
@@ -121,6 +122,19 @@ export async function createOrder(
   });
 
   try {
+    logGenerationEvent({
+      kind: "STORYBOOK_ORDER",
+      entityId: order.id,
+      orderId: order.id,
+      userId,
+      step: "storybook.order_created",
+      message: "동화책 주문 생성 및 미리보기 트리거",
+      detail: {
+        templateId: template.id,
+        characterIds,
+        artStyleId: resolvedStyle.artStyleId,
+      },
+    });
     await startOrderPreviewGeneration(order.id);
   } catch (error) {
     console.error("preview generation failed to start", error);

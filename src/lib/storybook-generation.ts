@@ -1,4 +1,5 @@
 import { enqueueIllustrationGenerations } from "@/lib/enqueue-illustration-generation";
+import { logGenerationEvent } from "@/lib/generation-events";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
 import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
 import {
@@ -153,6 +154,16 @@ export async function ensureIllustrationsAndGenerate(options: {
   if (!ctx) {
     return;
   }
+
+  logGenerationEvent({
+    kind: "STORYBOOK_ORDER",
+    entityId: orderId,
+    orderId,
+    userId: ctx.order.userId,
+    step: "storybook.ensure_pages",
+    message: "미리보기 페이지 준비 및 생성 트리거",
+    detail: { pageNumbers, wait },
+  });
 
   const customValues = parseStringRecord(ctx.order.customInputValues);
   if (customInputsContainProfanity(customValues)) {
