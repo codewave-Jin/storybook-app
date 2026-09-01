@@ -88,32 +88,42 @@ export function buildCoverTitle(character1Name: string): string {
   return `${withISuffix(character1Name)}의 숲속 친구들과의 하루`;
 }
 
+/** Strip trailing sentence punctuation so `장면은 ${scene}.` does not double up. */
+function normalizeSceneForPrompt(scene: string): string {
+  return scene.trim().replace(/[.。!?！？\s]+$/u, "");
+}
+
+function buildIllustrationStyleClauses(): string {
+  return [
+    "전체적으로 2번 이미지의 그림체로 그려줘.",
+    "1번 이미지의 캐릭터 얼굴 정체성을 유지하고, 2번 이미지는 오직 그림체 레퍼런스로만 사용해.",
+    "2번 이미지 속 인물의 얼굴 특징은 절대 가져오지 마.",
+    "선, 색감, 질감, 붓터치, 배경, 인물 처리까지 모두 2번 이미지 그림체와 일치하게 그려줘.",
+  ].join(" ");
+}
+
 /**
  * Active illustration prompt. Character from image 1, style from image 2,
  * scene from the substituted PageTemplate, plus cover/page text rules.
+ * Single paragraph (space-separated) for GPT.
  */
 export function buildIllustrationEditPrompt(
   input: BuildIllustrationEditPromptInput,
 ): string {
-  const scene = input.sceneDescription.trim();
-  const lines = [
-    "전체적으로 2번 이미지의 그림체로 그려줘.",
-    "1번 캐릭터가 2번 이미지의 그림체로 새로운 장면에 등장한 것처럼 만들어줘.",
-    "1번 이미지의 캐릭터 얼굴 정체성을 최우선으로 유지하고, 2번 이미지는 오직 그림체 레퍼런스로만 사용해.",
-    "2번 이미지 속 인물의 얼굴 특징은 절대 가져오지 마.",
-    "선, 색감, 질감, 붓터치, 배경 처리까지 모두 2번 이미지 그림체와 일치하게 그려줘.",
-    `장면은 ${scene}.`,
-  ];
+  const scene = normalizeSceneForPrompt(input.sceneDescription);
+  const parts = [buildIllustrationStyleClauses(), `장면은 ${scene}.`];
 
   if (input.pageType === "COVER") {
-    lines.push(
+    parts.push(
       `제목은 "${buildCoverTitle(input.character1Name)}"라고 그림 안에 표지답게 예쁘게 넣어줘.`,
     );
   } else {
-    lines.push("글자는 넣지 마.");
+    parts.push("글자는 넣지 마.");
   }
 
-  return lines.join("\n");
+  parts.push("사이즈는 1024*1024");
+
+  return parts.join(" ");
 }
 
 /**

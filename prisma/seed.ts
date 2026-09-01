@@ -264,7 +264,7 @@ const forestPageTemplates: Array<{
     pageType: "COVER",
     characterSlots: 1,
     promptTemplate:
-      "{{character_1}}이(가) 초록빛 숲 입구에 서서 손을 흔들고, 좋아하는 색깔 {{answer.favorite_color}} 풍선이 하늘로 떠오른다.",
+      "1번 캐릭터가 초록빛 숲 입구에 서서 손을 흔들고, 좋아하는 색깔 {{answer.favorite_color}} 풍선이 하늘로 떠오른다.",
   },
   {
     pageNumber: 2,
