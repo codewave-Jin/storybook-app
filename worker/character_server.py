@@ -46,9 +46,17 @@ job_callbacks: dict[str, dict] = {}
 COMFY_URL = "http://127.0.0.1:7523"
 CHARACTER_WORKFLOW_PATH = "character_storybook_v1.json"
 ILLUSTRATION_WORKFLOW_PATH = "storybook_illustration.json"
-NEXTJS_BASE_URL = os.environ.get(
-    "NEXTJS_BASE_URL", "http://localhost:3000"
-).rstrip("/")
+def _normalize_nextjs_base_url(url: str) -> str:
+    """panbagi.co.kr is 308-redirected to www; prefer www to avoid callback issues."""
+    base = (url or "").rstrip("/")
+    if base == "https://panbagi.co.kr" or base == "http://panbagi.co.kr":
+        return "https://www.panbagi.co.kr"
+    return base
+
+
+NEXTJS_BASE_URL = _normalize_nextjs_base_url(
+    os.environ.get("NEXTJS_BASE_URL", "http://localhost:3000")
+)
 CHARACTER_COMPLETE_PATH = "/api/characters/{character_id}/complete"
 ILLUSTRATION_COMPLETE_PATH = "/api/illustrations/{illustration_id}/complete"
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "dev-internal-key")
@@ -56,6 +64,13 @@ INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "dev-internal-key")
 FASTAPI_PUBLIC_URL = os.environ.get("FASTAPI_PUBLIC_URL", "").rstrip("/")
 print(f"[설정] NEXTJS_BASE_URL={NEXTJS_BASE_URL}")
 print(f"[설정] FASTAPI_PUBLIC_URL={FASTAPI_PUBLIC_URL or '(미설정 — 배포 시 필수)'}")
+if not FASTAPI_PUBLIC_URL and not NEXTJS_BASE_URL.startswith(
+    ("http://localhost", "http://127.0.0.1")
+):
+    print(
+        "[경고] FASTAPI_PUBLIC_URL이 비어 있습니다. "
+        "배포 환경에서는 ngrok URL을 반드시 설정하세요."
+    )
 # ===========================================
 
 # 캐릭터 생성 워크플로우 노드 번호
@@ -740,7 +755,16 @@ def process_illustration_expression_edit(
 
 def register_job_callbacks_from_request(job_key: str, req) -> None:
     callback_url = getattr(req, "callback_url", None) or getattr(req, "complete_url", None)
+    if callback_url:
+        # Rewrite apex → www for this deployment
+        callback_url = callback_url.replace(
+            "https://panbagi.co.kr/", "https://www.panbagi.co.kr/"
+        ).replace("http://panbagi.co.kr/", "https://www.panbagi.co.kr/")
     progress_url = getattr(req, "progress_url", None)
+    if progress_url:
+        progress_url = progress_url.replace(
+            "https://panbagi.co.kr/", "https://www.panbagi.co.kr/"
+        ).replace("http://panbagi.co.kr/", "https://www.panbagi.co.kr/")
     api_key = resolve_api_key(
         getattr(req, "api_key", None) or getattr(req, "internal_api_key", None)
     )
