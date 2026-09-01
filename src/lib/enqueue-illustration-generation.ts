@@ -1,44 +1,72 @@
 import { waitUntil } from "@vercel/functions";
-import { getAppBaseUrl } from "@/lib/app-url";
+import { runIllustrationGeneration } from "@/lib/illustration-generate";
+import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
+import { parseIdList } from "@/lib/orders";
+import { prisma } from "@/lib/prisma";
 
+/**
+ * Kick illustration generation in-process via waitUntil.
+ * Avoids fragile HTTP self-fetch (base URL / INTERNAL_API_KEY / 308 redirect),
+ * which left pages stuck in IDLE forever when the enqueue request failed.
+ */
 export function enqueueIllustrationGenerations(illustrationIds: string[]) {
   if (illustrationIds.length === 0) {
     return Promise.resolve();
   }
 
-  const baseUrl = getAppBaseUrl();
-  const headers: Record<string, string> = {};
-  const apiKey = process.env.INTERNAL_API_KEY;
-  if (apiKey) {
-    headers["x-api-key"] = apiKey;
-  }
+  const dispatched = (async () => {
+    const pages = await prisma.illustration.findMany({
+      where: { id: { in: illustrationIds } },
+      select: {
+        id: true,
+        prompt: true,
+        selectedCharacterIds: true,
+        status: true,
+        updatedAt: true,
+      },
+    });
 
-  const dispatched = Promise.all(
-    illustrationIds.map((illustrationId) =>
-      fetch(`${baseUrl}/api/illustrations/${illustrationId}/generate`, {
-        method: "POST",
-        headers,
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            const body = await response.text().catch(() => "");
-            console.error(
-              "[storybook-generation] generate enqueue failed",
-              illustrationId,
-              response.status,
-              body,
-            );
-          }
-        })
-        .catch((error) => {
+    const targets = pages.filter((page) => shouldGenerateIllustration(page));
+    console.log(
+      "[storybook-generation] direct generate start",
+      targets.map((page) => page.id),
+    );
+
+    // Sequential: more reliable under Vercel time limits than 3 parallel OpenAI calls.
+    for (const page of targets) {
+      const characterIds = parseIdList(page.selectedCharacterIds);
+      if (!page.prompt.trim() || characterIds.length < 1) {
+        console.error(
+          "[storybook-generation] skip generate (missing prompt/characters)",
+          page.id,
+        );
+        continue;
+      }
+
+      try {
+        const result = await runIllustrationGeneration({
+          illustrationId: page.id,
+          prompt: page.prompt,
+          characterIds,
+        });
+        if (result.error) {
           console.error(
-            "[storybook-generation] generate enqueue failed",
-            illustrationId,
-            error,
+            "[storybook-generation] generate failed",
+            page.id,
+            result.error,
           );
-        }),
-    ),
-  );
+        } else {
+          console.log("[storybook-generation] generate ok", page.id);
+        }
+      } catch (error) {
+        console.error(
+          "[storybook-generation] generate threw",
+          page.id,
+          error,
+        );
+      }
+    }
+  })();
 
   waitUntil(dispatched);
   return dispatched;
