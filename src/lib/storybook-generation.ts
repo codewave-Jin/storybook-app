@@ -266,7 +266,7 @@ export async function ensureIllustrationsAndGenerate(options: {
     return;
   }
 
-  await enqueueIllustrationGenerations(
+  enqueueIllustrationGenerations(
     readyPages
       .filter((page) => shouldGenerateIllustration(page))
       .map((page) => page.id),

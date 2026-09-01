@@ -39,5 +39,5 @@ export function enqueueStickerGeneration(orderId: string) {
   })();
 
   waitUntil(dispatched);
-  return dispatched;
+  // Generation runs in the background; do not return a promise callers can await.
 }

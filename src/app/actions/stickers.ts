@@ -113,7 +113,7 @@ export async function createStickerOrder(
     },
   });
 
-  await enqueueStickerGeneration(order.id);
+  enqueueStickerGeneration(order.id);
 
   redirect(`/dashboard/sticker/${order.id}/preview`);
 }
