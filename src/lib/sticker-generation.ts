@@ -5,6 +5,7 @@ import {
 } from "@/lib/openai-illustration";
 import { prisma } from "@/lib/prisma";
 import { buildStickerPreviewPrompt } from "@/lib/sticker-prompt";
+import { shouldReclaimStickerProcessing } from "@/lib/sticker-generation-policy";
 import { persistGeneratedStickerBuffer } from "@/lib/uploads";
 
 async function markPreviewFailed(orderId: string, error: string) {
@@ -50,7 +51,15 @@ export async function runStickerPreviewGeneration(orderId: string) {
     where: {
       id: orderId,
       previewImagePath: null,
-      previewStatus: { in: ["IDLE", "FAILED"] },
+      OR: [
+        { previewStatus: { in: ["IDLE", "FAILED"] } },
+        {
+          previewStatus: "PROCESSING",
+          createdAt: {
+            lt: new Date(Date.now() - 75_000),
+          },
+        },
+      ],
     },
     data: {
       previewStatus: "PROCESSING",
@@ -59,7 +68,10 @@ export async function runStickerPreviewGeneration(orderId: string) {
   });
 
   if (claimed.count === 0) {
-    if (order.previewStatus === "PROCESSING") {
+    if (
+      order.previewStatus === "PROCESSING" &&
+      !shouldReclaimStickerProcessing(order)
+    ) {
       return { success: true, skipped: true };
     }
     return { error: "스티커 생성을 시작할 수 없습니다." };

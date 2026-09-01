@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
+import { shouldKickPendingStickerPreview } from "@/lib/sticker-generation-policy";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -14,15 +16,21 @@ export async function GET(
   const order = await prisma.stickerOrder.findFirst({
     where: { id: params.id, userId: session.user.id },
     select: {
+      id: true,
       previewImagePath: true,
       previewStatus: true,
       errorReason: true,
       productionStatus: true,
+      createdAt: true,
     },
   });
 
   if (!order) {
     return NextResponse.json({ error: "주문을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  if (shouldKickPendingStickerPreview(order)) {
+    void enqueueStickerGeneration(order.id);
   }
 
   return NextResponse.json({

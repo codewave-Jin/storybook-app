@@ -97,8 +97,9 @@ export async function GET(request: Request) {
     });
     const completed = order?.previewStatus === "COMPLETED";
     const failed = order?.previewStatus === "FAILED";
+    const processing = order?.previewStatus === "PROCESSING";
     return NextResponse.json({
-      percent: completed ? 100 : 0,
+      percent: completed ? 100 : failed ? 0 : processing ? 8 : 0,
       label: failed
         ? "실패"
         : completed
