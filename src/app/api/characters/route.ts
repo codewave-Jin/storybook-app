@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import { getAppBaseUrl } from "@/lib/app-url";
 import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
 import { prisma } from "@/lib/prisma";
 import { canCreateCharacter, consumeToken, refundToken } from "@/lib/tokens";
@@ -137,13 +138,26 @@ export async function POST(request: Request) {
   });
 
   const imagePath = toAbsolutePublicPath(originalPhotoPath);
+  const baseUrl = getAppBaseUrl();
+  const internalApiKey = process.env.INTERNAL_API_KEY?.trim();
+
+  const comfyPayload: Record<string, string> = {
+    character_id: characterId,
+    image_path: imagePath,
+    gender: gender.toLowerCase(),
+    callback_url: `${baseUrl}/api/characters/${characterId}/complete`,
+    complete_url: `${baseUrl}/api/characters/${characterId}/complete`,
+    progress_url: `${baseUrl}/api/generation-progress`,
+    app_url: baseUrl,
+  };
+
+  if (internalApiKey) {
+    comfyPayload.api_key = internalApiKey;
+    comfyPayload.internal_api_key = internalApiKey;
+  }
 
   try {
-    const response = await postToComfy("/generate-character", {
-      character_id: characterId,
-      image_path: imagePath,
-      gender: gender.toLowerCase(),
-    });
+    const response = await postToComfy("/generate-character", comfyPayload);
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
