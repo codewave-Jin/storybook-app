@@ -97,9 +97,11 @@ export function buildIllustrationEditPrompt(
 ): string {
   const scene = input.sceneDescription.trim();
   const lines = [
+    "전체적으로 2번 이미지의 그림체로 그려줘.",
     "1번 캐릭터가 2번 이미지의 그림체로 새로운 장면에 등장한 것처럼 만들어줘.",
     "1번 이미지의 캐릭터 얼굴 정체성을 최우선으로 유지하고, 2번 이미지는 오직 그림체 레퍼런스로만 사용해.",
     "2번 이미지 속 인물의 얼굴 특징은 절대 가져오지 마.",
+    "선, 색감, 질감, 붓터치, 배경 처리까지 모두 2번 이미지 그림체와 일치하게 그려줘.",
     `장면은 ${scene}.`,
   ];
 
