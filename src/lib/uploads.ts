@@ -2,6 +2,7 @@ import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { del, put } from "@vercel/blob";
+import { isComfyMockEnabled } from "@/lib/comfy-server";
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -145,6 +146,15 @@ export async function persistGeneratedCharacterImage(sourcePath: string) {
   return persistGeneratedImage(sourcePath, "characters");
 }
 
+export async function persistGeneratedCharacterBase64(base64: string) {
+  const normalized = base64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+  const buffer = Buffer.from(normalized, "base64");
+  if (!buffer.length || !looksLikeImage(buffer)) {
+    throw new Error("Invalid base64 image payload");
+  }
+  return saveBuffer(buffer, "characters", ".png", "image/png");
+}
+
 export async function persistGeneratedIllustrationImage(sourcePath: string) {
   return persistGeneratedImage(sourcePath, "illustrations");
 }
@@ -173,6 +183,60 @@ export async function persistGeneratedStickerBuffer(
   );
 }
 
+function comfyServerBaseUrl() {
+  const url = process.env.COMFY_SERVER_URL?.trim().replace(/\/+$/, "");
+  return url ?? null;
+}
+
+async function tryDownloadFromComfyServer(sourcePath: string) {
+  if (isComfyMockEnabled()) {
+    return null;
+  }
+
+  const comfyBase = comfyServerBaseUrl();
+  if (!comfyBase) {
+    return null;
+  }
+
+  const candidates: string[] = [];
+
+  if (isRemoteAsset(sourcePath)) {
+    if (sourcePath.startsWith(comfyBase)) {
+      candidates.push(sourcePath);
+    }
+  } else if (sourcePath.startsWith("/")) {
+    candidates.push(`${comfyBase}${sourcePath}`);
+  } else {
+    candidates.push(`${comfyBase}/${sourcePath.replace(/^\/+/, "")}`);
+    candidates.push(`${comfyBase}/output/${sourcePath.replace(/^\/+/, "")}`);
+    candidates.push(
+      `${comfyBase}/files/${encodeURIComponent(sourcePath.replace(/^\/+/, ""))}`,
+    );
+  }
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        headers: { "ngrok-skip-browser-warning": "true" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) {
+        continue;
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.startsWith("image/") && !looksLikeImage(buffer)) {
+        continue;
+      }
+      return buffer;
+    } catch {
+      // Try the next candidate URL.
+    }
+  }
+
+  return null;
+}
+
 async function persistGeneratedImage(
   sourcePath: string,
   publicFolder: "characters" | "illustrations",
@@ -186,6 +250,12 @@ async function persistGeneratedImage(
   }
 
   requireBlobStorage();
+
+  const comfyBuffer = await tryDownloadFromComfyServer(sourcePath);
+  if (comfyBuffer) {
+    const ext = path.extname(sourcePath) || ".png";
+    return saveBuffer(comfyBuffer, publicFolder, ext);
+  }
 
   if (sourcePath.startsWith("/uploads/")) {
     const absolute = toAbsolutePublicPath(sourcePath);

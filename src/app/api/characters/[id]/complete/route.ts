@@ -1,36 +1,28 @@
-import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { persistGeneratedCharacterImage } from "@/lib/uploads";
+import {
+  applyCharacterGenerationResult,
+  parseComfyCharacterPayload,
+} from "@/lib/character-generation";
 
 type CompleteBody = {
   success?: unknown;
   imagePath?: unknown;
   image_path?: unknown;
+  imageBase64?: unknown;
+  image_base64?: unknown;
+  b64_json?: unknown;
+  b64?: unknown;
   seed?: unknown;
   errorMessage?: unknown;
   error_message?: unknown;
+  status?: unknown;
+  state?: unknown;
+  outputPath?: unknown;
+  output_path?: unknown;
+  path?: unknown;
+  url?: unknown;
+  error?: unknown;
 };
-
-function asNonEmptyString(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function asSeed(value: unknown): bigint | undefined {
-  if (typeof value === "bigint") {
-    return value;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value) && Number.isInteger(value)) {
-    return BigInt(value);
-  }
-
-  if (typeof value === "string" && /^-?\d+$/.test(value)) {
-    return BigInt(value);
-  }
-
-  return undefined;
-}
 
 export async function POST(
   request: Request,
@@ -54,91 +46,71 @@ export async function POST(
   console.log("[character complete] body", {
     characterId: params.id,
     success: body.success,
-    imagePath: body.imagePath ?? body.image_path,
+    status: body.status,
+    state: body.state,
+    imagePath: body.imagePath ?? body.image_path ?? body.output_path,
+    hasBase64: Boolean(
+      body.imageBase64 ?? body.image_base64 ?? body.b64_json ?? body.b64,
+    ),
     seed: body.seed,
-    errorMessage: body.errorMessage ?? body.error_message,
+    errorMessage: body.errorMessage ?? body.error_message ?? body.error,
   });
 
-  if (typeof body.success !== "boolean") {
-    return NextResponse.json(
-      { error: "success must be a boolean" },
-      { status: 400 },
-    );
-  }
+  const parsed = parseComfyCharacterPayload(body as Record<string, unknown>);
 
-  const character = await prisma.character.findUnique({
-    where: { id: params.id },
-    select: { id: true },
-  });
+  if (!parsed) {
+    if (typeof body.success !== "boolean") {
+      return NextResponse.json(
+        { error: "success must be a boolean when status is not provided" },
+        { status: 400 },
+      );
+    }
 
-  if (!character) {
-    console.log("[character complete] character not found", params.id);
-    return NextResponse.json({ error: "Character not found" }, { status: 404 });
-  }
-
-  const errorMessage =
-    asNonEmptyString(body.errorMessage) ?? asNonEmptyString(body.error_message);
-
-  if (!body.success) {
-    console.error(
-      errorMessage
-        ? `[character complete] ${params.id} failed: ${errorMessage}`
-        : `[character complete] ${params.id} failed`,
-    );
-
-    await prisma.character.update({
-      where: { id: params.id },
-      data: { status: "FAILED", progressPercent: 0, progressLabel: null },
+    const fallback = parseComfyCharacterPayload({
+      ...body,
+      success: body.success,
+      status: body.success ? "completed" : "failed",
     });
 
-    revalidatePath("/dashboard");
-    console.log("[character complete] saved status=FAILED", params.id);
-    return NextResponse.json({ ok: true, status: "FAILED" });
+    if (!fallback || fallback.kind === "processing") {
+      return NextResponse.json(
+        { error: "Could not parse character completion payload" },
+        { status: 400 },
+      );
+    }
+
+    const result = await applyCharacterGenerationResult(params.id, fallback);
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error ?? "Completion failed" },
+        { status: result.error === "Character not found" ? 404 : 400 },
+      );
+    }
+    console.log("[character complete] saved", {
+      characterId: params.id,
+      status: result.status,
+      skipped: result.skipped,
+    });
+    return NextResponse.json({ ok: true, status: result.status });
   }
 
-  const sourcePath =
-    asNonEmptyString(body.imagePath) ?? asNonEmptyString(body.image_path);
+  if (parsed.kind === "processing") {
+    return NextResponse.json({ ok: true, status: "PROCESSING" });
+  }
 
-  if (!sourcePath) {
-    console.log("[character complete] missing imagePath", params.id);
+  const result = await applyCharacterGenerationResult(params.id, parsed);
+  if (!result.ok) {
     return NextResponse.json(
-      { error: "imagePath is required when success is true" },
-      { status: 400 },
+      { error: result.error ?? "Completion failed" },
+      { status: result.error === "Character not found" ? 404 : 400 },
     );
   }
 
-  let generatedImagePath: string;
-  try {
-    generatedImagePath = await persistGeneratedCharacterImage(sourcePath);
-  } catch (error) {
-    console.error(
-      `[character complete] ${params.id} could not store image`,
-      error,
-    );
-    return NextResponse.json(
-      { error: "Could not store generated image" },
-      { status: 400 },
-    );
-  }
-
-  const seed = asSeed(body.seed);
-
-  await prisma.character.update({
-    where: { id: params.id },
-    data: {
-      status: "COMPLETED",
-      generatedImagePath,
-      progressPercent: 100,
-      progressLabel: "완료",
-      ...(seed !== undefined ? { seed } : {}),
-    },
-  });
-
-  revalidatePath("/dashboard");
-  console.log("[character complete] saved status=COMPLETED", {
+  console.log("[character complete] saved", {
     characterId: params.id,
-    generatedImagePath,
-    seed,
+    status: result.status,
+    skipped: result.skipped,
+    generatedImagePath: result.generatedImagePath,
   });
-  return NextResponse.json({ ok: true, status: "COMPLETED" });
+  return NextResponse.json({ ok: true, status: result.status });
 }
