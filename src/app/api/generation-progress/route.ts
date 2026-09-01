@@ -116,16 +116,20 @@ export async function GET(request: Request) {
     where: { id },
     select: { progressPercent: true, progressLabel: true, status: true },
   });
+  const status = illustration?.status;
+  const completed = status === "COMPLETED";
+  const failed = status === "FAILED";
+  const idle = status === "IDLE";
   return NextResponse.json({
-    percent:
-      illustration?.status === "COMPLETED"
-        ? 100
-        : (illustration?.progressPercent ?? 0),
-    label:
-      illustration?.status === "COMPLETED"
+    percent: completed ? 100 : failed ? 0 : (illustration?.progressPercent ?? 0),
+    label: failed
+      ? "실패"
+      : completed
         ? "완료"
-        : (illustration?.progressLabel ?? "생성 중"),
-    active: illustration?.status === "PROCESSING",
+        : idle
+          ? "준비 중"
+          : (illustration?.progressLabel ?? "생성 중"),
+    active: idle || status === "PROCESSING",
   });
 }
 

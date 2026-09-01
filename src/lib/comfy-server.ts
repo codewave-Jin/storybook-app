@@ -6,9 +6,8 @@ export function isComfyMockEnabled() {
   if (value === "1" || value === "true" || value === "yes") {
     return true;
   }
-  return (
-    process.env.VERCEL === "1" || process.env.NODE_ENV === "production"
-  );
+  // Opt-in only. Unset must not silently skip real generation on Vercel.
+  return false;
 }
 
 function comfyServerBaseUrl() {

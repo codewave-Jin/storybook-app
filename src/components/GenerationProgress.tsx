@@ -52,10 +52,21 @@ export function GenerationProgress({
           const finished = payload.active === false;
           const serverPercent =
             typeof payload.percent === "number" ? payload.percent : 0;
-          setPercent((current) =>
-            finished ? 100 : Math.max(current, fallback, serverPercent),
+          const completed =
+            finished &&
+            (serverPercent >= 100 || payload.label === "완료");
+          const failed = finished && payload.label === "실패";
+          setPercent((current) => {
+            if (completed) return 100;
+            return Math.max(current, fallback, serverPercent);
+          });
+          setLabel(
+            completed
+              ? "완료"
+              : failed
+                ? "실패"
+                : payload.label || "생성 중",
           );
-          setLabel(finished ? "완료" : payload.label || "생성 중");
           return;
         }
       } catch {
