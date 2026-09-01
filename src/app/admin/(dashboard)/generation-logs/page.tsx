@@ -1,8 +1,5 @@
 import Link from "next/link";
-import {
-  GenerationEventTimeline,
-  loadGenerationEvents,
-} from "@/components/admin/GenerationEventTimeline";
+import { LiveGenerationLog } from "@/components/admin/LiveGenerationLog";
 
 export default async function AdminGenerationLogsPage({
   searchParams,
@@ -12,13 +9,6 @@ export default async function AdminGenerationLogsPage({
   const orderId = searchParams.orderId?.trim() || undefined;
   const entityId = searchParams.entityId?.trim() || undefined;
   const kind = searchParams.kind?.trim() || undefined;
-
-  const events = await loadGenerationEvents({
-    orderId,
-    entityId,
-    kind,
-    limit: 120,
-  });
 
   return (
     <div className="max-w-4xl">
@@ -30,8 +20,9 @@ export default async function AdminGenerationLogsPage({
       </Link>
       <h1 className="mt-2 text-2xl font-semibold text-stone-900">생성 로그</h1>
       <p className="mt-1 text-sm text-stone-500">
-        주문·삽화·스티커·캐릭터 생성 단계가 시간순으로 기록됩니다. Supabase{" "}
-        <code className="rounded bg-stone-100 px-1">generation_events</code> 테이블과
+        ComfyUI 터미널처럼, 누가 동화·스티커·캐릭터 생성을 눌렀는지 단계별로
+        실시간 확인합니다. Supabase{" "}
+        <code className="rounded bg-stone-100 px-1">generation_events</code>와
         동일합니다.
       </p>
 
@@ -81,7 +72,7 @@ export default async function AdminGenerationLogsPage({
       </form>
 
       <div className="mt-4">
-        <GenerationEventTimeline events={events} title="최근 생성 이벤트" />
+        <LiveGenerationLog orderId={orderId} entityId={entityId} kind={kind} />
       </div>
 
       <section className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm text-stone-700 ring-1 ring-amber-100">

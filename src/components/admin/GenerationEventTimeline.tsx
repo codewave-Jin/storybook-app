@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { loadGenerationEvents } from "@/lib/generation-events";
 
 function formatTime(value: Date) {
   return value.toLocaleString("ko-KR", {
@@ -102,22 +103,4 @@ export function GenerationEventTimeline({
       </ol>
     </section>
   );
-}
-
-export async function loadGenerationEvents(options: {
-  orderId?: string;
-  entityId?: string;
-  kind?: string;
-  limit?: number;
-}) {
-  const limit = options.limit ?? 80;
-  return prisma.generationEvent.findMany({
-    where: {
-      ...(options.orderId ? { orderId: options.orderId } : {}),
-      ...(options.entityId ? { entityId: options.entityId } : {}),
-      ...(options.kind ? { kind: options.kind } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
 }

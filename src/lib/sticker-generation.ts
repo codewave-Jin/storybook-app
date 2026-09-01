@@ -143,14 +143,23 @@ export async function runStickerPreviewGeneration(orderId: string) {
     logSticker("sticker.assets_loaded", "캐릭터·디자인 이미지 로드 완료");
 
     logSticker("sticker.openai_request", "OpenAI 이미지 생성 요청");
-    const generated = await generateIllustrationViaResponsesAPI({
-      prompt: buildStickerPreviewPrompt({
-        phrase: order.phrase,
-        costumeHint,
-      }),
-      characters: [characterAsset],
-      style: styleAsset,
-    });
+    const openAiWaitLog = setInterval(() => {
+      logSticker("sticker.still_processing", "OpenAI 응답 대기 중");
+    }, 45_000);
+
+    let generated;
+    try {
+      generated = await generateIllustrationViaResponsesAPI({
+        prompt: buildStickerPreviewPrompt({
+          phrase: order.phrase,
+          costumeHint,
+        }),
+        characters: [characterAsset],
+        style: styleAsset,
+      });
+    } finally {
+      clearInterval(openAiWaitLog);
+    }
     logSticker("sticker.openai_done", "OpenAI 이미지 응답 수신", {
       elapsedMs: generated.elapsedMs,
     });

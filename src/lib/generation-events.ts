@@ -61,3 +61,21 @@ export function logGenerationEvent(input: LogGenerationEventInput) {
       console.warn("[generation] failed to persist event", input.step, error);
     });
 }
+
+export async function loadGenerationEvents(options: {
+  orderId?: string;
+  entityId?: string;
+  kind?: string;
+  limit?: number;
+}) {
+  const limit = options.limit ?? 80;
+  return prisma.generationEvent.findMany({
+    where: {
+      ...(options.orderId ? { orderId: options.orderId } : {}),
+      ...(options.entityId ? { entityId: options.entityId } : {}),
+      ...(options.kind ? { kind: options.kind } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+}

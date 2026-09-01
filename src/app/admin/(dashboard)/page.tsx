@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { loadActiveGenerationJobs } from "@/lib/generation-active-jobs";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminHomePage() {
@@ -9,6 +10,7 @@ export default async function AdminHomePage() {
     illustratingCount,
     upscalingCount,
     completedCount,
+    activeJobs,
   ] = await Promise.all([
     prisma.storybookOrder.count(),
     prisma.storybookOrder.count({ where: { paymentStatus: "PAID" } }),
@@ -18,6 +20,7 @@ export default async function AdminHomePage() {
     prisma.storybookOrder.count({ where: { productionStatus: "ILLUSTRATING" } }),
     prisma.storybookOrder.count({ where: { productionStatus: "UPSCALING" } }),
     prisma.storybookOrder.count({ where: { productionStatus: "COMPLETED" } }),
+    loadActiveGenerationJobs(),
   ]);
 
   const stats = [
@@ -46,12 +49,21 @@ export default async function AdminHomePage() {
         ))}
       </section>
 
-      <Link
-        href="/admin/orders"
-        className="mt-8 inline-flex h-10 items-center rounded-lg bg-sky-400 px-4 text-sm font-medium text-white"
-      >
-        주문 목록 보기
-      </Link>
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Link
+          href="/admin/generation-logs"
+          className="inline-flex h-10 items-center rounded-lg bg-stone-800 px-4 text-sm font-medium text-white"
+        >
+          생성 로그 실시간 보기
+          {activeJobs.length > 0 ? ` (${activeJobs.length}건 진행 중)` : ""}
+        </Link>
+        <Link
+          href="/admin/orders"
+          className="inline-flex h-10 items-center rounded-lg bg-sky-400 px-4 text-sm font-medium text-white"
+        >
+          주문 목록 보기
+        </Link>
+      </div>
     </div>
   );
 }

@@ -5,10 +5,7 @@ import {
   markOrderIllustrationsComplete,
 } from "@/app/actions/illustrations";
 import { CharacterThumbnails } from "@/components/admin/CharacterZoomGrid";
-import {
-  GenerationEventTimeline,
-  loadGenerationEvents,
-} from "@/components/admin/GenerationEventTimeline";
+import { LiveGenerationLog } from "@/components/admin/LiveGenerationLog";
 import { IllustrationPageEditor } from "@/components/admin/IllustrationPageEditor";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { PendingSubmitButton } from "@/components/PendingSubmitButton";
@@ -65,10 +62,6 @@ export default async function AdminIllustrationWorkPage({
   const waitingForGeneration = order.illustrations.some(
     (item) => item.status === "PROCESSING",
   );
-  const generationEvents = await loadGenerationEvents({
-    orderId: order.id,
-    limit: 40,
-  });
 
   return (
     <div className="max-w-[1400px]">
@@ -178,10 +171,7 @@ export default async function AdminIllustrationWorkPage({
       </section>
 
       <div className="mt-6">
-        <GenerationEventTimeline
-          events={generationEvents}
-          title="이 주문 생성 로그"
-        />
+        <LiveGenerationLog orderId={order.id} />
       </div>
 
       <div className="mt-10 border-t border-stone-200 pt-6">

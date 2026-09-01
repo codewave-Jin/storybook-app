@@ -242,11 +242,20 @@ export async function runIllustrationGeneration(options: {
       characterCount: characterImages.length,
     });
 
-    const generated = await generateIllustrationViaResponsesAPI({
-      prompt: fullPrompt,
-      characters: characterImages,
-      style: styleImage,
-    });
+    const openAiWaitLog = setInterval(() => {
+      logIllustration("illustration.still_processing", "OpenAI 응답 대기 중");
+    }, 45_000);
+
+    let generated;
+    try {
+      generated = await generateIllustrationViaResponsesAPI({
+        prompt: fullPrompt,
+        characters: characterImages,
+        style: styleImage,
+      });
+    } finally {
+      clearInterval(openAiWaitLog);
+    }
 
     logIllustration("illustration.openai_done", "OpenAI 이미지 응답 수신", {
       elapsedMs: generated.elapsedMs,
