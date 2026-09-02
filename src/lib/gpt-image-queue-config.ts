@@ -31,12 +31,39 @@ function envInt(name: string, fallback: number, min: number, max: number) {
   return Math.min(max, Math.max(min, parsed));
 }
 
+export const GPT_IMAGE_PRIORITY = {
+  STYLE_CHARACTER: 200,
+  COVER: 100,
+  STICKER: 50,
+  ADMIN: 50,
+} as const;
+
+export function gptImageIllustrationPriority(
+  pageNumber: number,
+  pageType?: string | null,
+) {
+  if (pageType === "COVER" || pageNumber <= 1) {
+    return GPT_IMAGE_PRIORITY.COVER;
+  }
+  return GPT_IMAGE_PRIORITY.COVER - pageNumber;
+}
+
+export function defaultGptImageJobPriority(kind: GptImageJobKind) {
+  if (kind === GPT_IMAGE_JOB_KIND.STYLE_CHARACTER) {
+    return GPT_IMAGE_PRIORITY.STYLE_CHARACTER;
+  }
+  if (kind === GPT_IMAGE_JOB_KIND.STICKER) {
+    return GPT_IMAGE_PRIORITY.STICKER;
+  }
+  return GPT_IMAGE_PRIORITY.ADMIN;
+}
+
 export function gptImageConcurrency() {
-  return envInt("GPT_IMAGE_CONCURRENCY", 2, 1, 8);
+  return envInt("GPT_IMAGE_CONCURRENCY", 3, 1, 8);
 }
 
 export function gptImageInputImagesPerMin() {
-  return envInt("GPT_IMAGE_INPUT_IMAGES_PER_MIN", 5, 1, 20);
+  return envInt("GPT_IMAGE_INPUT_IMAGES_PER_MIN", 15, 1, 20);
 }
 
 export function gptImageWorkerStopBeforeMs() {

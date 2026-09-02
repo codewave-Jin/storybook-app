@@ -2,8 +2,11 @@ import { waitUntil } from "@vercel/functions";
 import { NextResponse } from "next/server";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
 import { isComfyMockEnabled } from "@/lib/comfy-server";
-import { enqueueAndKickGptImageJob } from "@/lib/gpt-image-queue";
-import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
+import { enqueueGptImageJob, kickGptImageWorker } from "@/lib/gpt-image-queue";
+import {
+  GPT_IMAGE_JOB_KIND,
+  gptImageIllustrationPriority,
+} from "@/lib/gpt-image-queue-config";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
 import {
   shouldGenerateIllustration,
@@ -27,6 +30,8 @@ export async function POST(
     where: { id: params.id },
     select: {
       id: true,
+      pageNumber: true,
+      pageType: true,
       prompt: true,
       selectedCharacterIds: true,
       status: true,
@@ -74,7 +79,7 @@ export async function POST(
         illustrationId: illustration.id,
         prompt: illustration.prompt,
         characterIds,
-        chainNext: true,
+        chainNext: false,
       }).catch((error) => {
         console.error(
           "[illustration generate] background generate failed",
@@ -109,12 +114,17 @@ export async function POST(
     illustration.order.characterAsset?.status === "READY" &&
     Boolean(illustration.order.characterAsset.styledImageUrl);
 
-  await enqueueAndKickGptImageJob({
+  await enqueueGptImageJob({
     kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
     targetId: illustration.id,
     inputImages: styledReady ? 1 : 2,
-    payload: { chainNext: true, keepImage: false },
+    priority: gptImageIllustrationPriority(
+      illustration.pageNumber,
+      illustration.pageType,
+    ),
+    payload: { chainNext: false, keepImage: false },
   });
+  kickGptImageWorker();
 
   return NextResponse.json(
     { ok: true, accepted: true, illustrationId: illustration.id, queued: true },

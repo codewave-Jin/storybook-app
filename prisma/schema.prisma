@@ -435,6 +435,7 @@ model ReviewImage {
 /// Global GPT image queue. Worker claims with SKIP LOCKED.
 /// kind: STYLE_CHARACTER | ILLUSTRATION | STICKER
 /// status: QUEUED | RUNNING | SUCCEEDED | FAILED
+/// priority: style 200, cover 100, body 100-N, sticker/admin 50
 model GptImageJob {
   id          String    @id @default(cuid())
   kind        String
@@ -442,6 +443,7 @@ model GptImageJob {
   payload     Json
   status      String    @default("QUEUED")
   inputImages Int
+  priority    Int       @default(0)
   attempts    Int       @default(0)
   maxAttempts Int       @default(5)
   runAfter    DateTime  @default(now())
@@ -455,7 +457,7 @@ model GptImageJob {
 
   usages GptImageUsage[]
 
-  @@index([status, runAfter, createdAt])
+  @@index([status, runAfter, priority, createdAt])
   @@index([kind, targetId, status])
 }
 

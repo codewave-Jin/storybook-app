@@ -17,7 +17,7 @@ import {
   ILLUSTRATION_OUTPUT_FORMAT,
   mimeForOutputFormat,
 } from "@/lib/image-generation-config";
-import { enqueueNextPendingIllustration } from "@/lib/enqueue-illustration-generation";
+import { enqueuePendingIllustrations } from "@/lib/enqueue-illustration-generation";
 import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
@@ -198,8 +198,10 @@ export async function runIllustrationGeneration(options: {
       return;
     }
     try {
-      await enqueueNextPendingIllustration(orderId, {
+      await enqueuePendingIllustrations(orderId, {
         afterPageNumber: pageNumber,
+        limit: 1,
+        chainNext: true,
       });
     } catch (error) {
       console.error(

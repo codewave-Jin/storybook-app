@@ -2,10 +2,14 @@ import { waitUntil } from "@vercel/functions";
 import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { logGenerationEvent } from "@/lib/generation-events";
 import {
-  enqueueAndKickGptImageJob,
-  hasActiveGptImageJob,
+  activeGptImageTargetIds,
+  enqueueGptImageJob,
+  kickGptImageWorkers,
 } from "@/lib/gpt-image-queue";
-import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
+import {
+  GPT_IMAGE_JOB_KIND,
+  gptImageIllustrationPriority,
+} from "@/lib/gpt-image-queue-config";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
 import {
   isStaleProcessing,
@@ -15,14 +19,26 @@ import {
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 
+export type EnqueuePendingIllustrationOptions = {
+  pageNumbers?: number[];
+  afterPageNumber?: number;
+  limit?: number;
+  chainNext?: boolean;
+};
+
 /**
  * Enqueue illustration jobs in-process (no HTTP self-fetch).
  * GPT itself runs only in the gpt-image worker.
  */
-export function enqueueIllustrationGenerations(illustrationIds: string[]) {
+export function enqueueIllustrationGenerations(
+  illustrationIds: string[],
+  options?: { chainNext?: boolean },
+) {
   if (illustrationIds.length === 0) {
     return Promise.resolve();
   }
+
+  const chainNext = options?.chainNext === true;
 
   const dispatched = (async () => {
     const pages = await prisma.illustration.findMany({
@@ -30,6 +46,8 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
       select: {
         id: true,
         orderId: true,
+        pageNumber: true,
+        pageType: true,
         prompt: true,
         selectedCharacterIds: true,
         status: true,
@@ -45,7 +63,9 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
       },
     });
 
-    const targets = pages.filter((page) => shouldGenerateIllustration(page));
+    const targets = pages
+      .filter((page) => shouldGenerateIllustration(page))
+      .sort((a, b) => a.pageNumber - b.pageNumber);
     const first = pages[0];
     if (first) {
       logGenerationEvent({
@@ -58,10 +78,12 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
         detail: {
           illustrationIds: targets.map((page) => page.id),
           count: targets.length,
+          chainNext,
         },
       });
     }
 
+    let created = 0;
     for (const page of targets) {
       const characterIds = parseIdList(page.selectedCharacterIds);
       if (!page.prompt.trim() || characterIds.length < 1) {
@@ -78,7 +100,7 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
             illustrationId: page.id,
             prompt: page.prompt,
             characterIds,
-            chainNext: true,
+            chainNext,
           });
         } catch (error) {
           console.error(
@@ -110,25 +132,39 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
         page.order.characterAsset?.status === "READY" &&
         Boolean(page.order.characterAsset.styledImageUrl);
 
-      await enqueueAndKickGptImageJob({
+      const result = await enqueueGptImageJob({
         kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
         targetId: page.id,
         inputImages: styledReady ? 1 : 2,
-        payload: { chainNext: true, keepImage: false },
+        priority: gptImageIllustrationPriority(page.pageNumber, page.pageType),
+        payload: { chainNext, keepImage: false },
       });
+      if (result.created) {
+        created += 1;
+      }
+    }
+
+    if (!isComfyMockEnabled()) {
+      kickGptImageWorkers(Math.max(created, targets.length));
     }
   })();
 
   waitUntil(dispatched);
+  return dispatched;
 }
 
-/** Cover (lowest pageNumber) first. One in-flight page at a time. */
-export async function enqueueNextPendingIllustration(
+/** Pending pages for an order. No in-flight-one-page gate. */
+export async function enqueuePendingIllustrations(
   orderId: string,
-  options?: { afterPageNumber?: number },
+  options?: EnqueuePendingIllustrationOptions,
 ) {
   const pages = await prisma.illustration.findMany({
-    where: { orderId },
+    where: {
+      orderId,
+      ...(options?.pageNumbers
+        ? { pageNumber: { in: options.pageNumbers } }
+        : {}),
+    },
     orderBy: { pageNumber: "asc" },
     select: {
       id: true,
@@ -139,25 +175,8 @@ export async function enqueueNextPendingIllustration(
     },
   });
 
-  const inFlight = pages.some(
-    (page) =>
-      page.status === "PROCESSING" && !isStaleProcessing(page.updatedAt),
-  );
-  if (inFlight) {
-    return;
-  }
-
-  if (
-    await hasActiveGptImageJob(
-      GPT_IMAGE_JOB_KIND.ILLUSTRATION,
-      pages.map((page) => page.id),
-    )
-  ) {
-    return;
-  }
-
   const afterPageNumber = options?.afterPageNumber ?? 0;
-  const next = pages.find((page) => {
+  const candidates = pages.filter((page) => {
     if (page.pageNumber <= afterPageNumber) {
       return false;
     }
@@ -170,9 +189,23 @@ export async function enqueueNextPendingIllustration(
     return page.status === "PROCESSING" && isStaleProcessing(page.updatedAt);
   });
 
-  if (!next) {
+  if (candidates.length === 0) {
     return;
   }
 
-  enqueueIllustrationGenerations([next.id]);
+  const activeIds = await activeGptImageTargetIds(
+    GPT_IMAGE_JOB_KIND.ILLUSTRATION,
+    candidates.map((page) => page.id),
+  );
+  const pending = candidates.filter((page) => !activeIds.has(page.id));
+  const limit = options?.limit ?? pending.length;
+  const batch = pending.slice(0, Math.max(0, limit));
+  if (batch.length === 0) {
+    return;
+  }
+
+  await enqueueIllustrationGenerations(
+    batch.map((page) => page.id),
+    { chainNext: options?.chainNext === true },
+  );
 }

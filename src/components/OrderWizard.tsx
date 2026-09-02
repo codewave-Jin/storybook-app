@@ -85,7 +85,7 @@ export function OrderWizard({
   const [step, setStep] = useState(STEP_TEMPLATE);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [artStyleId, setArtStyleId] = useState<string | null>(null);
-  const [characterIds, setCharacterIds] = useState<string[]>([]);
+  const [characterId, setCharacterId] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, formAction] = useFormState<CreateOrderState, FormData>(
     createOrder,
@@ -96,8 +96,8 @@ export function OrderWizard({
   const customFields = selectedTemplate?.customFields ?? [];
   const artStyles = selectedTemplate?.artStyles ?? [];
   const selectedArtStyle = artStyles.find((style) => style.id === artStyleId);
-  const selectedCharacters = characters.filter((character) =>
-    characterIds.includes(character.id),
+  const selectedCharacter = characters.find(
+    (character) => character.id === characterId,
   );
 
   const canSkipArtStyle = artStyles.length === 0;
@@ -127,27 +127,13 @@ export function OrderWizard({
     setStep((current) => Math.max(current - 1, STEP_TEMPLATE));
   }
 
-  function toggleCharacter(id: string, selectable: boolean) {
-    if (!selectable) return;
-
-    setCharacterIds((current) => {
-      if (current.includes(id)) {
-        return current.filter((value) => value !== id);
-      }
-      if (current.length >= 1) {
-        return current;
-      }
-      return [...current, id];
-    });
-  }
-
   const canNext = useMemo(() => {
     if (step === STEP_TEMPLATE) return Boolean(templateId);
     if (step === STEP_ART_STYLE) {
       return canSkipArtStyle || Boolean(artStyleId);
     }
     if (step === STEP_CHARACTERS) {
-      return characterIds.length >= 1 && characterIds.length <= 1;
+      return Boolean(characterId);
     }
     if (step === STEP_FIELDS) {
       return customFields.every((field) => {
@@ -163,7 +149,7 @@ export function OrderWizard({
     templateId,
     artStyleId,
     canSkipArtStyle,
-    characterIds,
+    characterId,
     customFields,
     customValues,
   ]);
@@ -303,10 +289,7 @@ export function OrderWizard({
         <section>
           <h2 className="text-lg font-semibold">등장할 캐릭터를 선택해 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            생성이 완료된 캐릭터만 선택할 수 있습니다. 최대 3명.{" "}
-            <span className="font-medium text-red-500">
-              (현재 테스트중이라 1명만 선택)
-            </span>
+            생성이 완료된 캐릭터만 선택할 수 있습니다. 하나만 고를 수 있어요.
           </p>
 
           {characters.length === 0 ? (
@@ -324,37 +307,33 @@ export function OrderWizard({
             </div>
           ) : (
             <>
-              <p className="mt-3 text-sm text-stone-500">
-                {characterIds.length}/1명 선택됨
-              </p>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 lg:grid-cols-5">
                 {characters.map((character) => {
                   const selectable = character.status === "COMPLETED";
-                  const selected = characterIds.includes(character.id);
+                  const selected = character.id === characterId;
                   const imageSrc =
                     character.status === "COMPLETED" && character.generatedImagePath
                       ? character.generatedImagePath
                       : character.originalPhotoPath;
 
                   return (
-                    <label
+                    <button
                       key={character.id}
+                      type="button"
+                      disabled={!selectable}
+                      aria-pressed={selected}
+                      onClick={() => selectable && setCharacterId(character.id)}
                       className={cn(
-                        "relative overflow-hidden rounded-xl border bg-white shadow-sm",
+                        "relative overflow-hidden rounded-xl border bg-white text-left shadow-sm",
                         selectable ? "cursor-pointer" : "cursor-not-allowed",
                         selected
                           ? "border-sky-400 ring-2 ring-sky-300"
-                          : "border-stone-200",
+                          : selectable
+                            ? "border-stone-200 hover:border-stone-400"
+                            : "border-stone-200",
                         !selectable && "opacity-60",
                       )}
                     >
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={selected}
-                        disabled={!selectable}
-                        onChange={() => toggleCharacter(character.id, selectable)}
-                      />
                       <div className="no-image-save relative aspect-square bg-stone-100">
                         <AppImage
                           src={imageSrc}
@@ -397,7 +376,7 @@ export function OrderWizard({
                           {GENDER_LABEL[character.gender]}
                         </p>
                       </div>
-                    </label>
+                    </button>
                   );
                 })}
               </div>
@@ -471,13 +450,11 @@ export function OrderWizard({
             ) : null}
             <div>
               <p className="text-sm text-stone-500">선택한 캐릭터</p>
-              <ul className="mt-1 space-y-1">
-                {selectedCharacters.map((character) => (
-                  <li key={character.id} className="font-medium">
-                    {character.label} ({GENDER_LABEL[character.gender]})
-                  </li>
-                ))}
-              </ul>
+              <p className="mt-1 font-medium">
+                {selectedCharacter
+                  ? `${selectedCharacter.label} (${GENDER_LABEL[selectedCharacter.gender]})`
+                  : "-"}
+              </p>
             </div>
             {customFields.length > 0 ? (
               <div>
@@ -503,9 +480,7 @@ export function OrderWizard({
           <form action={formAction} className="mt-6">
             <input type="hidden" name="templateId" value={templateId ?? ""} />
             <input type="hidden" name="artStyleId" value={artStyleId ?? ""} />
-            {characterIds.map((id) => (
-              <input key={id} type="hidden" name="characterIds" value={id} />
-            ))}
+            <input type="hidden" name="characterIds" value={characterId ?? ""} />
             {customFields.map((field) => (
               <input
                 key={field.key}

@@ -47,7 +47,7 @@ function stylePayload(payload: unknown): StyleCharacterJobPayload {
 function illustrationPayload(payload: unknown): IllustrationJobPayload {
   const record = asRecord(payload);
   return {
-    chainNext: record.chainNext !== false,
+    chainNext: record.chainNext === true,
     keepImage: record.keepImage === true,
   };
 }
@@ -135,6 +135,9 @@ export async function runGptImageWorker() {
     }
 
     const { job } = claimed;
+    if (await hasReadyQueuedGptImageJob()) {
+      kickGptImageWorker();
+    }
     try {
       await executeJob(job);
       await succeedGptImageJob(job.id);

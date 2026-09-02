@@ -1,6 +1,7 @@
-import { enqueueNextPendingIllustration } from "@/lib/enqueue-illustration-generation";
+import { enqueuePendingIllustrations } from "@/lib/enqueue-illustration-generation";
 import { enqueueOrderStyleTransfer } from "@/lib/enqueue-style-transfer";
 import { logGenerationEvent } from "@/lib/generation-events";
+import { gptImageConcurrency } from "@/lib/gpt-image-queue-config";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
 import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
 import {
@@ -153,6 +154,29 @@ async function generatePages(options: {
   await markOrderPreviewGeneratedIfReady(options.orderId);
 }
 
+function isPreviewPageSet(pageNumbers: number[]) {
+  const preview = new Set<number>(PREVIEW_PAGE_NUMBERS);
+  return (
+    pageNumbers.length > 0 && pageNumbers.every((pageNumber) => preview.has(pageNumber))
+  );
+}
+
+async function enqueueOrderIllustrations(orderId: string, pageNumbers: number[]) {
+  if (isPreviewPageSet(pageNumbers)) {
+    await enqueuePendingIllustrations(orderId, {
+      pageNumbers,
+      chainNext: false,
+    });
+    return;
+  }
+
+  await enqueuePendingIllustrations(orderId, {
+    pageNumbers,
+    limit: gptImageConcurrency(),
+    chainNext: true,
+  });
+}
+
 async function releaseStyleTransferHold(orderId: string, pageNumbers: number[]) {
   await prisma.illustration.updateMany({
     where: {
@@ -224,7 +248,7 @@ export async function finishStyleTransferAndStartIllustrations(options: {
     return { ok: true };
   }
 
-  await enqueueNextPendingIllustration(orderId);
+  await enqueueOrderIllustrations(orderId, pageNumbers);
   return { ok: true };
 }
 
@@ -374,7 +398,7 @@ export async function ensureIllustrationsAndGenerate(options: {
       });
       return;
     }
-    await enqueueNextPendingIllustration(orderId);
+    await enqueueOrderIllustrations(orderId, pageNumbers);
     return;
   }
 

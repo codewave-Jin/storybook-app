@@ -6,6 +6,7 @@ import {
   GPT_IMAGE_ADVISORY_LOCK_KEY,
   GPT_IMAGE_JOB_KIND,
   GPT_IMAGE_JOB_STATUS,
+  defaultGptImageJobPriority,
   gptImageConcurrency,
   gptImageInputImagesPerMin,
   gptImageStaleRunningMs,
@@ -37,6 +38,7 @@ export type EnqueueGptImageJobInput = {
   kind: GptImageJobKind;
   targetId: string;
   inputImages: number;
+  priority?: number;
   payload?: GptImageJobPayload;
 };
 
@@ -147,6 +149,7 @@ export async function enqueueGptImageJob(input: EnqueueGptImageJobInput) {
       targetId: input.targetId,
       payload: (input.payload ?? {}) as Prisma.InputJsonValue,
       inputImages: Math.max(1, input.inputImages),
+      priority: input.priority ?? defaultGptImageJobPriority(input.kind),
       status: GPT_IMAGE_JOB_STATUS.QUEUED,
     },
   });
@@ -157,18 +160,26 @@ export async function hasActiveGptImageJob(
   kind: GptImageJobKind,
   targetIds: string[],
 ) {
+  const active = await activeGptImageTargetIds(kind, targetIds);
+  return active.size > 0;
+}
+
+export async function activeGptImageTargetIds(
+  kind: GptImageJobKind,
+  targetIds: string[],
+) {
   if (targetIds.length === 0) {
-    return false;
+    return new Set<string>();
   }
-  const job = await prisma.gptImageJob.findFirst({
+  const rows = await prisma.gptImageJob.findMany({
     where: {
       kind,
       targetId: { in: targetIds },
       status: { in: [...ACTIVE_STATUSES] },
     },
-    select: { id: true },
+    select: { targetId: true },
   });
-  return Boolean(job);
+  return new Set(rows.map((row) => row.targetId));
 }
 
 export async function hasReadyQueuedGptImageJob() {
@@ -197,6 +208,7 @@ export async function getGptImageQueueSnapshot(
       id: true,
       status: true,
       createdAt: true,
+      priority: true,
     },
   });
   if (
@@ -212,8 +224,14 @@ export async function getGptImageQueueSnapshot(
       status: { in: [...ACTIVE_STATUSES] },
       id: { not: job.id },
       OR: [
-        { createdAt: { lt: job.createdAt } },
-        { createdAt: job.createdAt, id: { lt: job.id } },
+        { status: GPT_IMAGE_JOB_STATUS.RUNNING },
+        { priority: { gt: job.priority } },
+        { priority: job.priority, createdAt: { lt: job.createdAt } },
+        {
+          priority: job.priority,
+          createdAt: job.createdAt,
+          id: { lt: job.id },
+        },
       ],
     },
   });
@@ -252,7 +270,7 @@ export async function claimNextGptImageJob(): Promise<ClaimResult> {
       SELECT * FROM "GptImageJob"
       WHERE status = ${GPT_IMAGE_JOB_STATUS.QUEUED}
         AND "runAfter" <= ${now}
-      ORDER BY "createdAt" ASC
+      ORDER BY "priority" DESC, "createdAt" ASC, id ASC
       FOR UPDATE SKIP LOCKED
       LIMIT 5
     `;
@@ -420,6 +438,15 @@ export function kickGptImageWorker() {
 
   waitUntil(dispatched);
   return dispatched;
+}
+
+export function kickGptImageWorkers(count: number) {
+  const n = Math.max(0, Math.min(Math.floor(count), gptImageConcurrency()));
+  const kicked = [];
+  for (let i = 0; i < n; i += 1) {
+    kicked.push(kickGptImageWorker());
+  }
+  return kicked;
 }
 
 export async function enqueueAndKickGptImageJob(input: EnqueueGptImageJobInput) {
