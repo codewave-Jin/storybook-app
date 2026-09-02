@@ -7,6 +7,11 @@ import { createStickerOrder, type CreateStickerOrderState } from "@/app/actions/
 import { AppImage } from "@/components/AppImage";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { GENDER_LABEL } from "@/lib/orders";
+import {
+  STICKER_BORDER_CATEGORY_LABEL,
+  STICKER_BORDER_CATEGORY_ORDER,
+  type StickerBorderCategoryKey,
+} from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
 export type StickerCharacterOption = {
@@ -18,18 +23,18 @@ export type StickerCharacterOption = {
   originalPhotoPath: string;
 };
 
-export type StickerTemplateOption = {
+export type StickerBorderOption = {
   id: string;
   label: string;
   thumbnailPath: string | null;
-  available: boolean;
+  category: StickerBorderCategoryKey;
+  sortOrder: number;
 };
 
 export type StickerCostumeOption = {
   id: string;
   label: string;
   referenceImageUrl: string | null;
-  templateId: string;
   sortOrder: number;
 };
 
@@ -48,7 +53,7 @@ export type StickerSizeOption = {
 };
 
 const STEP_COUNT = 6;
-const STEP_LABELS = ["캐릭터", "용도", "옷", "문구", "사이즈", "제작 요청"] as const;
+const STEP_LABELS = ["캐릭터", "테두리", "옷", "문구", "사이즈", "제작 요청"] as const;
 const CUSTOM_PHRASE = "__custom__";
 const CUSTOM_COSTUME = "__custom__";
 const MAX_PHRASE_LENGTH = 25;
@@ -70,20 +75,23 @@ function SubmitButton() {
 
 export function StickerWizard({
   characters,
-  templates,
+  borders,
   costumes,
   phrases,
   sizes,
 }: {
   characters: StickerCharacterOption[];
-  templates: StickerTemplateOption[];
+  borders: StickerBorderOption[];
   costumes: StickerCostumeOption[];
   phrases: StickerPhraseOption[];
   sizes: StickerSizeOption[];
 }) {
   const [step, setStep] = useState(1);
   const [characterId, setCharacterId] = useState<string | null>(null);
-  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [borderId, setBorderId] = useState<string | null>(null);
+  const [categoryTab, setCategoryTab] = useState<StickerBorderCategoryKey | null>(
+    null,
+  );
   const [costumeKey, setCostumeKey] = useState<string | null>(null);
   const [customCostume, setCustomCostume] = useState("");
   const [phraseKey, setPhraseKey] = useState<string | null>(null);
@@ -95,15 +103,26 @@ export function StickerWizard({
   );
 
   const selectedCharacter = characters.find((item) => item.id === characterId);
-  const selectedTemplate = templates.find((item) => item.id === templateId);
-  const templateCostumes = useMemo(
+  const selectedBorder = borders.find((item) => item.id === borderId);
+  const categoryTabs = useMemo(() => {
+    const present = new Set(borders.map((border) => border.category));
+    return STICKER_BORDER_CATEGORY_ORDER.filter((category) =>
+      present.has(category),
+    );
+  }, [borders]);
+  const activeCategory = categoryTab ?? categoryTabs[0] ?? "NONE";
+  const visibleBorders = useMemo(
     () =>
-      costumes
-        .filter((item) => item.templateId === templateId)
+      borders
+        .filter((border) => border.category === activeCategory)
         .sort((left, right) => left.sortOrder - right.sortOrder),
-    [costumes, templateId],
+    [borders, activeCategory],
   );
-  const selectedCostume = templateCostumes.find((item) => item.id === costumeKey);
+  const visibleCostumes = useMemo(
+    () => [...costumes].sort((left, right) => left.sortOrder - right.sortOrder),
+    [costumes],
+  );
+  const selectedCostume = visibleCostumes.find((item) => item.id === costumeKey);
   const costumeLabel =
     costumeKey === CUSTOM_COSTUME
       ? customCostume.trim()
@@ -116,7 +135,7 @@ export function StickerWizard({
 
   const canNext = useMemo(() => {
     if (step === 1) return Boolean(characterId);
-    if (step === 2) return Boolean(templateId);
+    if (step === 2) return Boolean(borderId);
     if (step === 3) {
       if (costumeKey === CUSTOM_COSTUME) {
         return (
@@ -133,7 +152,7 @@ export function StickerWizard({
       );
     }
     return true;
-  }, [step, characterId, templateId, costumeKey, customCostume, phrase, sizeOptionId, sizes]);
+  }, [step, characterId, borderId, costumeKey, customCostume, phrase, sizeOptionId, sizes]);
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -246,66 +265,78 @@ export function StickerWizard({
 
       {step === 2 ? (
         <section>
-          <h2 className="text-lg font-semibold">용도를 골라 주세요</h2>
+          <h2 className="text-lg font-semibold">테두리를 골라 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            스티커를 어디에 쓸지 선택해요.
+            스티커 가장자리에 들어갈 디자인을 선택해요.
           </p>
-          {templates.length === 0 ? (
+          {borders.length === 0 ? (
             <p className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-12 text-center text-sm text-stone-500">
-              선택 가능한 용도가 없습니다.
+              선택 가능한 테두리가 없습니다.
             </p>
           ) : (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-              {templates.map((template) => {
-                const selected = template.id === templateId;
-                return (
-                  <button
-                    key={template.id}
-                    type="button"
-                    disabled={!template.available}
-                    onClick={() => {
-                      if (!template.available) {
-                        return;
-                      }
-                      setTemplateId(template.id);
-                      setCostumeKey(null);
-                      setCustomCostume("");
-                    }}
-                    className={cn(
-                      "overflow-hidden rounded-2xl border bg-white text-left shadow-sm",
-                      selected
-                        ? "border-sky-400 ring-2 ring-sky-300"
-                        : "border-stone-200",
-                      template.available
-                        ? "hover:border-stone-300"
-                        : "cursor-not-allowed opacity-55",
-                    )}
-                  >
-                    <div className="relative aspect-square bg-[#F6E7C1]/40">
-                      {template.thumbnailPath ? (
-                        <AppImage
-                          src={template.thumbnailPath}
-                          alt={template.label}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 50vw, 33vw"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-3xl font-semibold text-[#8A5A12]">
-                          {template.label.slice(0, 1)}
-                        </div>
+            <>
+              {categoryTabs.length > 1 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {categoryTabs.map((category) => {
+                    const selected = category === activeCategory;
+                    return (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => setCategoryTab(category)}
+                        className={cn(
+                          "h-10 rounded-full px-4 text-sm font-medium",
+                          selected
+                            ? "bg-sky-400 text-white"
+                            : "bg-white text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50",
+                        )}
+                      >
+                        {STICKER_BORDER_CATEGORY_LABEL[category]}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                {visibleBorders.map((border) => {
+                  const selected = border.id === borderId;
+                  const thumb = border.thumbnailPath;
+                  return (
+                    <button
+                      key={border.id}
+                      type="button"
+                      onClick={() => {
+                        setBorderId(border.id);
+                        setCategoryTab(border.category);
+                      }}
+                      className={cn(
+                        "overflow-hidden rounded-2xl border bg-white text-left shadow-sm hover:border-stone-300",
+                        selected
+                          ? "border-sky-400 ring-2 ring-sky-300"
+                          : "border-stone-200",
                       )}
-                      {template.available ? null : (
-                        <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-medium text-stone-500">
-                          준비 중
-                        </span>
-                      )}
-                    </div>
-                    <p className="p-3 font-semibold">{template.label}</p>
-                  </button>
-                );
-              })}
-            </div>
+                    >
+                      <div className="relative aspect-square bg-[#F6E7C1]/40">
+                        {thumb ? (
+                          <AppImage
+                            src={thumb}
+                            alt={border.label}
+                            fill
+                            className="object-contain p-2"
+                            sizes="(max-width: 640px) 50vw, 33vw"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-3xl font-semibold text-[#8A5A12]">
+                            {border.label.slice(0, 1)}
+                          </div>
+                        )}
+                      </div>
+                      <p className="p-3 font-semibold">{border.label}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           )}
         </section>
       ) : null}
@@ -317,7 +348,7 @@ export function StickerWizard({
             스티커에 입힐 모습을 고르거나, 원하는 코스튬을 짧게 적어 주세요.
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {templateCostumes.map((costume) => {
+            {visibleCostumes.map((costume) => {
                 const selected = costumeKey === costume.id;
                 return (
                   <button
@@ -498,7 +529,7 @@ export function StickerWizard({
           <h2 className="text-lg font-semibold">이대로 제작할까요?</h2>
           <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
             <SummaryRow label="캐릭터" value={selectedCharacter?.label} />
-            <SummaryRow label="용도" value={selectedTemplate?.label} />
+            <SummaryRow label="테두리" value={selectedBorder?.label} />
             <SummaryRow label="옷" value={costumeLabel} />
             <SummaryRow label="문구" value={phrase} />
             <SummaryRow
@@ -513,7 +544,7 @@ export function StickerWizard({
 
           <form action={formAction} className="mt-6">
             <input type="hidden" name="characterId" value={characterId ?? ""} />
-            <input type="hidden" name="templateId" value={templateId ?? ""} />
+            <input type="hidden" name="borderId" value={borderId ?? ""} />
             <input type="hidden" name="costumeId" value={costumeKey === CUSTOM_COSTUME ? "" : (costumeKey ?? "")} />
             <input type="hidden" name="customCostumeHint" value={costumeKey === CUSTOM_COSTUME ? customCostume.trim() : ""} />
             <input type="hidden" name="phrase" value={phrase} />

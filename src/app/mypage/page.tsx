@@ -10,6 +10,7 @@ import {
   PAYMENT_STATUS_LABEL,
 } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
 export default async function MyPage() {
@@ -36,6 +37,7 @@ export default async function MyPage() {
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
+        border: { select: { label: true } },
         template: { select: { label: true } },
         character: { select: { label: true } },
       },
@@ -59,7 +61,10 @@ export default async function MyPage() {
     ...stickerOrders.map((order) => ({
       id: order.id,
       kind: "sticker" as const,
-      title: `${order.character.label} · ${order.template.label}`,
+      title: stickerOrderTitle(
+        order.character.label,
+        stickerOrderExtraLabel(order),
+      ),
       href: `/dashboard/sticker/${order.id}/preview`,
       paymentStatus: order.paymentStatus,
       productionStatus: order.productionStatus,

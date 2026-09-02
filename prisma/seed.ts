@@ -133,24 +133,60 @@ const stickerTemplates = [
 
 const defaultStickerCostumes = [
   {
-    key: "none",
-    label: "코스튬 없음 (원래 모습)",
-    promptHint: "",
+    key: "angel",
+    label: "천사",
+    promptHint: "천사 옷",
     sortOrder: 0,
-    isActive: true,
-  },
-  {
-    key: "butterfly",
-    label: "나비 코스튬",
-    promptHint: "나비 코스튬",
-    sortOrder: 1,
     isActive: true,
   },
   {
     key: "formal",
     label: "정장",
     promptHint: "정장",
+    sortOrder: 1,
+    isActive: true,
+  },
+  {
+    key: "baby",
+    label: "아기",
+    promptHint: "아기 옷",
     sortOrder: 2,
+    isActive: true,
+  },
+  {
+    key: "dress",
+    label: "드레스",
+    promptHint: "드레스",
+    sortOrder: 3,
+    isActive: true,
+  },
+];
+
+const STICKER_BORDER_PUBLIC_BASE = "/sticker-borders";
+
+const defaultStickerBorders = [
+  {
+    key: "flower",
+    label: "꽃 테두리",
+    imageUrl: `${STICKER_BORDER_PUBLIC_BASE}/flower.png`,
+    thumbnailPath: `${STICKER_BORDER_PUBLIC_BASE}/flower.png`,
+    category: "FLOWER" as const,
+    characterSizeRatio: 0.48,
+    offsetXRatio: 0,
+    offsetYRatio: 0,
+    sortOrder: 0,
+    isActive: true,
+  },
+  {
+    key: "none",
+    label: "흰 원형 바탕",
+    imageUrl: `${STICKER_BORDER_PUBLIC_BASE}/none.png`,
+    thumbnailPath: `${STICKER_BORDER_PUBLIC_BASE}/none.png`,
+    category: "NONE" as const,
+    characterSizeRatio: 0.48,
+    offsetXRatio: 0,
+    offsetYRatio: 0,
+    sortOrder: 1,
     isActive: true,
   },
 ];
@@ -648,10 +684,10 @@ async function seedTemplates() {
 }
 
 async function seedStickerCostumes() {
-  const costumes = [];
+  const activeKeys = defaultStickerCostumes.map((costume) => costume.key);
 
   for (const costume of defaultStickerCostumes) {
-    const row = await prisma.stickerCostume.upsert({
+    await prisma.stickerCostume.upsert({
       where: { key: costume.key },
       update: {
         label: costume.label,
@@ -661,30 +697,30 @@ async function seedStickerCostumes() {
       },
       create: costume,
     });
-    costumes.push(row);
   }
 
-  return costumes;
+  await prisma.stickerCostume.updateMany({
+    where: { key: { notIn: activeKeys } },
+    data: { isActive: false },
+  });
 }
 
-async function linkCostumesToStickerTemplate(
-  templateId: string,
-  costumes: Array<{ id: string; sortOrder: number }>,
-) {
-  for (const costume of costumes) {
-    await prisma.templateCostume.upsert({
-      where: {
-        stickerTemplateId_costumeId: {
-          stickerTemplateId: templateId,
-          costumeId: costume.id,
-        },
+async function seedStickerBorders() {
+  for (const border of defaultStickerBorders) {
+    await prisma.stickerBorder.upsert({
+      where: { key: border.key },
+      update: {
+        label: border.label,
+        imageUrl: border.imageUrl,
+        thumbnailPath: border.thumbnailPath,
+        category: border.category,
+        characterSizeRatio: border.characterSizeRatio,
+        offsetXRatio: border.offsetXRatio,
+        offsetYRatio: border.offsetYRatio,
+        sortOrder: border.sortOrder,
+        isActive: border.isActive,
       },
-      update: { sortOrder: costume.sortOrder },
-      create: {
-        stickerTemplateId: templateId,
-        costumeId: costume.id,
-        sortOrder: costume.sortOrder,
-      },
+      create: border,
     });
   }
 }
@@ -702,13 +738,8 @@ async function seedStickerCatalog() {
     });
   }
 
-  const costumes = await seedStickerCostumes();
-  const firstBirthday = await prisma.stickerTemplate.findUnique({
-    where: { key: FIRST_BIRTHDAY_TEMPLATE_KEY },
-  });
-  if (firstBirthday) {
-    await linkCostumesToStickerTemplate(firstBirthday.id, costumes);
-  }
+  await seedStickerCostumes();
+  await seedStickerBorders();
 
   for (const text of stickerPhrasePresets) {
     const existing = await prisma.stickerPhrasePreset.findFirst({

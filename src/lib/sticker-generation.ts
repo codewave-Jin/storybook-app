@@ -6,7 +6,15 @@ import {
 } from "@/lib/openai-illustration";
 import { mimeForOutputFormat, STICKER_OUTPUT_FORMAT } from "@/lib/image-generation-config";
 import { prisma } from "@/lib/prisma";
-import { buildStickerPreviewPrompt } from "@/lib/sticker-prompt";
+import {
+  compositeStickerCharacter,
+  persistStickerCompositeBuffer,
+} from "@/lib/sticker-composite";
+import { generateStickerImage } from "@/lib/sticker-openai";
+import {
+  buildStickerCompositePrompt,
+  buildStickerPreviewPrompt,
+} from "@/lib/sticker-prompt";
 import { shouldReclaimStickerProcessing } from "@/lib/sticker-generation-policy";
 import { persistGeneratedStickerBuffer } from "@/lib/uploads";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
@@ -21,10 +29,28 @@ async function markPreviewFailed(orderId: string, error: string) {
   });
 }
 
+type StickerGenerateResult = {
+  error?: string;
+  success?: boolean;
+  skipped?: boolean;
+  mock?: boolean;
+};
+
+function stickerCostumeText(order: {
+  customCostumeHint: string;
+  costume: { promptHint: string; label: string } | null;
+}) {
+  const custom = order.customCostumeHint.trim();
+  if (custom) {
+    return custom;
+  }
+  return order.costume?.promptHint?.trim() || order.costume?.label?.trim() || "";
+}
+
 export async function runStickerPreviewGeneration(
   orderId: string,
   options?: { fromQueue?: boolean },
-) {
+): Promise<StickerGenerateResult> {
   const fromQueue = options?.fromQueue === true;
   const order = await prisma.stickerOrder.findUnique({
     where: { id: orderId },
@@ -40,8 +66,9 @@ export async function runStickerPreviewGeneration(
           designReferenceImageUrl: true,
         },
       },
+      border: true,
       costume: {
-        select: { promptHint: true },
+        select: { promptHint: true, label: true },
       },
     },
   });
@@ -66,7 +93,9 @@ export async function runStickerPreviewGeneration(
     });
   };
 
-  logSticker("sticker.job_start", "스티커 미리보기 생성 시작");
+  logSticker("sticker.job_start", "스티커 미리보기 생성 시작", {
+    borderId: order.borderId,
+  });
 
   if (order.previewImagePath || order.previewStatus === "COMPLETED") {
     logSticker("sticker.skipped", "이미 미리보기 있음");
@@ -119,6 +148,179 @@ export async function runStickerPreviewGeneration(
     return { error };
   };
 
+  if (order.borderId && order.border) {
+    return runCompositeStickerPreview({
+      order,
+      border: order.border,
+      fromQueue,
+      logSticker,
+      fail,
+    });
+  }
+
+  return runLegacyStickerPreview({
+    order,
+    fromQueue,
+    logSticker,
+    fail,
+  });
+}
+
+async function runCompositeStickerPreview(options: {
+  order: {
+    id: string;
+    userId: string;
+    compositeImagePath: string | null;
+    phrase: string;
+    customCostumeHint: string;
+    costume: { promptHint: string; label: string } | null;
+    character: {
+      generatedImagePath: string | null;
+      originalPhotoPath: string;
+    };
+  };
+  border: {
+    id: string;
+    imageUrl: string;
+    characterSizeRatio: number;
+    offsetXRatio: number;
+    offsetYRatio: number;
+  };
+  fromQueue: boolean;
+  logSticker: (
+    step: string,
+    message: string,
+    detail?: Record<string, unknown>,
+  ) => void;
+  fail: (error: string) => Promise<{ error: string }>;
+}): Promise<StickerGenerateResult> {
+  const { order, border, fromQueue, logSticker, fail } = options;
+
+  const costume = stickerCostumeText(order);
+  if (!costume) {
+    return fail("코스튬을 확인할 수 없습니다.");
+  }
+
+  const characterImage = order.character.generatedImagePath?.trim() || "";
+  if (!characterImage) {
+    return fail("캐릭터 초상화(generatedImagePath)가 없습니다.");
+  }
+
+  if (isComfyMockEnabled()) {
+    await prisma.stickerOrder.update({
+      where: { id: order.id },
+      data: {
+        previewImagePath: characterImage,
+        previewStatus: "COMPLETED",
+        errorReason: null,
+      },
+    });
+    logSticker("sticker.completed", "목업으로 완료");
+    return { success: true, mock: true };
+  }
+
+  try {
+    let compositePath = order.compositeImagePath?.trim() || "";
+    if (!compositePath) {
+      const [borderAsset, portraitAsset] = await Promise.all([
+        loadImageAsset(border.imageUrl),
+        loadImageAsset(characterImage),
+      ]);
+      logSticker("sticker.assets_loaded", "테두리·캐릭터 원본 로드 완료");
+      const compositeBytes = await compositeStickerCharacter({
+        borderBytes: borderAsset.bytes,
+        sheetBytes: portraitAsset.bytes,
+        characterSizeRatio: border.characterSizeRatio,
+        offsetXRatio: border.offsetXRatio,
+        offsetYRatio: border.offsetYRatio,
+      });
+      compositePath = await persistStickerCompositeBuffer(compositeBytes, {
+        userId: order.userId,
+        orderId: order.id,
+      });
+      await prisma.stickerOrder.update({
+        where: { id: order.id },
+        data: { compositeImagePath: compositePath },
+      });
+      logSticker("sticker.composite_done", "합성본 저장 완료", { compositePath });
+    }
+
+    const compositeAsset = await loadImageAsset(compositePath);
+    const prompt = buildStickerCompositePrompt({
+      costume,
+      phrase: order.phrase,
+    });
+
+    logSticker("sticker.openai_request", "OpenAI 이미지 생성 요청", {
+      inputImages: 1,
+    });
+    const openAiWaitLog = setInterval(() => {
+      logSticker("sticker.still_processing", "OpenAI 응답 대기 중");
+    }, 45_000);
+
+    let generated;
+    try {
+      generated = await generateStickerImage({
+        prompt,
+        imageBytes: compositeAsset.bytes,
+        imageMime: compositeAsset.mime,
+      });
+    } finally {
+      clearInterval(openAiWaitLog);
+    }
+    logSticker("sticker.openai_done", "OpenAI 이미지 응답 수신", {
+      elapsedMs: generated.elapsedMs,
+    });
+
+    const imagePath = await persistGeneratedStickerBuffer(
+      Buffer.from(generated.b64, "base64"),
+      mimeForOutputFormat(STICKER_OUTPUT_FORMAT),
+    );
+    logSticker("sticker.upload_done", "이미지 저장 완료", { imagePath });
+
+    await prisma.stickerOrder.update({
+      where: { id: order.id },
+      data: {
+        previewImagePath: imagePath,
+        previewStatus: "COMPLETED",
+        errorReason: null,
+      },
+    });
+    logSticker("sticker.completed", "스티커 미리보기 완료");
+    return { success: true };
+  } catch (error) {
+    if (fromQueue && toOpenAIRateLimitError(error)) {
+      throw error;
+    }
+    console.error("[sticker-generation] preview failed", order.id, error);
+    const message =
+      error instanceof Error ? error.message : "스티커 생성에 실패했습니다.";
+    return fail(message);
+  }
+}
+
+async function runLegacyStickerPreview(options: {
+  order: {
+    id: string;
+    phrase: string;
+    customCostumeHint: string;
+    costume: { promptHint: string; label: string } | null;
+    character: {
+      generatedImagePath: string | null;
+      originalPhotoPath: string;
+    };
+    template: { designReferenceImageUrl: string | null } | null;
+  };
+  fromQueue: boolean;
+  logSticker: (
+    step: string,
+    message: string,
+    detail?: Record<string, unknown>,
+  ) => void;
+  fail: (error: string) => Promise<{ error: string }>;
+}): Promise<StickerGenerateResult> {
+  const { order, fromQueue, logSticker, fail } = options;
+
   const characterImage =
     order.character.generatedImagePath ?? order.character.originalPhotoPath;
   if (!characterImage) {
@@ -131,14 +333,14 @@ export async function runStickerPreviewGeneration(
     return fail("선택한 코스튬을 확인할 수 없습니다.");
   }
 
-  const designUrl = order.template.designReferenceImageUrl?.trim() || null;
+  const designUrl = order.template?.designReferenceImageUrl?.trim() || null;
   if (!designUrl) {
     return fail("템플릿 레퍼런스 이미지가 없습니다.");
   }
 
   if (isComfyMockEnabled()) {
     await prisma.stickerOrder.update({
-      where: { id: orderId },
+      where: { id: order.id },
       data: {
         previewImagePath: characterImage,
         previewStatus: "COMPLETED",
@@ -184,7 +386,7 @@ export async function runStickerPreviewGeneration(
     logSticker("sticker.upload_done", "이미지 저장 완료", { imagePath });
 
     await prisma.stickerOrder.update({
-      where: { id: orderId },
+      where: { id: order.id },
       data: {
         previewImagePath: imagePath,
         previewStatus: "COMPLETED",
@@ -197,7 +399,7 @@ export async function runStickerPreviewGeneration(
     if (fromQueue && toOpenAIRateLimitError(error)) {
       throw error;
     }
-    console.error("[sticker-generation] preview failed", orderId, error);
+    console.error("[sticker-generation] preview failed", order.id, error);
     const message =
       error instanceof Error ? error.message : "스티커 생성에 실패했습니다.";
     return fail(message);

@@ -327,7 +327,37 @@ model StickerTemplate {
   designReferenceImageUrl  String?
   createdAt                DateTime       @default(now())
   orders                   StickerOrder[]
-  costumes                 TemplateCostume[]
+}
+
+enum StickerBorderCategory {
+  NONE
+  BASIC
+  FLOWER
+  LINE
+  SPECIAL
+}
+
+model StickerBorder {
+  id                 String                @id @default(cuid())
+  key                String                @unique
+  label              String
+  imageUrl           String
+  thumbnailPath      String?
+  category           StickerBorderCategory
+  /// Fraction of the border's shorter side. test-composite: 0.48
+  characterSizeRatio Float                 @default(0.48)
+  /// Offset from center, as a fraction of border width. +right
+  offsetXRatio       Float                 @default(0)
+  /// Offset from center, as a fraction of border height. +down
+  offsetYRatio       Float                 @default(0)
+  sortOrder          Int                   @default(0)
+  isActive           Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  orders StickerOrder[]
+
+  @@index([category, sortOrder])
 }
 
 model StickerCostume {
@@ -343,19 +373,7 @@ model StickerCostume {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  templates TemplateCostume[]
-  orders    StickerOrder[]
-}
-
-model TemplateCostume {
-  stickerTemplateId String
-  costumeId         String
-  stickerTemplate   StickerTemplate @relation(fields: [stickerTemplateId], references: [id], onDelete: Cascade)
-  costume           StickerCostume  @relation(fields: [costumeId], references: [id], onDelete: Cascade)
-  sortOrder         Int             @default(0)
-
-  @@id([stickerTemplateId, costumeId])
-  @@index([costumeId])
+  orders StickerOrder[]
 }
 
 model StickerPhrasePreset {
@@ -378,8 +396,10 @@ model StickerOrder {
   user             User              @relation(fields: [userId], references: [id])
   characterId      String
   character        Character         @relation(fields: [characterId], references: [id])
-  templateId       String
-  template         StickerTemplate   @relation(fields: [templateId], references: [id])
+  templateId       String?
+  template         StickerTemplate?  @relation(fields: [templateId], references: [id])
+  borderId         String?
+  border           StickerBorder?    @relation(fields: [borderId], references: [id], onDelete: Restrict)
   costumeId        String?
   costume          StickerCostume?   @relation(fields: [costumeId], references: [id], onDelete: SetNull)
   customCostumeHint String          @default("")
@@ -389,6 +409,8 @@ model StickerOrder {
   quantity         Int
   previewImagePath String?
   finalImagePath   String?
+  /// Sharp composite of border + ComfyUI original character, used as the GPT input.
+  compositeImagePath String?
   previewStatus    StickerPreviewStatus @default(IDLE)
   errorReason      String?
   paymentStatus    PaymentStatus     @default(PENDING)
@@ -397,6 +419,7 @@ model StickerOrder {
   review           Review?
 
   @@index([costumeId])
+  @@index([borderId])
 }
 
 model Review {

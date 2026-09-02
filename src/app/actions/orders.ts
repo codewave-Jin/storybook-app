@@ -9,6 +9,7 @@ import {
 } from "@/lib/preview-generation";
 import { logGenerationEvent } from "@/lib/generation-events";
 import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
+import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
 import {
@@ -147,6 +148,10 @@ export async function payForOrder(
   _prevState: PayOrderState,
   formData: FormData,
 ): Promise<PayOrderState> {
+  if (!PAYMENTS_ENABLED) {
+    return { error: "결제는 아직 준비 중이에요." };
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/login");

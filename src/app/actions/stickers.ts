@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
 import { logGenerationEvent } from "@/lib/generation-events";
-import { isStickerTemplateSelectable, isStickerSizeSelectable } from "@/lib/templates";
+import { isStickerSizeSelectable } from "@/lib/templates";
+import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { prisma } from "@/lib/prisma";
 import { deleteStickerFile } from "@/lib/uploads";
 
@@ -29,7 +30,7 @@ export async function createStickerOrder(
 
   const userId = session.user.id;
   const characterId = String(formData.get("characterId") ?? "");
-  const templateId = String(formData.get("templateId") ?? "");
+  const borderId = String(formData.get("borderId") ?? "").trim();
   const costumeId = String(formData.get("costumeId") ?? "").trim();
   const customCostumeHint = String(formData.get("customCostumeHint") ?? "").trim();
   const phrase = String(formData.get("phrase") ?? "").trim();
@@ -38,8 +39,8 @@ export async function createStickerOrder(
   if (!characterId) {
     return { error: "캐릭터를 선택해 주세요." };
   }
-  if (!templateId) {
-    return { error: "용도를 선택해 주세요." };
+  if (!borderId) {
+    return { error: "테두리를 선택해 주세요." };
   }
   if (!costumeId && !customCostumeHint) {
     return { error: "옷을 선택하거나 입력해 주세요." };
@@ -57,20 +58,16 @@ export async function createStickerOrder(
     return { error: "사이즈를 선택해 주세요." };
   }
 
-  const [character, template, costumeLink, sizeOption] = await Promise.all([
+  const [character, border, costume, sizeOption] = await Promise.all([
     prisma.character.findFirst({
       where: { id: characterId, userId },
     }),
-    prisma.stickerTemplate.findUnique({ where: { id: templateId } }),
+    prisma.stickerBorder.findFirst({
+      where: { id: borderId, isActive: true },
+    }),
     costumeId
-      ? prisma.templateCostume.findUnique({
-          where: {
-            stickerTemplateId_costumeId: {
-              stickerTemplateId: templateId,
-              costumeId,
-            },
-          },
-          include: { costume: true },
+      ? prisma.stickerCostume.findFirst({
+          where: { id: costumeId, isActive: true },
         })
       : Promise.resolve(null),
     prisma.stickerSizeOption.findUnique({ where: { id: sizeOptionId } }),
@@ -82,13 +79,10 @@ export async function createStickerOrder(
   if (character.status !== "COMPLETED") {
     return { error: "생성이 완료된 캐릭터만 선택할 수 있습니다." };
   }
-  if (!template) {
-    return { error: "선택한 용도를 찾을 수 없습니다." };
+  if (!border) {
+    return { error: "선택한 테두리를 확인할 수 없습니다." };
   }
-  if (!isStickerTemplateSelectable(template.key)) {
-    return { error: "아직 준비 중인 스티커입니다." };
-  }
-  if (!customCostumeHint && !costumeLink?.costume.isActive) {
+  if (!customCostumeHint && !costume) {
     return { error: "선택한 옷을 확인할 수 없습니다." };
   }
   if (!sizeOption) {
@@ -102,8 +96,9 @@ export async function createStickerOrder(
     data: {
       userId,
       characterId: character.id,
-      templateId: template.id,
-      costumeId: customCostumeHint ? null : costumeLink?.costume.id,
+      templateId: null,
+      borderId: border.id,
+      costumeId: customCostumeHint ? null : costume?.id,
       customCostumeHint,
       phrase,
       sizeOptionId: sizeOption.id,
@@ -131,6 +126,10 @@ export async function payForStickerOrder(
   _prevState: PayStickerOrderState,
   formData: FormData,
 ): Promise<PayStickerOrderState> {
+  if (!PAYMENTS_ENABLED) {
+    return { error: "결제는 아직 준비 중이에요." };
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/login");
@@ -179,6 +178,7 @@ export async function deleteDraftStickerOrder(orderId: string) {
       paymentStatus: true,
       previewImagePath: true,
       finalImagePath: true,
+      compositeImagePath: true,
     },
   });
 
@@ -192,6 +192,7 @@ export async function deleteDraftStickerOrder(orderId: string) {
 
   await deleteStickerFile(order.previewImagePath);
   await deleteStickerFile(order.finalImagePath);
+  await deleteStickerFile(order.compositeImagePath);
 
   await prisma.$transaction([
     prisma.review.deleteMany({ where: { stickerOrderId: orderId } }),

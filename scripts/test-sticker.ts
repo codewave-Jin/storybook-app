@@ -1,115 +1,36 @@
 /**
- * Standalone sticker smoke test (Responses API, not wired to order flow).
+ * Standalone sticker smoke test for the pre-composited base-image flow.
  *
- * Loads StickerTemplate.designReferenceImageUrl and StickerCostume.promptHint
- * from the DB, then generates via gpt-5.6 + gpt-image-2.
+ * GPT receives one image (frame + character sheet already composited) and
+ * only changes costume / phrase. Not wired to the order queue.
  *
- * Usage:
- *   npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "첫돌 축하해요"
- *   npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "선생님 사랑해요" --simple
+ * Usage (from storybook-app):
+ *   npx tsx scripts/test-sticker.ts "노란색 나비 옷" "소민이 생일을 축하해주셔서 감사합니다"
+ *
+ * Input:
+ *   scripts/test-assets/sticker-base.png
+ *
+ * Output:
+ *   scripts/test-output/sticker-{timestamp}.jpg
  */
-import { readFileSync } from "fs";
-import { mkdir, writeFile } from "fs/promises";
+import { existsSync, readFileSync } from "fs";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { PrismaClient } from "@prisma/client";
+import { fileURLToPath } from "url";
 import OpenAI from "openai";
-import {
-  IMAGE_GEN_QUALITY,
-  IMAGE_GEN_SIZE,
-  IMAGE_GEN_TOOL_MODEL,
-  RESPONSES_MODEL,
-  generateIllustrationViaResponsesAPI,
-  loadImageAsset,
-} from "../src/lib/openai-illustration";
-import { STICKER_OUTPUT_FORMAT, extensionForOutputFormat } from "../src/lib/image-generation-config";
-import { buildStickerPreviewPrompt } from "../src/lib/sticker-prompt";
 
-/** gpt-5.6-sol short-context rates (USD per 1M tokens). */
-const GPT_5_6_RATES = {
-  input: 4,
-  cachedInput: 0.4,
-  output: 20,
-} as const;
+const RESPONSES_MODEL = "gpt-5.6" as const;
+const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
+const IMAGE_GEN_SIZE = "1024x1024" as const;
+const OUTPUT_FORMAT = "jpeg" as const;
 
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ASSETS_DIR = path.join(SCRIPT_DIR, "test-assets");
+const OUTPUT_DIR = path.join(SCRIPT_DIR, "test-output");
+const BASE_IMAGE_PATH = path.join(ASSETS_DIR, "sticker-base.png");
+
+type ImageGenerationQuality = "low" | "medium" | "high";
 type ResponsesUsage = NonNullable<OpenAI.Responses.Response["usage"]>;
-
-type CliArgs = {
-  character: string;
-  template: string;
-  costume: string;
-  phrase: string;
-  simple: boolean;
-  out?: string;
-};
-
-function printUsage(): never {
-  console.error(`Usage:
-  npx tsx scripts/test-sticker.ts --character <localImagePath> --template <stickerTemplateKey> --costume <stickerCostumeKey> --phrase "<text>" [--simple] [--out <pngPath>]
-
-Example:
-  npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "선생님 사랑해요"
-  npx tsx scripts/test-sticker.ts --character ./test-character.png --template first-birthday --costume butterfly --phrase "선생님 사랑해요" --simple
-`);
-  process.exit(1);
-}
-
-function parseArgs(argv: string[]): CliArgs {
-  const args: Record<string, string> = {};
-  let simple = false;
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (!token.startsWith("--")) {
-      continue;
-    }
-    const key = token.slice(2);
-    if (key === "simple") {
-      const next = argv[i + 1];
-      if (next && !next.startsWith("--")) {
-        const normalized = next.trim().toLowerCase();
-        simple = normalized !== "false" && normalized !== "0" && normalized !== "no";
-        i += 1;
-      } else {
-        simple = true;
-      }
-      continue;
-    }
-
-    const value = argv[i + 1];
-    if (!value || value.startsWith("--")) {
-      console.error(`Missing value for --${key}`);
-      printUsage();
-    }
-    args[key] = value;
-    i += 1;
-  }
-
-  if (!args.character?.trim()) {
-    console.error("--character is required (local image path)");
-    printUsage();
-  }
-  if (!args.template?.trim()) {
-    console.error("--template is required (StickerTemplate.key, e.g. first-birthday)");
-    printUsage();
-  }
-  if (!args.costume?.trim()) {
-    console.error("--costume is required (StickerCostume.key, e.g. butterfly)");
-    printUsage();
-  }
-  if (!args.phrase?.trim()) {
-    console.error('--phrase is required (e.g. "첫돌 축하해요")');
-    printUsage();
-  }
-
-  return {
-    character: args.character.trim(),
-    template: args.template.trim(),
-    costume: args.costume.trim(),
-    phrase: args.phrase.trim(),
-    simple,
-    out: args.out?.trim(),
-  };
-}
 
 function loadEnvFiles() {
   for (const name of [".env", ".env.local"]) {
@@ -143,127 +64,200 @@ function loadEnvFiles() {
   }
 }
 
-function usdFromTokens(tokens: number, ratePerMillion: number): number {
-  return (tokens / 1_000_000) * ratePerMillion;
+function parseImageQuality(raw: string | undefined): ImageGenerationQuality {
+  const value = raw?.trim().toLowerCase();
+  if (value === "low" || value === "medium" || value === "high") {
+    return value;
+  }
+  return "medium";
 }
 
-function logResponsesApiUsage(usage: ResponsesUsage | undefined, elapsedMs: number) {
-  console.log(`elapsed=${(elapsedMs / 1000).toFixed(2)}s`);
+function printUsage(): never {
+  console.error(`Usage:
+  npx tsx scripts/test-sticker.ts "<costume>" "<phrase>"
+
+Example:
+  npx tsx scripts/test-sticker.ts "노란색 나비 옷" "소민이 생일을 축하해주셔서 감사합니다"
+`);
+  process.exit(1);
+}
+
+function parseArgs(argv: string[]): { costume: string; phrase: string } {
+  const costume = argv[0]?.trim() ?? "";
+  const phrase = argv[1]?.trim() ?? "";
+  if (!costume || !phrase || argv.length !== 2) {
+    printUsage();
+  }
+  return { costume, phrase };
+}
+
+function guessImageMime(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".jpg" || ext === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (ext === ".webp") {
+    return "image/webp";
+  }
+  if (ext === ".gif") {
+    return "image/gif";
+  }
+  return "image/png";
+}
+
+function toImageDataUrl(buffer: Buffer, mime: string): string {
+  return `data:${mime};base64,${buffer.toString("base64")}`;
+}
+
+function buildStickerPrompt(costume: string, phrase: string): string {
+  return [
+    `해당 사진 안의 캐릭터를 ${costume} 입은 캐릭터로 바꿔주고`,
+    `"${phrase}" 라는 문구를 넣어줘.`,
+    "원형 스티커로 만들 거니까 꾸며주되 캐릭터의 닮은꼴이 바뀌면 안 돼.",
+  ].join("\n");
+}
+
+function timestampForFilename(date = new Date()): string {
+  return date.toISOString().replace(/[:.]/g, "-");
+}
+
+function formatElapsed(elapsedMs: number): string {
+  return `${(elapsedMs / 1000).toFixed(2)}s`;
+}
+
+function logUsage(usage: ResponsesUsage | undefined) {
   if (!usage) {
     console.log("usage: (not returned)");
     return;
   }
 
   const cachedIn = usage.input_tokens_details?.cached_tokens ?? 0;
-  const uncachedIn = Math.max(0, usage.input_tokens - cachedIn);
   const reasoningOut = usage.output_tokens_details?.reasoning_tokens ?? 0;
-  const mainlineUsd =
-    usdFromTokens(uncachedIn, GPT_5_6_RATES.input) +
-    usdFromTokens(cachedIn, GPT_5_6_RATES.cachedInput) +
-    usdFromTokens(usage.output_tokens, GPT_5_6_RATES.output);
-
   console.log(
     `mainline tokens (${RESPONSES_MODEL}): input=${usage.input_tokens} (cached=${cachedIn}) output=${usage.output_tokens} (reasoning=${reasoningOut}) total=${usage.total_tokens}`,
   );
-  console.log(`estimated mainline cost=$${mainlineUsd.toFixed(4)}`);
   console.log(
     `image tool (${IMAGE_GEN_TOOL_MODEL}): token usage is not itemized in response.usage; billed separately at gpt-image-2 rates`,
   );
 }
 
-function slugPhrase(phrase: string): string {
-  const slug = phrase
-    .replace(/\s+/g, "-")
-    .replace(/[^\w가-힣-]/g, "")
-    .slice(0, 24);
-  return slug || "sticker";
-}
+async function generateStickerImage(opts: {
+  openai: OpenAI;
+  prompt: string;
+  imageBytes: Buffer;
+  imageMime: string;
+  quality: ImageGenerationQuality;
+}): Promise<{ b64: string; elapsedMs: number; usage?: ResponsesUsage }> {
+  const startedAt = Date.now();
+  const result = await opts.openai.responses.create({
+    model: RESPONSES_MODEL,
+    tools: [
+      {
+        type: "image_generation",
+        model: IMAGE_GEN_TOOL_MODEL,
+        size: IMAGE_GEN_SIZE,
+        quality: opts.quality,
+        output_format: OUTPUT_FORMAT,
+      },
+    ],
+    tool_choice: { type: "image_generation" },
+    input: [
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: opts.prompt },
+          {
+            type: "input_image",
+            image_url: toImageDataUrl(opts.imageBytes, opts.imageMime),
+            detail: "high",
+          },
+        ],
+      },
+    ],
+  });
+  const elapsedMs = Date.now() - startedAt;
 
+  const imageCall = result.output.find(
+    (item) => item.type === "image_generation_call",
+  );
+  if (!imageCall || imageCall.type !== "image_generation_call") {
+    throw new Error(
+      `No image_generation_call in response: ${JSON.stringify(result.output.map((item) => item.type))}`,
+    );
+  }
+
+  const b64 = imageCall.result;
+  if (!b64) {
+    throw new Error(
+      `image_generation_call has no result (status=${imageCall.status})`,
+    );
+  }
+
+  return { b64, elapsedMs, usage: result.usage };
+}
 
 async function main() {
   loadEnvFiles();
-  const cli = parseArgs(process.argv.slice(2));
 
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set");
   }
 
-  const prisma = new PrismaClient();
+  const { costume, phrase } = parseArgs(process.argv.slice(2));
+  const quality = parseImageQuality(process.env.IMAGE_QUALITY);
+
+  if (!existsSync(BASE_IMAGE_PATH)) {
+    throw new Error(
+      `Sticker base image not found: ${BASE_IMAGE_PATH}\nPlace the pre-composited PNG at scripts/test-assets/sticker-base.png and re-run.`,
+    );
+  }
+
+  const prompt = buildStickerPrompt(costume, phrase);
+  const imageBytes = await readFile(BASE_IMAGE_PATH);
+  const imageMime = guessImageMime(BASE_IMAGE_PATH);
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     timeout: 10 * 60 * 1000,
   });
 
+  const outName = `sticker-${timestampForFilename()}.jpg`;
+  const outPath = path.join(OUTPUT_DIR, outName);
+
+  console.log(
+    `model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${quality} output_format=${OUTPUT_FORMAT}`,
+  );
+  console.log(`base=${BASE_IMAGE_PATH}`);
+  console.log(`costume=${costume}`);
+  console.log(`phrase=${phrase}`);
+  console.log(`output=${outPath}`);
+  console.log("");
+  console.log("=== Prompt ===");
+  console.log(prompt);
+  console.log("==============");
+  console.log(
+    `Calling responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${quality}...`,
+  );
+
+  const startedAt = Date.now();
   try {
-    const template = await prisma.stickerTemplate.findUnique({
-      where: { key: cli.template },
-    });
-    if (!template) {
-      throw new Error(`StickerTemplate not found for key="${cli.template}"`);
-    }
-    if (!template.designReferenceImageUrl) {
-      throw new Error(
-        `StickerTemplate "${cli.template}" has no designReferenceImageUrl. Update seed/DB first.`,
-      );
-    }
-
-    const costume = await prisma.stickerCostume.findUnique({
-      where: { key: cli.costume },
-    });
-    if (!costume) {
-      throw new Error(`StickerCostume not found for key="${cli.costume}"`);
-    }
-    if (!costume.isActive) {
-      throw new Error(`StickerCostume "${cli.costume}" is inactive`);
-    }
-
-    void cli.simple;
-    const prompt = buildStickerPreviewPrompt({
-      phrase: cli.phrase,
-      costumeHint: costume.promptHint,
-    });
-
-    console.log("=== Final prompt ===");
-    console.log(prompt);
-    console.log("====================");
-    console.log(
-      `mode=simple+diecut size=${IMAGE_GEN_SIZE} quality=${IMAGE_GEN_QUALITY}`,
-    );
-    console.log(
-      `template=${template.key} (${template.label}) design=${template.designReferenceImageUrl}`,
-    );
-    console.log(`costume=${costume.key} (${costume.label})`);
-    console.log(`phrase=${cli.phrase}`);
-    console.log(`character=${path.resolve(cli.character)}`);
-
-    const character = await loadImageAsset(path.resolve(cli.character));
-    const design = await loadImageAsset(template.designReferenceImageUrl);
-
-    const generated = await generateIllustrationViaResponsesAPI({
+    const generated = await generateStickerImage({
       openai,
       prompt,
-      characters: [character],
-      style: design,
-      quality: IMAGE_GEN_QUALITY,
-      outputFormat: STICKER_OUTPUT_FORMAT,
+      imageBytes,
+      imageMime,
+      quality,
     });
-
-    logResponsesApiUsage(generated.usage, generated.elapsedMs);
-    console.log("=== Revised prompt ===");
-    console.log(generated.revisedPrompt ?? "(not returned)");
-    console.log("======================");
-
-    const outDir = path.join(process.cwd(), "scripts", "output");
-    await mkdir(outDir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const defaultName = `sticker-simple-${template.key}-${costume.key}-${slugPhrase(cli.phrase)}-${stamp}.${extensionForOutputFormat(STICKER_OUTPUT_FORMAT)}`;
-    const outPath = path.resolve(cli.out ?? path.join(outDir, defaultName));
-    await mkdir(path.dirname(outPath), { recursive: true });
     await writeFile(outPath, Buffer.from(generated.b64, "base64"));
-
+    console.log(`elapsed=${formatElapsed(generated.elapsedMs)}`);
+    logUsage(generated.usage);
     console.log(`Saved: ${outPath}`);
-  } finally {
-    await prisma.$disconnect();
+  } catch (error) {
+    const elapsedMs = Date.now() - startedAt;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`FAILED after ${formatElapsed(elapsedMs)}: ${message}`);
+    process.exit(1);
   }
 }
 

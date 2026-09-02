@@ -15,6 +15,7 @@ import {
   REVIEW_MIN_CONTENT,
   isReviewEditable,
 } from "@/lib/reviews";
+import { STICKER_REVIEW_PRODUCT_ID } from "@/lib/templates";
 
 export type ReviewFormState = {
   error?: string;
@@ -155,7 +156,7 @@ export async function createReview(
           paymentStatus: "PAID",
           productionStatus: "COMPLETED",
         },
-        select: { id: true, templateId: true, review: { select: { id: true } } },
+        select: { id: true, review: { select: { id: true } } },
       });
 
       if (!order) {
@@ -171,7 +172,7 @@ export async function createReview(
           rating,
           content,
           stickerOrderId: order.id,
-          productId: order.templateId,
+          productId: STICKER_REVIEW_PRODUCT_ID,
         },
         select: { id: true },
       });

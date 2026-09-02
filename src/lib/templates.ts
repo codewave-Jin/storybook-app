@@ -8,6 +8,47 @@ export type CustomField = {
 
 export const ACTIVE_STORYBOOK_TEMPLATE_TITLE = "숲속 친구들과의 하루";
 export const ACTIVE_STICKER_TEMPLATE_KEY = "first-birthday";
+/** Review.productId for all sticker orders. Template is no longer a product. */
+export const STICKER_REVIEW_PRODUCT_ID = "sticker";
+
+export const STICKER_BORDER_CATEGORY_ORDER = [
+  "NONE",
+  "BASIC",
+  "FLOWER",
+  "LINE",
+  "SPECIAL",
+] as const;
+
+export type StickerBorderCategoryKey =
+  (typeof STICKER_BORDER_CATEGORY_ORDER)[number];
+
+export const STICKER_BORDER_CATEGORY_LABEL: Record<
+  StickerBorderCategoryKey,
+  string
+> = {
+  NONE: "없음",
+  BASIC: "기본",
+  FLOWER: "꽃",
+  LINE: "라인",
+  SPECIAL: "특수",
+};
+
+/** Border for new orders, template for legacy orders without a border. */
+export function stickerOrderExtraLabel(order: {
+  border?: { label: string } | null;
+  template?: { label: string } | null;
+}) {
+  return order.border?.label?.trim() || order.template?.label?.trim() || null;
+}
+
+export function stickerOrderTitle(
+  characterLabel: string,
+  extraLabel?: string | null,
+) {
+  return extraLabel?.trim()
+    ? `${characterLabel} · ${extraLabel.trim()}`
+    : characterLabel;
+}
 
 const STICKER_TEMPLATE_LABELS: Record<string, string> = {
   basic: "스승의날",

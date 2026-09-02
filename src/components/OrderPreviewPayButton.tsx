@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import { payForOrder, type PayOrderState } from "@/app/actions/orders";
+import { PaymentComingSoon } from "@/components/PaymentComingSoon";
+import { PAYMENTS_ENABLED } from "@/lib/payments";
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
@@ -37,6 +39,10 @@ export function OrderPreviewPayButton({
       router.refresh();
     }
   }, [state, router]);
+
+  if (!PAYMENTS_ENABLED) {
+    return <PaymentComingSoon kind="storybook" />;
+  }
 
   return (
     <form action={formAction}>

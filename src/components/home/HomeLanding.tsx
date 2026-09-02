@@ -36,7 +36,7 @@ const HOW_STEPS = [
   {
     step: "STEP 3",
     title: "무료로 먼저 확인하기",
-    body: "샘플을 먼저 확인해 보세요. 마음에 드시면 결제 후 자동으로 완성됩니다.",
+    body: "샘플을 먼저 확인해 보세요. 마음에 들면 캐릭터와 미리보기를 저장해 둘 수 있어요.",
     image: "/landing/trial-result-confirm.jpg",
     imageAlt: "샘플을 확인하는 모습",
   },

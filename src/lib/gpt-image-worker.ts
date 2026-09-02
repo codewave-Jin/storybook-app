@@ -9,6 +9,7 @@ import {
   requeueGptImageJob,
   succeedGptImageJob,
   claimNextGptImageJob,
+  enqueueAndKickGptImageJob,
   type IllustrationJobPayload,
   type StyleCharacterJobPayload,
 } from "@/lib/gpt-image-queue";
@@ -55,7 +56,32 @@ function illustrationPayload(payload: unknown): IllustrationJobPayload {
 async function executeJob(job: GptImageJob) {
   if (job.kind === GPT_IMAGE_JOB_KIND.STYLE_CHARACTER) {
     const payload = stylePayload(job.payload);
-    if (payload.pageNumbers.length === 0) {
+    if (!payload.pageNumbers || payload.pageNumbers.length === 0) {
+      const leftover = asRecord(job.payload);
+      const leftoverStickerId =
+        typeof leftover.stickerOrderId === "string"
+          ? leftover.stickerOrderId.trim()
+          : "";
+      const sticker = await prisma.stickerOrder.findUnique({
+        where: { id: leftoverStickerId || job.targetId },
+        select: {
+          id: true,
+          borderId: true,
+          previewImagePath: true,
+          previewStatus: true,
+        },
+      });
+      if (sticker) {
+        if (!sticker.previewImagePath && sticker.previewStatus !== "COMPLETED") {
+          await enqueueAndKickGptImageJob({
+            kind: GPT_IMAGE_JOB_KIND.STICKER,
+            targetId: sticker.id,
+            inputImages: sticker.borderId ? 1 : 2,
+            payload: {},
+          });
+        }
+        return;
+      }
       throw new Error("STYLE_CHARACTER job is missing pageNumbers");
     }
     const result = await finishStyleTransferAndStartIllustrations({

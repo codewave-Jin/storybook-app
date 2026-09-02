@@ -7,6 +7,7 @@ import { formatDateTime } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { signReviewImageUrls } from "@/lib/review-images";
 import { isReviewEditable, reviewProductTitle } from "@/lib/reviews";
+import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 
 export default async function MyReviewsPage() {
   const session = await auth();
@@ -47,6 +48,7 @@ export default async function MyReviewsPage() {
       },
       orderBy: { createdAt: "desc" },
       include: {
+        border: { select: { label: true } },
         template: { select: { label: true } },
         character: {
           select: {
@@ -65,6 +67,7 @@ export default async function MyReviewsPage() {
         storybookOrder: { include: { template: { select: { title: true } } } },
         stickerOrder: {
           include: {
+            border: { select: { label: true } },
             template: { select: { label: true } },
             character: { select: { label: true } },
           },
@@ -90,7 +93,10 @@ export default async function MyReviewsPage() {
     ...stickerOrders.map((order) => ({
       id: order.id,
       kind: "sticker" as const,
-      title: `${order.character.label} · ${order.template.label}`,
+      title: stickerOrderTitle(
+        order.character.label,
+        stickerOrderExtraLabel(order),
+      ),
       thumbnail:
         order.previewImagePath ??
         order.character.generatedImagePath ??

@@ -3,11 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StickerWizard } from "@/components/StickerWizard";
-import {
-  isStickerSizeSelectable,
-  isStickerTemplateSelectable,
-  stickerTemplateLabel,
-} from "@/lib/templates";
+import { isStickerSizeSelectable } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 
 export default async function NewStickerPage() {
@@ -16,24 +12,17 @@ export default async function NewStickerPage() {
     redirect("/login?callbackUrl=/dashboard/sticker/new");
   }
 
-  const [characters, templates, costumes, phrases, sizes] = await Promise.all([
+  const [characters, borders, costumes, phrases, sizes] = await Promise.all([
     prisma.character.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.stickerTemplate.findMany({
-      orderBy: { createdAt: "asc" },
+    prisma.stickerBorder.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
     }),
     prisma.stickerCostume.findMany({
       where: { isActive: true },
-      include: {
-        templates: {
-          select: {
-            stickerTemplateId: true,
-            sortOrder: true,
-          },
-        },
-      },
       orderBy: { sortOrder: "asc" },
     }),
     prisma.stickerPhrasePreset.findMany({
@@ -62,23 +51,19 @@ export default async function NewStickerPage() {
             generatedImagePath: character.generatedImagePath,
             originalPhotoPath: character.originalPhotoPath,
           }))}
-          templates={templates
-            .map((template) => ({
-              id: template.id,
-              label: stickerTemplateLabel(template.key, template.label),
-              thumbnailPath: template.thumbnailPath,
-              available: isStickerTemplateSelectable(template.key),
-            }))
-            .sort((left, right) => Number(right.available) - Number(left.available))}
-          costumes={costumes.flatMap((costume) =>
-            costume.templates.map((link) => ({
-              id: costume.id,
-              label: costume.label,
-              referenceImageUrl: costume.referenceImageUrl,
-              templateId: link.stickerTemplateId,
-              sortOrder: link.sortOrder,
-            })),
-          )}
+          borders={borders.map((border) => ({
+            id: border.id,
+            label: border.label,
+            thumbnailPath: border.thumbnailPath ?? border.imageUrl,
+            category: border.category,
+            sortOrder: border.sortOrder,
+          }))}
+          costumes={costumes.map((costume) => ({
+            id: costume.id,
+            label: costume.label,
+            referenceImageUrl: costume.referenceImageUrl,
+            sortOrder: costume.sortOrder,
+          }))}
           phrases={phrases.map((phrase) => ({
             id: phrase.id,
             text: phrase.text,

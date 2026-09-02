@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
 import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
+import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { startOrderPaidGeneration } from "@/lib/preview-generation";
 import { prisma } from "@/lib/prisma";
 
@@ -14,6 +15,14 @@ type PaymentWebhookBody = {
  * 이미 row가 있으면 skip (idempotent).
  */
 export async function POST(request: Request) {
+  if (!PAYMENTS_ENABLED) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "payments disabled",
+    });
+  }
+
   const unauthorized = unauthorizedIfInvalidInternalKey(request);
   if (unauthorized) {
     return unauthorized;

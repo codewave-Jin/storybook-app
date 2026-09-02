@@ -7,6 +7,7 @@ import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { StickerPreviewPayButton } from "@/components/StickerPreviewPayButton";
 import { StickerPreviewViews } from "@/components/StickerPreviewViews";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
+import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 
 export default async function StickerPreviewPage({
@@ -24,6 +25,7 @@ export default async function StickerPreviewPage({
     include: {
       character: true,
       template: true,
+      border: true,
       costume: true,
       sizeOption: true,
     },
@@ -104,7 +106,10 @@ export default async function StickerPreviewPage({
         <div className="mt-5 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-stone-200">
           <p className="text-lg font-semibold">{order.phrase}</p>
           <p className="mt-1 text-sm text-stone-500">
-            {order.character.label} · {order.template.label}
+            {stickerOrderTitle(
+              order.character.label,
+              stickerOrderExtraLabel(order),
+            )}
             {order.customCostumeHint.trim()
               ? ` · ${order.customCostumeHint.trim()}`
               : order.costume
@@ -137,11 +142,11 @@ export default async function StickerPreviewPage({
             <StickerPreviewPayButton orderId={order.id} />
           ) : failed ? (
             <p className="text-center text-sm text-stone-500">
-              생성이 끝난 뒤에 결제할 수 있어요.
+              생성이 끝나면 미리보기를 확인할 수 있어요.
             </p>
           ) : (
             <p className="text-center text-sm text-stone-500">
-              미리보기가 나오면 결제할 수 있어요.
+              미리보기를 만들고 있어요.
             </p>
           )}
         </div>

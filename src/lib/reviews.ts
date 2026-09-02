@@ -17,7 +17,8 @@ export function isReviewEditable(updatedAt: Date, now = new Date()) {
 export function reviewProductTitle(review: {
   storybookOrder?: { template: { title: string } } | null;
   stickerOrder?: {
-    template: { label: string };
+    border?: { label: string } | null;
+    template: { label: string } | null;
     character: { label: string };
   } | null;
 }) {
@@ -25,7 +26,13 @@ export function reviewProductTitle(review: {
     return review.storybookOrder.template.title;
   }
   if (review.stickerOrder) {
-    return `${review.stickerOrder.character.label} · ${review.stickerOrder.template.label}`;
+    const extra =
+      review.stickerOrder.border?.label?.trim() ||
+      review.stickerOrder.template?.label?.trim() ||
+      null;
+    return extra
+      ? `${review.stickerOrder.character.label} · ${extra}`
+      : review.stickerOrder.character.label;
   }
   return "리뷰";
 }

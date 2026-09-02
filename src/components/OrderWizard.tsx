@@ -472,8 +472,7 @@ export function OrderWizard({
               </div>
             ) : null}
             <p className="rounded-lg bg-[#F6E7C1]/70 px-3 py-2 text-sm text-[#8A5A12]">
-              지금은 결제 없이 표지와 장면 2장을 먼저 만들어요. 마음에 들면
-              미리보기에서 나머지 이야기를 결제할 수 있습니다.
+              지금은 결제 없이 표지와 장면 2장을 먼저 만들어요.
             </p>
           </div>
 

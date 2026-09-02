@@ -55,37 +55,17 @@ async function waitForAssetReady(assetId: string) {
   };
 }
 
-export async function ensureOrderStyledCharacterAsset(
-  orderId: string,
-  options?: { deferIfBusy?: boolean },
-): Promise<
+export async function ensureStyledCharacterAsset(options: {
+  characterId: string;
+  artStyleId: string;
+  deferIfBusy?: boolean;
+  onAsset?: (assetId: string) => Promise<void>;
+}): Promise<
   | { ok: true; assetId: string; reused: boolean }
   | { ok: false; error: string; defer?: boolean }
 > {
-  const order = await prisma.storybookOrder.findUnique({
-    where: { id: orderId },
-    select: {
-      id: true,
-      artStyleId: true,
-      selectedCharacterIds: true,
-      characterAssetId: true,
-    },
-  });
-
-  if (!order) {
-    return { ok: false, error: "주문을 찾을 수 없습니다." };
-  }
-
-  const characterId = parseIdList(order.selectedCharacterIds)[0];
-  if (!characterId) {
-    return { ok: false, error: "주문에 선택된 캐릭터가 없습니다." };
-  }
-  if (!order.artStyleId) {
-    return { ok: false, error: "주문에 그림체가 없습니다." };
-  }
-
   const character = await prisma.character.findUnique({
-    where: { id: characterId },
+    where: { id: options.characterId },
     select: { id: true, generatedImagePath: true },
   });
   if (!character) {
@@ -96,23 +76,18 @@ export async function ensureOrderStyledCharacterAsset(
   }
 
   const ready = await findReadyStyledCharacterAsset({
-    characterId,
-    artStyleId: order.artStyleId,
+    characterId: options.characterId,
+    artStyleId: options.artStyleId,
   });
   if (ready?.styledImageUrl) {
-    if (order.characterAssetId !== ready.id) {
-      await prisma.storybookOrder.update({
-        where: { id: orderId },
-        data: { characterAssetId: ready.id },
-      });
-    }
+    await options.onAsset?.(ready.id);
     return { ok: true, assetId: ready.id, reused: true };
   }
 
   const existing = await prisma.characterAsset.findFirst({
     where: {
-      characterId,
-      artStyleId: order.artStyleId,
+      characterId: options.characterId,
+      artStyleId: options.artStyleId,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -121,17 +96,14 @@ export async function ensureOrderStyledCharacterAsset(
     existing ??
     (await prisma.characterAsset.create({
       data: {
-        characterId,
-        artStyleId: order.artStyleId,
+        characterId: options.characterId,
+        artStyleId: options.artStyleId,
         rawPortraitUrl: character.generatedImagePath,
         status: "PENDING",
       },
     }));
 
-  await prisma.storybookOrder.update({
-    where: { id: orderId },
-    data: { characterAssetId: asset.id },
-  });
+  await options.onAsset?.(asset.id);
 
   if (isComfyMockEnabled()) {
     await prisma.characterAsset.update({
@@ -147,7 +119,7 @@ export async function ensureOrderStyledCharacterAsset(
 
   const stylingAgeMs = Date.now() - asset.updatedAt.getTime();
   if (asset.status === "STYLING" && stylingAgeMs < STALE_STYLING_MS) {
-    if (options?.deferIfBusy) {
+    if (options.deferIfBusy) {
       return {
         ok: false,
         defer: true,
@@ -181,7 +153,7 @@ export async function ensureOrderStyledCharacterAsset(
       if (latest?.status === "READY" && latest.styledImageUrl) {
         return { ok: true, assetId: asset.id, reused: true };
       }
-      if (options?.deferIfBusy) {
+      if (options.deferIfBusy) {
         return {
           ok: false,
           defer: true,
@@ -203,7 +175,7 @@ export async function ensureOrderStyledCharacterAsset(
   } catch (error) {
     const rateLimit = toOpenAIRateLimitError(error);
     if (rateLimit) {
-      if (options?.deferIfBusy) {
+      if (options.deferIfBusy) {
         throw rateLimit;
       }
       return { ok: false, error: rateLimit.message };
@@ -212,4 +184,49 @@ export async function ensureOrderStyledCharacterAsset(
   }
 
   return { ok: true, assetId: asset.id, reused: false };
+}
+
+export async function ensureOrderStyledCharacterAsset(
+  orderId: string,
+  options?: { deferIfBusy?: boolean },
+): Promise<
+  | { ok: true; assetId: string; reused: boolean }
+  | { ok: false; error: string; defer?: boolean }
+> {
+  const order = await prisma.storybookOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      artStyleId: true,
+      selectedCharacterIds: true,
+      characterAssetId: true,
+    },
+  });
+
+  if (!order) {
+    return { ok: false, error: "주문을 찾을 수 없습니다." };
+  }
+
+  const characterId = parseIdList(order.selectedCharacterIds)[0];
+  if (!characterId) {
+    return { ok: false, error: "주문에 선택된 캐릭터가 없습니다." };
+  }
+  if (!order.artStyleId) {
+    return { ok: false, error: "주문에 그림체가 없습니다." };
+  }
+
+  return ensureStyledCharacterAsset({
+    characterId,
+    artStyleId: order.artStyleId,
+    deferIfBusy: options?.deferIfBusy,
+    onAsset: async (assetId) => {
+      if (order.characterAssetId !== assetId) {
+        await prisma.storybookOrder.update({
+          where: { id: orderId },
+          data: { characterAssetId: assetId },
+        });
+        order.characterAssetId = assetId;
+      }
+    },
+  });
 }

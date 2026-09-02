@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { MyPageShell } from "@/components/mypage/MyPageShell";
 import { ReviewForm } from "@/components/mypage/ReviewForm";
 import { prisma } from "@/lib/prisma";
+import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 
 export default async function WriteReviewPage({
   searchParams,
@@ -57,6 +58,7 @@ export default async function WriteReviewPage({
             review: null,
           },
           include: {
+            border: { select: { label: true } },
             template: { select: { label: true } },
             character: { select: { label: true } },
           },
@@ -69,7 +71,15 @@ export default async function WriteReviewPage({
   const title =
     kind === "storybook"
       ? (lockedOrder as { template: { title: string } }).template.title
-      : `${(lockedOrder as { character: { label: string } }).character.label} · ${(lockedOrder as { template: { label: string } }).template.label}`;
+      : stickerOrderTitle(
+          (lockedOrder as { character: { label: string } }).character.label,
+          stickerOrderExtraLabel(
+            lockedOrder as {
+              border: { label: string } | null;
+              template: { label: string } | null;
+            },
+          ),
+        );
 
   return (
     <MyPageShell title="리뷰 쓰기" user={user}>

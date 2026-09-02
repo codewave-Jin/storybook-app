@@ -7,6 +7,7 @@ export const reviewListInclude = {
   storybookOrder: { include: { template: { select: { title: true } } } },
   stickerOrder: {
     include: {
+      border: { select: { label: true } },
       template: { select: { label: true } },
       character: { select: { label: true } },
     },

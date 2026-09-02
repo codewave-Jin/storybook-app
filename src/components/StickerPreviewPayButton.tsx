@@ -7,6 +7,8 @@ import {
   payForStickerOrder,
   type PayStickerOrderState,
 } from "@/app/actions/stickers";
+import { PaymentComingSoon } from "@/components/PaymentComingSoon";
+import { PAYMENTS_ENABLED } from "@/lib/payments";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -34,6 +36,10 @@ export function StickerPreviewPayButton({ orderId }: { orderId: string }) {
       router.refresh();
     }
   }, [state, router]);
+
+  if (!PAYMENTS_ENABLED) {
+    return <PaymentComingSoon kind="sticker" />;
+  }
 
   return (
     <form action={formAction}>

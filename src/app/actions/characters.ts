@@ -118,6 +118,7 @@ export async function deleteCharacter(characterId: string) {
       paymentStatus: true,
       previewImagePath: true,
       finalImagePath: true,
+      compositeImagePath: true,
     },
   });
 
@@ -128,6 +129,7 @@ export async function deleteCharacter(characterId: string) {
   for (const order of stickerOrders) {
     await deleteStickerFile(order.previewImagePath);
     await deleteStickerFile(order.finalImagePath);
+    await deleteStickerFile(order.compositeImagePath);
   }
 
   const stickerOrderIds = stickerOrders.map((order) => order.id);

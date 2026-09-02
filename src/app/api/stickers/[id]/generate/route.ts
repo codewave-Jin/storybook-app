@@ -2,8 +2,7 @@ import { waitUntil } from "@vercel/functions";
 import { NextResponse } from "next/server";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
 import { isComfyMockEnabled } from "@/lib/comfy-server";
-import { enqueueAndKickGptImageJob } from "@/lib/gpt-image-queue";
-import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
+import { queueStickerGenerationJobs } from "@/lib/enqueue-sticker-generation";
 import { runStickerPreviewGeneration } from "@/lib/sticker-generation";
 import { prisma } from "@/lib/prisma";
 
@@ -46,34 +45,7 @@ export async function POST(
     );
   }
 
-  if (order.previewStatus === "PROCESSING") {
-    await enqueueAndKickGptImageJob({
-      kind: GPT_IMAGE_JOB_KIND.STICKER,
-      targetId: order.id,
-      inputImages: 2,
-      payload: {},
-    });
-    return NextResponse.json({ ok: true, skipped: true, reason: "processing" });
-  }
-
-  await prisma.stickerOrder.updateMany({
-    where: {
-      id: order.id,
-      previewImagePath: null,
-      previewStatus: { in: ["IDLE", "FAILED"] },
-    },
-    data: {
-      previewStatus: "PROCESSING",
-      errorReason: null,
-    },
-  });
-
-  await enqueueAndKickGptImageJob({
-    kind: GPT_IMAGE_JOB_KIND.STICKER,
-    targetId: order.id,
-    inputImages: 2,
-    payload: {},
-  });
+  await queueStickerGenerationJobs(order.id, { force: true });
 
   return NextResponse.json(
     { ok: true, accepted: true, orderId: order.id, queued: true },

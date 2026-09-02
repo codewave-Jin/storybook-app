@@ -17,7 +17,7 @@ import { gptImageWorkerRequestHeaders } from "@/lib/gpt-image-worker-auth";
 import { prisma } from "@/lib/prisma";
 
 export type StyleCharacterJobPayload = {
-  pageNumbers: number[];
+  pageNumbers?: number[];
 };
 
 export type IllustrationJobPayload = {
