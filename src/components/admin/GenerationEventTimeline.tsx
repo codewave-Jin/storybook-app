@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { loadGenerationEvents } from "@/lib/generation-events";
 
 function formatTime(value: Date) {
   return value.toLocaleString("ko-KR", {
