@@ -104,7 +104,7 @@ export async function runStickerPreviewGeneration(
       logSticker("sticker.skipped", "이미 생성 중");
       return { success: true, skipped: true };
     }
-    if (order.previewStatus === "COMPLETED" || order.previewImagePath) {
+    if (order.previewImagePath) {
       return { success: true, skipped: true };
     }
     logSticker("sticker.failed", "생성 슬롯 확보 실패");

@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     polledAt: new Date().toISOString(),
     eventsTableReady,
     activeJobs,
-    events: events.map((event) => ({
+    events: events.map((event: Awaited<ReturnType<typeof loadGenerationEvents>>[number]) => ({
       id: event.id,
       kind: event.kind,
       entityId: event.entityId,

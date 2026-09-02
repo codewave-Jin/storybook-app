@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type GenerationEventKind =
@@ -54,10 +55,13 @@ export function logGenerationEvent(input: LogGenerationEventInput) {
         userId: input.userId,
         step: input.step,
         message: input.message,
-        detail: detail ?? undefined,
+        detail:
+          detail === undefined
+            ? undefined
+            : (detail as Prisma.InputJsonValue),
       },
     })
-    .catch((error) => {
+    .catch((error: unknown) => {
       console.warn("[generation] failed to persist event", input.step, error);
     });
 }
