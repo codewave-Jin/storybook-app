@@ -30,8 +30,8 @@ export async function loadActiveGenerationJobs(): Promise<ActiveGenerationJob[]>
     }),
     prisma.character.findMany({
       where: { status: "PROCESSING" },
-      select: { id: true, label: true, updatedAt: true },
-      orderBy: { updatedAt: "asc" },
+      select: { id: true, label: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
       take: 20,
     }),
   ]);
@@ -64,7 +64,7 @@ export async function loadActiveGenerationJobs(): Promise<ActiveGenerationJob[]>
       entityId: row.id,
       orderId: null,
       label: `캐릭터 · ${row.label}`,
-      startedAt: row.updatedAt.toISOString(),
+      startedAt: row.createdAt.toISOString(),
     });
   }
 
