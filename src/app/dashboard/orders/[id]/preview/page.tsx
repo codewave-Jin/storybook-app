@@ -121,6 +121,7 @@ export default async function OrderPreviewPage({
                 id: page.id,
                 status: page.status,
                 imagePath: page.imagePath,
+                pageNumber: page.pageNumber,
               })),
           ),
         )}

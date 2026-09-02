@@ -151,7 +151,7 @@ export async function persistGeneratedIllustrationImage(sourcePath: string) {
 
 export async function persistGeneratedIllustrationBuffer(
   buffer: Buffer,
-  contentType = "image/png",
+  contentType = "image/jpeg",
 ) {
   return saveBuffer(
     buffer,
@@ -163,7 +163,7 @@ export async function persistGeneratedIllustrationBuffer(
 
 export async function persistGeneratedStickerBuffer(
   buffer: Buffer,
-  contentType = "image/png",
+  contentType = "image/jpeg",
 ) {
   return saveBuffer(
     buffer,

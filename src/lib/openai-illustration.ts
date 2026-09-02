@@ -2,13 +2,23 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import path from "path";
 import OpenAI from "openai";
+import {
+  ILLUSTRATION_OUTPUT_FORMAT,
+  IMAGE_GEN_SIZE,
+  IMAGE_QUALITY,
+  type ImageGenerationQuality,
+  type ImageOutputFormat,
+} from "@/lib/image-generation-config";
+import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
 export const RESPONSES_MODEL = "gpt-5.6" as const;
 export const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
-export const IMAGE_GEN_SIZE = "1024x1024" as const;
-export const IMAGE_GEN_QUALITY = "high" as const;
-
-export type ImageGenerationQuality = "low" | "medium" | "high";
+export {
+  IMAGE_GEN_SIZE,
+  IMAGE_QUALITY,
+  IMAGE_GEN_QUALITY,
+  type ImageGenerationQuality,
+} from "@/lib/image-generation-config";
 
 export type IllustrationImageInput = {
   bytes: Buffer;
@@ -107,18 +117,22 @@ export async function generateIllustrationViaResponsesAPI(opts: {
   openai?: OpenAI;
   prompt: string;
   characters: IllustrationImageInput[];
-  style: IllustrationImageInput;
+  style?: IllustrationImageInput;
   quality?: ImageGenerationQuality;
+  outputFormat?: ImageOutputFormat;
 }): Promise<GenerateIllustrationViaResponsesResult> {
-  const quality = opts.quality ?? IMAGE_GEN_QUALITY;
+  const quality = opts.quality ?? IMAGE_QUALITY;
+  const outputFormat = opts.outputFormat ?? ILLUSTRATION_OUTPUT_FORMAT;
   const openai = opts.openai ?? createIllustrationOpenAIClient();
 
   console.log(
-    `[openai-illustration] responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${quality} characters=${opts.characters.length}`,
+    `[openai-illustration] responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${quality} output_format=${outputFormat} characters=${opts.characters.length} style=${opts.style ? 1 : 0}`,
   );
 
   const startedAt = Date.now();
-  const result = await openai.responses.create({
+  let result;
+  try {
+    result = await openai.responses.create({
     model: RESPONSES_MODEL,
     tools: [
       {
@@ -126,6 +140,7 @@ export async function generateIllustrationViaResponsesAPI(opts: {
         model: IMAGE_GEN_TOOL_MODEL,
         size: IMAGE_GEN_SIZE,
         quality,
+        output_format: outputFormat,
       },
     ],
     tool_choice: { type: "image_generation" },
@@ -139,15 +154,29 @@ export async function generateIllustrationViaResponsesAPI(opts: {
             image_url: toImageDataUrl(character.bytes, character.mime),
             detail: "high" as const,
           })),
-          {
-            type: "input_image",
-            image_url: toImageDataUrl(opts.style.bytes, opts.style.mime),
-            detail: "high" as const,
-          },
+          ...(opts.style
+            ? [
+                {
+                  type: "input_image" as const,
+                  image_url: toImageDataUrl(opts.style.bytes, opts.style.mime),
+                  detail: "high" as const,
+                },
+              ]
+            : []),
         ],
       },
     ],
-  });
+    });
+  } catch (error) {
+    const rateLimit = toOpenAIRateLimitError(error);
+    if (rateLimit) {
+      throw rateLimit;
+    }
+    throw error;
+  }
+  if (!result) {
+    throw new Error("OpenAI returned no response");
+  }
   const elapsedMs = Date.now() - startedAt;
 
   const imageCall = result.output.find(

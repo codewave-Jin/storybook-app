@@ -1,12 +1,17 @@
 import { waitUntil } from "@vercel/functions";
 import { NextResponse } from "next/server";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
+import { isComfyMockEnabled } from "@/lib/comfy-server";
+import { enqueueAndKickGptImageJob } from "@/lib/gpt-image-queue";
+import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
-import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
+import {
+  shouldGenerateIllustration,
+  staleProcessingBefore,
+} from "@/lib/illustration-generation-policy";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 
-/** Pro 300초. Hobby는 60초로 캡된다. Next가 리터럴을 정적으로 읽는다. */
 export const maxDuration = 300;
 
 export async function POST(
@@ -26,6 +31,13 @@ export async function POST(
       selectedCharacterIds: true,
       status: true,
       updatedAt: true,
+      order: {
+        select: {
+          characterAsset: {
+            select: { status: true, styledImageUrl: true },
+          },
+        },
+      },
     },
   });
 
@@ -56,22 +68,56 @@ export async function POST(
     );
   }
 
-  waitUntil(
-    runIllustrationGeneration({
-      illustrationId: illustration.id,
-      prompt: illustration.prompt,
-      characterIds,
-    }).catch((error) => {
-      console.error(
-        "[illustration generate] background generate failed",
-        illustration.id,
-        error,
-      );
-    }),
-  );
+  if (isComfyMockEnabled()) {
+    waitUntil(
+      runIllustrationGeneration({
+        illustrationId: illustration.id,
+        prompt: illustration.prompt,
+        characterIds,
+        chainNext: true,
+      }).catch((error) => {
+        console.error(
+          "[illustration generate] background generate failed",
+          illustration.id,
+          error,
+        );
+      }),
+    );
+    return NextResponse.json(
+      { ok: true, accepted: true, illustrationId: illustration.id, queued: false },
+      { status: 202 },
+    );
+  }
+
+  await prisma.illustration.updateMany({
+    where: {
+      id: illustration.id,
+      OR: [
+        { status: { in: ["IDLE", "FAILED"] } },
+        { status: "PROCESSING", updatedAt: { lt: staleProcessingBefore() } },
+      ],
+    },
+    data: {
+      status: "PROCESSING",
+      progressPercent: 8,
+      progressLabel: "대기 중",
+      errorReason: null,
+    },
+  });
+
+  const styledReady =
+    illustration.order.characterAsset?.status === "READY" &&
+    Boolean(illustration.order.characterAsset.styledImageUrl);
+
+  await enqueueAndKickGptImageJob({
+    kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
+    targetId: illustration.id,
+    inputImages: styledReady ? 1 : 2,
+    payload: { chainNext: true, keepImage: false },
+  });
 
   return NextResponse.json(
-    { ok: true, accepted: true, illustrationId: illustration.id },
+    { ok: true, accepted: true, illustrationId: illustration.id, queued: true },
     { status: 202 },
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { IllustrationStatus } from "@prisma/client";
 import { AppImage } from "@/components/AppImage";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
@@ -9,6 +10,53 @@ import { OrderPreviewPayButton } from "@/components/OrderPreviewPayButton";
 import { PreviewWatermark } from "@/components/PreviewWatermark";
 import type { PreviewBookPage } from "@/lib/preview-pages";
 import { cn } from "@/lib/utils";
+
+type OrderStatusPayload = {
+  illustrations?: Array<{
+    id: string;
+    status: string;
+    pageNumber?: number | null;
+    imagePath?: string | null;
+    imageUrl?: string | null;
+  }>;
+};
+
+function isIllustrationStatus(value: string): value is IllustrationStatus {
+  return (
+    value === "IDLE" ||
+    value === "PROCESSING" ||
+    value === "COMPLETED" ||
+    value === "FAILED"
+  );
+}
+
+function isPendingPage(page: PreviewBookPage) {
+  return !page.id || page.status === "IDLE" || page.status === "PROCESSING";
+}
+
+function mergeLivePages(
+  current: PreviewBookPage[],
+  payload: OrderStatusPayload,
+): PreviewBookPage[] {
+  const byId = new Map(
+    (payload.illustrations ?? []).map((item) => [item.id, item]),
+  );
+
+  return current.map((page) => {
+    if (!page.id) {
+      return page;
+    }
+    const live = byId.get(page.id);
+    if (!live) {
+      return page;
+    }
+    return {
+      ...page,
+      status: isIllustrationStatus(live.status) ? live.status : page.status,
+      imagePath: live.imageUrl ?? live.imagePath ?? page.imagePath,
+    };
+  });
+}
 
 export function OrderPreviewBook({
   title,
@@ -28,8 +76,29 @@ export function OrderPreviewBook({
   orderId: string;
 }) {
   const [index, setIndex] = useState(0);
-  const lastIndex = Math.max(pages.length - 1, 0);
+  const [livePages, setLivePages] = useState(pages);
+  const lastIndex = Math.max(livePages.length - 1, 0);
   const safeIndex = Math.min(index, lastIndex);
+  const waitingForGeneration = livePages.some(isPendingPage);
+
+  useEffect(() => {
+    setLivePages((current) =>
+      pages.map((serverPage, index) => {
+        const live =
+          current.find((page) => page.id && page.id === serverPage.id) ??
+          current[index];
+        if (
+          live &&
+          live.status === "COMPLETED" &&
+          live.imagePath &&
+          serverPage.status !== "COMPLETED"
+        ) {
+          return { ...serverPage, status: live.status, imagePath: live.imagePath };
+        }
+        return serverPage;
+      }),
+    );
+  }, [pages]);
 
   useEffect(() => {
     setIndex((current) => Math.min(current, lastIndex));
@@ -49,12 +118,52 @@ export function OrderPreviewBook({
     return () => window.removeEventListener("keydown", onKey);
   }, [lastIndex]);
 
-  const completedCount = pages.filter(
+  useEffect(() => {
+    if (!waitingForGeneration) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const response = await fetch(`/api/orders/${orderId}/status`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        if (!response.ok || cancelled) {
+          return;
+        }
+        const payload = (await response.json()) as OrderStatusPayload;
+        if (cancelled) {
+          return;
+        }
+        setLivePages((current) => mergeLivePages(current, payload));
+      } catch {
+        // Next interval retries.
+      }
+    }
+
+    void poll();
+    const interval = window.setInterval(() => {
+      void poll();
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [orderId, waitingForGeneration]);
+
+  const completedCount = livePages.filter(
     (page) => page.status === "COMPLETED" && page.imagePath,
   ).length;
-  const showProgress = paid && !bookComplete;
-  const useSkeleton = paid;
-  const counterLabel = `${safeIndex + 1} / ${pages.length}`;
+  const liveComplete = livePages.every(
+    (page) => page.id && page.status === "COMPLETED" && page.imagePath,
+  );
+  const showProgress = !liveComplete && (paid || waitingForGeneration);
+  const counterLabel = `${safeIndex + 1} / ${livePages.length}`;
+  const payReady = ready || bookComplete || (!paid && liveComplete);
 
   return (
     <div className="flex min-h-dvh flex-col bg-[#eaf4fb] text-stone-800">
@@ -102,13 +211,13 @@ export function OrderPreviewBook({
               AI가 이야기를 그리고 있어요
             </p>
             <p className="mt-1 text-sm tabular-nums text-stone-500">
-              {completedCount}/{pages.length} 페이지 완성
+              {completedCount}/{livePages.length} 페이지 완성
             </p>
             <div className="mx-auto mt-3 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-stone-200">
               <div
                 className="h-full rounded-full bg-sky-400 transition-[width] duration-500"
                 style={{
-                  width: `${Math.max((completedCount / Math.max(pages.length, 1)) * 100, 4)}%`,
+                  width: `${Math.max((completedCount / Math.max(livePages.length, 1)) * 100, 4)}%`,
                 }}
               />
             </div>
@@ -117,12 +226,27 @@ export function OrderPreviewBook({
 
         <div className="flex flex-1 items-center justify-center">
           <article className="w-full max-w-md sm:max-w-lg">
-            {pages.map((page, pageIndex) => (
+            {livePages.map((page, pageIndex) => (
               <div
                 key={`${page.kind}-${page.pageNumber}-${page.id ?? pageIndex}`}
                 hidden={pageIndex !== safeIndex}
               >
-                <BookLeaf page={page} skeleton={useSkeleton} />
+                <BookLeaf
+                  page={page}
+                  onLiveChange={(next) => {
+                    setLivePages((current) =>
+                      current.map((item) =>
+                        item.id && item.id === page.id
+                          ? {
+                              ...item,
+                              status: next.status ?? item.status,
+                              imagePath: next.imagePath ?? item.imagePath,
+                            }
+                          : item,
+                      ),
+                    );
+                  }}
+                />
               </div>
             ))}
           </article>
@@ -162,7 +286,7 @@ export function OrderPreviewBook({
               대시보드로 돌아가기
             </Link>
           ) : (
-            <OrderPreviewPayButton orderId={orderId} ready={ready} />
+            <OrderPreviewPayButton orderId={orderId} ready={payReady} />
           )}
         </div>
       </footer>
@@ -172,17 +296,20 @@ export function OrderPreviewBook({
 
 function BookLeaf({
   page,
-  skeleton = false,
+  onLiveChange,
 }: {
   page: PreviewBookPage;
-  skeleton?: boolean;
+  onLiveChange: (next: {
+    status?: IllustrationStatus;
+    imagePath?: string | null;
+  }) => void;
 }) {
   const showImage = page.status === "COMPLETED" && page.imagePath;
 
   return (
     <figure className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100">
       <div
-        className="no-image-save relative aspect-[3/4] bg-stone-100"
+        className="no-image-save relative aspect-square bg-stone-100"
         onContextMenu={(event) => event.preventDefault()}
       >
         {showImage && page.imagePath ? (
@@ -191,7 +318,7 @@ function BookLeaf({
             alt={page.kind === "cover" ? "표지" : `${page.label}페이지`}
             fill
             draggable={false}
-            className="pointer-events-none object-cover"
+            className="pointer-events-none object-contain"
             sizes="(max-width: 640px) 100vw, 32rem"
           />
         ) : page.status === "FAILED" ? (
@@ -199,19 +326,31 @@ function BookLeaf({
             <p className="text-sm font-medium text-red-600">생성 실패</p>
             <p className="text-xs text-stone-500">잠시 후 다시 시도해 주세요</p>
           </div>
-        ) : skeleton ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-            <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-stone-100 via-stone-200/80 to-stone-100" />
-            <p className="relative z-10 text-sm font-medium text-stone-500">
-              {page.status === "PROCESSING" ? "그리는 중..." : "대기 중"}
-            </p>
-          </div>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-stone-100 via-stone-200/80 to-stone-100" />
             {page.id ? (
-              <GenerationProgress kind="illustration" id={page.id} />
+              <div className="relative z-10">
+                <GenerationProgress
+                  kind="illustration"
+                  id={page.id}
+                  onSnapshot={(snapshot) => {
+                    const status = snapshot.status;
+                    if (status && isIllustrationStatus(status)) {
+                      onLiveChange({
+                        status,
+                        imagePath: snapshot.imageUrl,
+                      });
+                    } else if (snapshot.imageUrl) {
+                      onLiveChange({ imagePath: snapshot.imageUrl });
+                    }
+                  }}
+                />
+              </div>
             ) : (
-              <p className="text-sm font-medium text-[#E07A5F]">생성 중...</p>
+              <p className="relative z-10 text-sm font-medium text-stone-500">
+                대기 중
+              </p>
             )}
           </div>
         )}

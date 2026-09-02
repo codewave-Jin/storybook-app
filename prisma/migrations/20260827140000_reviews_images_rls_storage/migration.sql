@@ -2,6 +2,36 @@
 -- Map review.order to StorybookOrder or StickerOrder, user to "User".
 -- Closest "배송완료" gate: paymentStatus = PAID AND productionStatus = COMPLETED.
 
+-- Shadow DB (plain Postgres) has no Supabase auth schema/roles.
+-- Create stubs only when missing so this file can replay without replacing
+-- real Supabase auth.uid() on a fresh hosted project.
+DO $$
+BEGIN
+  CREATE SCHEMA IF NOT EXISTS auth;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'auth'
+      AND p.proname = 'uid'
+      AND p.pronargs = 0
+  ) THEN
+    EXECUTE $fn$
+      CREATE FUNCTION auth.uid()
+      RETURNS uuid
+      LANGUAGE sql
+      STABLE
+      AS $inner$ SELECT NULL::uuid; $inner$;
+    $fn$;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+END
+$$;
+
 ALTER TABLE "Review" RENAME TO "reviews";
 
 ALTER TABLE "reviews" RENAME CONSTRAINT "Review_pkey" TO "reviews_pkey";

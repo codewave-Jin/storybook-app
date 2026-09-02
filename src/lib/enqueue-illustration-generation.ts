@@ -1,14 +1,23 @@
 import { waitUntil } from "@vercel/functions";
+import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { logGenerationEvent } from "@/lib/generation-events";
+import {
+  enqueueAndKickGptImageJob,
+  hasActiveGptImageJob,
+} from "@/lib/gpt-image-queue";
+import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
-import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
+import {
+  isStaleProcessing,
+  shouldGenerateIllustration,
+  staleProcessingBefore,
+} from "@/lib/illustration-generation-policy";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Kick illustration generation in-process via waitUntil.
- * Avoids fragile HTTP self-fetch (base URL / INTERNAL_API_KEY / 308 redirect),
- * which left pages stuck in IDLE forever when the enqueue request failed.
+ * Enqueue illustration jobs in-process (no HTTP self-fetch).
+ * GPT itself runs only in the gpt-image worker.
  */
 export function enqueueIllustrationGenerations(illustrationIds: string[]) {
   if (illustrationIds.length === 0) {
@@ -25,7 +34,14 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
         selectedCharacterIds: true,
         status: true,
         updatedAt: true,
-        order: { select: { userId: true } },
+        order: {
+          select: {
+            userId: true,
+            characterAsset: {
+              select: { status: true, styledImageUrl: true },
+            },
+          },
+        },
       },
     });
 
@@ -46,12 +62,6 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
       });
     }
 
-    console.log(
-      "[storybook-generation] direct generate start",
-      targets.map((page) => page.id),
-    );
-
-    // Sequential: more reliable under Vercel time limits than 3 parallel OpenAI calls.
     for (const page of targets) {
       const characterIds = parseIdList(page.selectedCharacterIds);
       if (!page.prompt.trim() || characterIds.length < 1) {
@@ -62,31 +72,107 @@ export function enqueueIllustrationGenerations(illustrationIds: string[]) {
         continue;
       }
 
-      try {
-        const result = await runIllustrationGeneration({
-          illustrationId: page.id,
-          prompt: page.prompt,
-          characterIds,
-        });
-        if (result.error) {
+      if (isComfyMockEnabled()) {
+        try {
+          await runIllustrationGeneration({
+            illustrationId: page.id,
+            prompt: page.prompt,
+            characterIds,
+            chainNext: true,
+          });
+        } catch (error) {
           console.error(
-            "[storybook-generation] generate failed",
+            "[storybook-generation] mock generate threw",
             page.id,
-            result.error,
+            error,
           );
-        } else {
-          console.log("[storybook-generation] generate ok", page.id);
         }
-      } catch (error) {
-        console.error(
-          "[storybook-generation] generate threw",
-          page.id,
-          error,
-        );
+        continue;
       }
+
+      await prisma.illustration.updateMany({
+        where: {
+          id: page.id,
+          OR: [
+            { status: { in: ["IDLE", "FAILED"] } },
+            { status: "PROCESSING", updatedAt: { lt: staleProcessingBefore() } },
+          ],
+        },
+        data: {
+          status: "PROCESSING",
+          progressPercent: 8,
+          progressLabel: "대기 중",
+          errorReason: null,
+        },
+      });
+
+      const styledReady =
+        page.order.characterAsset?.status === "READY" &&
+        Boolean(page.order.characterAsset.styledImageUrl);
+
+      await enqueueAndKickGptImageJob({
+        kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
+        targetId: page.id,
+        inputImages: styledReady ? 1 : 2,
+        payload: { chainNext: true, keepImage: false },
+      });
     }
   })();
 
   waitUntil(dispatched);
-  // Generation runs in the background; do not return a promise callers can await.
+}
+
+/** Cover (lowest pageNumber) first. One in-flight page at a time. */
+export async function enqueueNextPendingIllustration(
+  orderId: string,
+  options?: { afterPageNumber?: number },
+) {
+  const pages = await prisma.illustration.findMany({
+    where: { orderId },
+    orderBy: { pageNumber: "asc" },
+    select: {
+      id: true,
+      pageNumber: true,
+      status: true,
+      prompt: true,
+      updatedAt: true,
+    },
+  });
+
+  const inFlight = pages.some(
+    (page) =>
+      page.status === "PROCESSING" && !isStaleProcessing(page.updatedAt),
+  );
+  if (inFlight) {
+    return;
+  }
+
+  if (
+    await hasActiveGptImageJob(
+      GPT_IMAGE_JOB_KIND.ILLUSTRATION,
+      pages.map((page) => page.id),
+    )
+  ) {
+    return;
+  }
+
+  const afterPageNumber = options?.afterPageNumber ?? 0;
+  const next = pages.find((page) => {
+    if (page.pageNumber <= afterPageNumber) {
+      return false;
+    }
+    if (!page.prompt.trim()) {
+      return false;
+    }
+    if (page.status === "IDLE") {
+      return true;
+    }
+    return page.status === "PROCESSING" && isStaleProcessing(page.updatedAt);
+  });
+
+  if (!next) {
+    return;
+  }
+
+  enqueueIllustrationGenerations([next.id]);
 }

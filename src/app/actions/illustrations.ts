@@ -2,6 +2,8 @@
 
 import { requireAdmin } from "@/lib/admin";
 import { parseExpression } from "@/lib/expressions";
+import { enqueueAndKickGptImageJob } from "@/lib/gpt-image-queue";
+import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
 import { prisma } from "@/lib/prisma";
 import {
@@ -64,12 +66,57 @@ export async function requestIllustrationGeneration(
     return { error: "캐릭터를 한 명 이상 선택해 주세요." };
   }
 
-  return runIllustrationGeneration({
-    illustrationId,
-    prompt,
-    characterIds,
-    keepImage,
+  if (isComfyMockEnabled()) {
+    return runIllustrationGeneration({
+      illustrationId,
+      prompt,
+      characterIds,
+      keepImage,
+    });
+  }
+
+  const illustration = await prisma.illustration.findUnique({
+    where: { id: illustrationId },
+    select: {
+      orderId: true,
+      order: {
+        select: {
+          characterAsset: {
+            select: { status: true, styledImageUrl: true },
+          },
+        },
+      },
+    },
   });
+  if (!illustration) {
+    return { error: "페이지를 찾을 수 없습니다." };
+  }
+
+  await prisma.illustration.update({
+    where: { id: illustrationId },
+    data: {
+      prompt,
+      selectedCharacterIds: characterIds,
+      status: "PROCESSING",
+      progressPercent: 8,
+      progressLabel: "대기 중",
+      errorReason: null,
+      imagePath: keepImage ? undefined : null,
+    },
+  });
+
+  const styledReady =
+    illustration.order.characterAsset?.status === "READY" &&
+    Boolean(illustration.order.characterAsset.styledImageUrl);
+
+  await enqueueAndKickGptImageJob({
+    kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
+    targetId: illustrationId,
+    inputImages: styledReady ? 1 : 2,
+    payload: { chainNext: false, keepImage },
+  });
+  revalidateIllustrationWork(illustration.orderId);
+  return { success: true };
 }
 
 export async function requestIllustrationExpressionEdit(

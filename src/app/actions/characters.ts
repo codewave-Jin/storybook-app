@@ -10,7 +10,7 @@ import {
   consumeToken,
   refundToken,
 } from "@/lib/tokens";
-import { deletePublicFile, saveCharacterPhoto } from "@/lib/uploads";
+import { deletePublicFile, deleteStickerFile, saveCharacterPhoto } from "@/lib/uploads";
 
 export type CharacterFormState = {
   error?: string;
@@ -111,12 +111,42 @@ export async function deleteCharacter(characterId: string) {
     return;
   }
 
-  await prisma.character.delete({
-    where: { id: character.id },
+  const stickerOrders = await prisma.stickerOrder.findMany({
+    where: { characterId: character.id, userId: session.user.id },
+    select: {
+      id: true,
+      paymentStatus: true,
+      previewImagePath: true,
+      finalImagePath: true,
+    },
   });
+
+  if (stickerOrders.some((order) => order.paymentStatus === "PAID")) {
+    return { error: "이 캐릭터로 결제한 스티커 주문이 있어 삭제할 수 없습니다." };
+  }
+
+  for (const order of stickerOrders) {
+    await deleteStickerFile(order.previewImagePath);
+    await deleteStickerFile(order.finalImagePath);
+  }
+
+  const stickerOrderIds = stickerOrders.map((order) => order.id);
+
+  await prisma.$transaction([
+    prisma.review.deleteMany({
+      where: { stickerOrderId: { in: stickerOrderIds } },
+    }),
+    prisma.stickerOrder.deleteMany({
+      where: { id: { in: stickerOrderIds } },
+    }),
+    prisma.character.delete({
+      where: { id: character.id },
+    }),
+  ]);
 
   await deletePublicFile(character.originalPhotoPath);
   await deletePublicFile(character.generatedImagePath);
 
   revalidatePath("/dashboard");
+  revalidatePath("/mypage");
 }

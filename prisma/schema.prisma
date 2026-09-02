@@ -65,6 +65,7 @@ model Character {
   createdAt          DateTime         @default(now())
 
   stickerOrders      StickerOrder[]
+  characterAssets    CharacterAsset[]
 }
 
 enum Gender {
@@ -77,6 +78,30 @@ enum CharacterStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+/// Reusable two-stage character sheet: ComfyUI portrait, then GPT style transfer.
+/// Source photo is Character.originalPhotoPath via characterId.
+model CharacterAsset {
+  id             String    @id @default(cuid())
+  characterId    String
+  character      Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  artStyleId     String
+  artStyle       ArtStyle  @relation(fields: [artStyleId], references: [id])
+  /// ComfyUI PuLID output
+  rawPortraitUrl String?
+  /// GPT style-converted character sheet
+  styledImageUrl String?
+  /// PENDING | COMFY_GENERATING | STYLING | READY | FAILED
+  status         String    @default("PENDING")
+  retryCount     Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  orders StorybookOrder[]
+
+  @@index([characterId, artStyleId])
+  @@index([artStyleId])
 }
 
 enum TemplateCategory {
@@ -107,6 +132,8 @@ model PageTemplate {
   pageType            IllustrationPageType @default(PAGE)
   promptTemplate      String
   characterSlots      Int                  @default(1)
+  /// Optional expression direction for pages that should change the face.
+  expressionHint      String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
@@ -142,8 +169,9 @@ model ArtStyle {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  templates TemplateArtStyle[]
-  orders    StorybookOrder[]
+  templates       TemplateArtStyle[]
+  orders          StorybookOrder[]
+  characterAssets CharacterAsset[]
 }
 
 model TemplateArtStyle {
@@ -167,6 +195,8 @@ model StorybookOrder {
   customInputValues    Json
   artStyleId           String?
   artStyle             ArtStyle?        @relation(fields: [artStyleId], references: [id], onDelete: SetNull)
+  characterAssetId     String?
+  characterAsset       CharacterAsset?  @relation(fields: [characterAssetId], references: [id], onDelete: SetNull)
   paymentStatus        PaymentStatus    @default(PENDING)
   productionStatus     ProductionStatus @default(WAITING)
   fulfillmentStatus    FulfillmentStatus @default(PREPARING)
@@ -182,6 +212,7 @@ model StorybookOrder {
   statusLogs      OrderStatusLog[]
 
   @@index([artStyleId])
+  @@index([characterAssetId])
 }
 
 model GenerationEvent {
@@ -399,4 +430,42 @@ model ReviewImage {
 
   @@index([reviewId])
   @@map("review_images")
+}
+
+/// Global GPT image queue. Worker claims with SKIP LOCKED.
+/// kind: STYLE_CHARACTER | ILLUSTRATION | STICKER
+/// status: QUEUED | RUNNING | SUCCEEDED | FAILED
+model GptImageJob {
+  id          String    @id @default(cuid())
+  kind        String
+  targetId    String
+  payload     Json
+  status      String    @default("QUEUED")
+  inputImages Int
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  runAfter    DateTime  @default(now())
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  usages GptImageUsage[]
+
+  @@index([status, runAfter, createdAt])
+  @@index([kind, targetId, status])
+}
+
+model GptImageUsage {
+  id          String      @id @default(cuid())
+  jobId       String
+  job         GptImageJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  inputImages Int
+  startedAt   DateTime    @default(now())
+
+  @@index([startedAt])
+  @@index([jobId])
 }

@@ -64,6 +64,36 @@ export type BuildIllustrationEditPromptInput = {
   characterCount?: number;
 };
 
+/**
+ * Scene prompt used after the character sheet is already style-transferred.
+ * Matches scripts/test-illustration.ts. expressionHint comes from PageTemplate.
+ */
+export function buildStyledIllustrationPrompt(options: {
+  sceneDescription: string;
+  expressionHint?: string | null;
+}): string {
+  const scene = options.sceneDescription.trim();
+  const expression = options.expressionHint?.trim() || "";
+  const keepAndChange = expression
+    ? [
+        "[유지할 것] 얼굴형, 이목구비의 생김새, 헤어스타일, 의상, 그림체",
+        `[변경할 것] 포즈, 배경, 그리고 표정: ${expression}`,
+        "표정은 눈과 입의 변화로만 표현하고 얼굴형과 볼살은 유지하세요",
+      ]
+    : [
+        "[유지할 것] 얼굴형, 이목구비의 생김새, 표정, 헤어스타일, 의상, 그림체",
+        "[변경할 것] 포즈와 배경만 장면에 맞게 표현",
+      ];
+
+  return [
+    `이 캐릭터의 정체성과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
+    "",
+    ...keepAndChange,
+    "",
+    "얼굴에 사진 질감이나 광택 렌더링을 넣지 마세요.",
+  ].join("\n");
+}
+
 const CHARACTER_LABELS = ["Character A", "Character B", "Character C"] as const;
 const ORDINALS = ["first", "second", "third", "fourth"] as const;
 

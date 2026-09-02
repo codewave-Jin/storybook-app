@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getAdminOrNull } from "@/lib/admin";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
+import {
+  illustrationQueueProgress,
+  stickerQueueProgress,
+} from "@/lib/gpt-image-progress";
 import { prisma } from "@/lib/prisma";
 
 type ProgressKind = "character" | "illustration" | "sticker";
@@ -97,16 +101,19 @@ export async function GET(request: Request) {
     });
     const completed = order?.previewStatus === "COMPLETED";
     const failed = order?.previewStatus === "FAILED";
-    const processing = order?.previewStatus === "PROCESSING";
+    const queue = await stickerQueueProgress({
+      stickerOrderId: id,
+      previewStatus: order?.previewStatus ?? "IDLE",
+    });
     return NextResponse.json({
-      percent: completed ? 100 : failed ? 0 : processing ? 8 : 0,
+      percent: completed ? 100 : failed ? 0 : 8,
       label: failed
         ? "실패"
         : completed
           ? "완료"
-          : order?.previewStatus === "IDLE"
-            ? "준비 중"
-            : "스티커 생성 중",
+          : queue.label,
+      queueStatus: queue.queueStatus,
+      queueAhead: queue.queueAhead,
       active:
         order?.previewStatus === "IDLE" ||
         order?.previewStatus === "PROCESSING",
@@ -115,22 +122,44 @@ export async function GET(request: Request) {
 
   const illustration = await prisma.illustration.findUnique({
     where: { id },
-    select: { progressPercent: true, progressLabel: true, status: true },
+    select: {
+      progressPercent: true,
+      progressLabel: true,
+      status: true,
+      imagePath: true,
+      orderId: true,
+    },
   });
+  const queue = illustration
+    ? await illustrationQueueProgress({
+        illustrationId: id,
+        orderId: illustration.orderId,
+        status: illustration.status,
+        progressLabel: illustration.progressLabel,
+      })
+    : null;
+  const queued = queue?.queueStatus === "QUEUED";
   const status = illustration?.status;
   const completed = status === "COMPLETED";
   const failed = status === "FAILED";
-  const idle = status === "IDLE";
   return NextResponse.json({
-    percent: completed ? 100 : failed ? 0 : (illustration?.progressPercent ?? 0),
+    percent: completed
+      ? 100
+      : failed
+        ? 0
+        : queued
+          ? Math.min(illustration?.progressPercent ?? 8, 12)
+          : (illustration?.progressPercent ?? 0),
     label: failed
       ? "실패"
       : completed
         ? "완료"
-        : idle
-          ? "준비 중"
-          : (illustration?.progressLabel ?? "생성 중"),
-    active: idle || status === "PROCESSING",
+        : (queue?.label ?? illustration?.progressLabel ?? "생성 중"),
+    status: status ?? "IDLE",
+    queueStatus: queue?.queueStatus ?? null,
+    queueAhead: queue?.queueAhead ?? 0,
+    imageUrl: illustration?.imagePath ?? null,
+    active: status === "PROCESSING" || status === "IDLE",
   });
 }
 

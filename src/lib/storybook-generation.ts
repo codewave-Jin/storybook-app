@@ -1,14 +1,21 @@
-import { enqueueIllustrationGenerations } from "@/lib/enqueue-illustration-generation";
+import { enqueueNextPendingIllustration } from "@/lib/enqueue-illustration-generation";
+import { enqueueOrderStyleTransfer } from "@/lib/enqueue-style-transfer";
 import { logGenerationEvent } from "@/lib/generation-events";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
 import { shouldGenerateIllustration } from "@/lib/illustration-generation-policy";
 import {
   buildOrderPromptVariables,
+  buildStyledIllustrationPrompt,
   substitutePromptTemplate,
 } from "@/lib/illustration-prompt";
+import {
+  ensureOrderStyledCharacterAsset,
+  findReadyStyledCharacterAsset,
+  STYLE_TRANSFER_PROGRESS_LABEL,
+} from "@/lib/order-character-asset";
 import { parseIdList, parseStringRecord } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
-import { markOrderPreviewGeneratedIfReady } from "@/lib/preview-status";
+import { markOrderPreviewGeneratedIfReady, revalidateOrderPreview } from "@/lib/preview-status";
 import { customInputsContainProfanity } from "@/lib/custom-input-guard";
 
 export {
@@ -50,6 +57,7 @@ async function loadOrderContext(orderId: string) {
               pageNumber: true,
               pageType: true,
               promptTemplate: true,
+              expressionHint: true,
             },
           },
         },
@@ -93,7 +101,12 @@ function sceneFromTemplate(
   pageNumber: number,
   pageTemplatesByNumber: Map<
     number,
-    { pageNumber: number; pageType: "COVER" | "PAGE"; promptTemplate: string }
+    {
+      pageNumber: number;
+      pageType: "COVER" | "PAGE";
+      promptTemplate: string;
+      expressionHint: string | null;
+    }
   >,
   variables: Record<string, string>,
 ) {
@@ -102,8 +115,16 @@ function sceneFromTemplate(
     return null;
   }
 
+  const sceneDescription = substitutePromptTemplate(
+    pageTemplate.promptTemplate,
+    variables,
+  );
+
   return {
-    prompt: substitutePromptTemplate(pageTemplate.promptTemplate, variables),
+    prompt: buildStyledIllustrationPrompt({
+      sceneDescription,
+      expressionHint: pageTemplate.expressionHint,
+    }),
     pageType: pageTemplate.pageType,
   };
 }
@@ -121,19 +142,90 @@ async function generatePages(options: {
     orderBy: { pageNumber: "asc" },
   });
 
-  await Promise.all(
-    pages
-      .filter((page) => shouldGenerateIllustration(page))
-      .map((page) =>
-        runIllustrationGeneration({
-          illustrationId: page.id,
-          prompt: page.prompt,
-          characterIds: options.characterIds,
-        }),
-      ),
-  );
+  for (const page of pages.filter((item) => shouldGenerateIllustration(item))) {
+    await runIllustrationGeneration({
+      illustrationId: page.id,
+      prompt: page.prompt,
+      characterIds: options.characterIds,
+    });
+  }
 
   await markOrderPreviewGeneratedIfReady(options.orderId);
+}
+
+async function releaseStyleTransferHold(orderId: string, pageNumbers: number[]) {
+  await prisma.illustration.updateMany({
+    where: {
+      orderId,
+      pageNumber: { in: pageNumbers },
+      status: "PROCESSING",
+      imagePath: null,
+      progressLabel: STYLE_TRANSFER_PROGRESS_LABEL,
+    },
+    data: {
+      status: "IDLE",
+      progressPercent: 0,
+      progressLabel: "이미지 생성 중",
+    },
+  });
+}
+
+export async function finishStyleTransferAndStartIllustrations(options: {
+  orderId: string;
+  pageNumbers: number[];
+  wait: boolean;
+  fromQueueWorker?: boolean;
+}): Promise<{ ok: boolean; defer?: boolean; error?: string }> {
+  const { orderId, pageNumbers, wait, fromQueueWorker = false } = options;
+  const styled = await ensureOrderStyledCharacterAsset(orderId, {
+    deferIfBusy: fromQueueWorker,
+  });
+  if (!styled.ok) {
+    if (styled.defer) {
+      return { ok: false, defer: true, error: styled.error };
+    }
+    console.error(
+      "[storybook-generation] style transfer failed",
+      orderId,
+      styled.error,
+    );
+    await prisma.illustration.updateMany({
+      where: {
+        orderId,
+        pageNumber: { in: pageNumbers },
+        status: { not: "COMPLETED" },
+      },
+      data: {
+        status: "FAILED",
+        progressPercent: 0,
+        progressLabel: null,
+        errorReason: styled.error.slice(0, 1000),
+      },
+    });
+    revalidateOrderPreview(orderId);
+    return { ok: false, error: styled.error };
+  }
+
+  await releaseStyleTransferHold(orderId, pageNumbers);
+  revalidateOrderPreview(orderId);
+
+  const order = await prisma.storybookOrder.findUnique({
+    where: { id: orderId },
+    select: { selectedCharacterIds: true },
+  });
+  const characterIds = parseIdList(order?.selectedCharacterIds ?? []);
+
+  if (wait) {
+    await generatePages({
+      orderId,
+      pageNumbers,
+      characterIds,
+    });
+    return { ok: true };
+  }
+
+  await enqueueNextPendingIllustration(orderId);
+  return { ok: true };
 }
 
 /**
@@ -257,29 +349,58 @@ export async function ensureIllustrationsAndGenerate(options: {
     );
   }
 
-  const readyPages =
-    needPromptFill.length > 0
-      ? await prisma.illustration.findMany({
-          where: {
-            orderId,
-            pageNumber: { in: pageNumbers },
-          },
-          orderBy: { pageNumber: "asc" },
+  const characterId = characterIds[0];
+  const readyAsset =
+    characterId && order.artStyleId
+      ? await findReadyStyledCharacterAsset({
+          characterId,
+          artStyleId: order.artStyleId,
         })
-      : pages;
+      : null;
+
+  if (readyAsset) {
+    if (order.characterAssetId !== readyAsset.id) {
+      await prisma.storybookOrder.update({
+        where: { id: orderId },
+        data: { characterAssetId: readyAsset.id },
+      });
+    }
+    await releaseStyleTransferHold(orderId, pageNumbers);
+    if (wait) {
+      await generatePages({
+        orderId,
+        pageNumbers,
+        characterIds,
+      });
+      return;
+    }
+    await enqueueNextPendingIllustration(orderId);
+    return;
+  }
+
+  await prisma.illustration.updateMany({
+    where: {
+      orderId,
+      pageNumber: { in: pageNumbers },
+      status: { in: ["IDLE", "FAILED"] },
+    },
+    data: {
+      status: "PROCESSING",
+      progressPercent: 8,
+      progressLabel: STYLE_TRANSFER_PROGRESS_LABEL,
+      errorReason: null,
+    },
+  });
+  revalidateOrderPreview(orderId);
 
   if (wait) {
-    await generatePages({
+    await finishStyleTransferAndStartIllustrations({
       orderId,
       pageNumbers,
-      characterIds,
+      wait: true,
     });
     return;
   }
 
-  enqueueIllustrationGenerations(
-    readyPages
-      .filter((page) => shouldGenerateIllustration(page))
-      .map((page) => page.id),
-  );
+  await enqueueOrderStyleTransfer(orderId, pageNumbers);
 }

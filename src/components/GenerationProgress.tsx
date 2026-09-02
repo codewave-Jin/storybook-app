@@ -1,8 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type GenerationKind = "character" | "illustration" | "sticker";
+
+export type GenerationProgressSnapshot = {
+  percent: number;
+  label: string;
+  active: boolean;
+  status?: string;
+  imageUrl?: string | null;
+  queueStatus?: "QUEUED" | "RUNNING" | null;
+  queueAhead?: number;
+};
 
 function estimatedPercent(elapsedSec: number, kind: GenerationKind) {
   // Illustrations (OpenAI) often take 1–3+ minutes; climb slowly to 90%.
@@ -16,17 +26,21 @@ export function GenerationProgress({
   id,
   compact = false,
   startedAt,
+  onSnapshot,
 }: {
   kind: GenerationKind;
   id: string;
   compact?: boolean;
   startedAt?: number;
+  onSnapshot?: (snapshot: GenerationProgressSnapshot) => void;
 }) {
   const origin = startedAt ?? 0;
   const [percent, setPercent] = useState(() =>
     Math.max(8, estimatedPercent((Date.now() - (startedAt ?? Date.now())) / 1000, kind)),
   );
   const [label, setLabel] = useState("생성 중");
+  const onSnapshotRef = useRef(onSnapshot);
+  onSnapshotRef.current = onSnapshot;
 
   useEffect(() => {
     let cancelled = false;
@@ -50,25 +64,51 @@ export function GenerationProgress({
             percent?: number;
             label?: string | null;
             active?: boolean;
+            status?: string;
+            imageUrl?: string | null;
+            queueStatus?: "QUEUED" | "RUNNING" | null;
+            queueAhead?: number;
           };
           const finished = payload.active === false;
+          const queued = payload.queueStatus === "QUEUED";
           const serverPercent =
             typeof payload.percent === "number" ? payload.percent : 0;
           const completed =
             finished &&
             (serverPercent >= 100 || payload.label === "완료");
           const failed = finished && payload.label === "실패";
+          const nextPercent = completed
+            ? 100
+            : queued
+              ? Math.min(Math.max(serverPercent, 8), 12)
+              : Math.max(
+                  estimatedPercent(elapsed, kind),
+                  serverPercent,
+                );
+          const nextLabel = completed
+            ? "완료"
+            : failed
+              ? "실패"
+              : payload.label || "생성 중";
           setPercent((current) => {
             if (completed) return 100;
-            return Math.max(current, fallback, serverPercent);
+            if (queued) return nextPercent;
+            return Math.max(current, nextPercent);
           });
-          setLabel(
-            completed
-              ? "완료"
-              : failed
-                ? "실패"
-                : payload.label || "생성 중",
-          );
+          setLabel(nextLabel);
+          onSnapshotRef.current?.({
+            percent: completed
+              ? 100
+              : queued
+                ? nextPercent
+                : Math.max(serverPercent, nextPercent),
+            label: nextLabel,
+            active: payload.active !== false,
+            status: payload.status,
+            imageUrl: payload.imageUrl ?? null,
+            queueStatus: payload.queueStatus ?? null,
+            queueAhead: payload.queueAhead ?? 0,
+          });
           return;
         }
       } catch {

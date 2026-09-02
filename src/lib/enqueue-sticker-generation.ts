@@ -1,13 +1,15 @@
 import { waitUntil } from "@vercel/functions";
+import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { logGenerationEvent } from "@/lib/generation-events";
+import { enqueueAndKickGptImageJob } from "@/lib/gpt-image-queue";
+import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
 import { runStickerPreviewGeneration } from "@/lib/sticker-generation";
 import { shouldKickPendingStickerPreview } from "@/lib/sticker-generation-policy";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Kick sticker preview generation in-process via waitUntil.
- * Avoids fragile HTTP self-fetch (base URL / INTERNAL_API_KEY / 308 redirect),
- * which left orders stuck in IDLE forever when the enqueue request failed.
+ * Enqueue sticker preview in-process (no HTTP self-fetch).
+ * GPT itself runs only in the gpt-image worker.
  */
 export function enqueueStickerGeneration(orderId: string) {
   const dispatched = (async () => {
@@ -25,8 +27,6 @@ export function enqueueStickerGeneration(orderId: string) {
       return;
     }
 
-    console.log("[sticker-generation] direct generate start", orderId);
-
     logGenerationEvent({
       kind: "STICKER",
       entityId: orderId,
@@ -35,18 +35,41 @@ export function enqueueStickerGeneration(orderId: string) {
       message: "백그라운드 스티커 생성 시작",
     });
 
-    try {
-      const result = await runStickerPreviewGeneration(orderId);
-      if (result.error) {
-        console.error("[sticker-generation] generate failed", orderId, result.error);
-      } else {
-        console.log("[sticker-generation] generate ok", orderId, result);
+    if (isComfyMockEnabled()) {
+      try {
+        const result = await runStickerPreviewGeneration(orderId);
+        if (result.error) {
+          console.error(
+            "[sticker-generation] generate failed",
+            orderId,
+            result.error,
+          );
+        }
+      } catch (error) {
+        console.error("[sticker-generation] generate threw", orderId, error);
       }
-    } catch (error) {
-      console.error("[sticker-generation] generate threw", orderId, error);
+      return;
     }
+
+    await prisma.stickerOrder.updateMany({
+      where: {
+        id: order.id,
+        previewImagePath: null,
+        previewStatus: { in: ["IDLE", "FAILED"] },
+      },
+      data: {
+        previewStatus: "PROCESSING",
+        errorReason: null,
+      },
+    });
+
+    await enqueueAndKickGptImageJob({
+      kind: GPT_IMAGE_JOB_KIND.STICKER,
+      targetId: order.id,
+      inputImages: 2,
+      payload: {},
+    });
   })();
 
   waitUntil(dispatched);
-  // Generation runs in the background; do not return a promise callers can await.
 }

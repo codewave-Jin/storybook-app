@@ -13,7 +13,13 @@ import {
   isStaleProcessing,
   staleProcessingBefore,
 } from "@/lib/illustration-generation-policy";
+import {
+  ILLUSTRATION_OUTPUT_FORMAT,
+  mimeForOutputFormat,
+} from "@/lib/image-generation-config";
+import { enqueueNextPendingIllustration } from "@/lib/enqueue-illustration-generation";
 import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
+import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
 // Prisma client must include Illustration.errorReason (regenerated after that column).
 function illustrationErrorReason(error: unknown): string {
@@ -37,8 +43,17 @@ export async function runIllustrationGeneration(options: {
   prompt: string;
   characterIds: string[];
   keepImage?: boolean;
+  chainNext?: boolean;
+  fromQueue?: boolean;
 }): Promise<IllustrationGenerateResult> {
-  const { illustrationId, prompt, characterIds, keepImage = false } = options;
+  const {
+    illustrationId,
+    prompt,
+    characterIds,
+    keepImage = false,
+    chainNext = false,
+    fromQueue = false,
+  } = options;
 
   const illustration = await prisma.illustration.findUnique({
     where: { id: illustrationId },
@@ -49,12 +64,19 @@ export async function runIllustrationGeneration(options: {
           userId: true,
           templateId: true,
           artStyleId: true,
+          characterAsset: {
+            select: {
+              id: true,
+              characterId: true,
+              status: true,
+              styledImageUrl: true,
+            },
+          },
         },
       },
     },
   });
 
-  const orderId = illustration?.order.id;
   const userId = illustration?.order.userId;
 
   const logIllustration = (
@@ -65,7 +87,7 @@ export async function runIllustrationGeneration(options: {
     logGenerationEvent({
       kind: "ILLUSTRATION",
       entityId: illustrationId,
-      orderId,
+      orderId: illustration?.orderId,
       userId,
       step,
       message,
@@ -81,6 +103,8 @@ export async function runIllustrationGeneration(options: {
     return { error: "페이지를 찾을 수 없습니다." };
   }
 
+  const orderId = illustration.orderId;
+  const pageNumber = illustration.pageNumber;
   logIllustration("illustration.job_start", "삽화 생성 작업 시작");
 
   if (!prompt) {
@@ -94,6 +118,16 @@ export async function runIllustrationGeneration(options: {
     });
     return { error: "캐릭터를 한 명 이상 선택해 주세요." };
   }
+
+  const linkedAsset = illustration.order.characterAsset;
+  if (linkedAsset && linkedAsset.status !== "READY") {
+    return { error: "캐릭터 그림체 변환이 아직 끝나지 않았습니다." };
+  }
+
+  const styledAsset =
+    linkedAsset?.status === "READY" && linkedAsset.styledImageUrl
+      ? linkedAsset
+      : null;
 
   const characters = await prisma.character.findMany({
     where: { id: { in: characterIds } },
@@ -111,9 +145,15 @@ export async function runIllustrationGeneration(options: {
         id: string;
         label: string;
         generatedImagePath: string | null;
-      } => Boolean(character?.generatedImagePath),
+      } => Boolean(character),
     )
-    .slice(0, 3);
+    .slice(0, 3)
+    .filter((character) => {
+      if (styledAsset && character.id === styledAsset.characterId) {
+        return Boolean(styledAsset.styledImageUrl);
+      }
+      return Boolean(character.generatedImagePath);
+    });
 
   if (selectedCharacters.length < 1) {
     logIllustration("illustration.failed", "캐릭터 이미지 없음", {
@@ -122,7 +162,12 @@ export async function runIllustrationGeneration(options: {
     return { error: "생성된 캐릭터 이미지가 없습니다." };
   }
 
+  if (fromQueue && illustration.status === "COMPLETED" && !keepImage) {
+    return { success: true, regenerated: false };
+  }
+
   if (
+    !fromQueue &&
     illustration.status === "PROCESSING" &&
     !isStaleProcessing(illustration.updatedAt)
   ) {
@@ -132,9 +177,37 @@ export async function runIllustrationGeneration(options: {
     return { error: "이미 생성 중입니다." };
   }
 
-  const firstCharacterPath = selectedCharacters[0]?.generatedImagePath;
+  const characterImageUrls = selectedCharacters.map((character) => {
+    if (
+      styledAsset &&
+      character.id === styledAsset.characterId &&
+      styledAsset.styledImageUrl
+    ) {
+      return styledAsset.styledImageUrl;
+    }
+    return character.generatedImagePath as string;
+  });
+
+  const firstCharacterPath = characterImageUrls[0];
   if (!firstCharacterPath) {
     return { error: "생성된 캐릭터 이미지가 없습니다." };
+  }
+
+  async function chainFollowingPage() {
+    if (!chainNext) {
+      return;
+    }
+    try {
+      await enqueueNextPendingIllustration(orderId, {
+        afterPageNumber: pageNumber,
+      });
+    } catch (error) {
+      console.error(
+        "[illustration-generate] enqueue next page failed",
+        orderId,
+        error,
+      );
+    }
   }
 
   if (isComfyMockEnabled()) {
@@ -157,28 +230,40 @@ export async function runIllustrationGeneration(options: {
     revalidateIllustrationWork(illustration.orderId);
     await markOrderPreviewGeneratedIfReady(illustration.orderId);
     console.log("[comfy mock] illustration completed locally", illustrationId);
+    await chainFollowingPage();
     return { success: true, regenerated: keepImage };
   }
 
-  const artStyle = await resolveArtStyleForOrder({
-    artStyleId: illustration.order.artStyleId,
-    templateId: illustration.order.templateId,
-  });
-  if (!artStyle?.referenceImageUrl) {
-    logIllustration("illustration.failed", "그림체 레퍼런스 없음", {
-      reason: "no_art_style",
+  let styleImageUrl: string | null = null;
+  if (!styledAsset) {
+    const artStyle = await resolveArtStyleForOrder({
+      artStyleId: illustration.order.artStyleId,
+      templateId: illustration.order.templateId,
     });
-    return { error: "그림 스타일 레퍼런스 이미지가 없습니다." };
+    if (!artStyle?.referenceImageUrl) {
+      logIllustration("illustration.failed", "그림체 레퍼런스 없음", {
+        reason: "no_art_style",
+      });
+      return { error: "그림 스타일 레퍼런스 이미지가 없습니다." };
+    }
+    styleImageUrl = artStyle.referenceImageUrl;
   }
 
   const claimed = await prisma.illustration.updateMany({
-    where: {
-      id: illustrationId,
-      OR: [
-        { NOT: { status: "PROCESSING" } },
-        { status: "PROCESSING", updatedAt: { lt: staleProcessingBefore() } },
-      ],
-    },
+    where: fromQueue
+      ? {
+          id: illustrationId,
+          status: keepImage
+            ? { in: ["IDLE", "FAILED", "PROCESSING", "COMPLETED"] }
+            : { in: ["IDLE", "FAILED", "PROCESSING"] },
+        }
+      : {
+          id: illustrationId,
+          OR: [
+            { NOT: { status: "PROCESSING" } },
+            { status: "PROCESSING", updatedAt: { lt: staleProcessingBefore() } },
+          ],
+        },
     data: {
       prompt,
       selectedCharacterIds: characterIds,
@@ -218,24 +303,13 @@ export async function runIllustrationGeneration(options: {
   }, 20_000);
 
   try {
-    const [characterImages, styleImage] = await Promise.all([
-      Promise.all(
-        selectedCharacters.map((character) =>
-          loadImageAsset(character.generatedImagePath as string),
-        ),
-      ),
-      loadImageAsset(artStyle.referenceImageUrl),
-    ]);
+    const characterImages = await Promise.all(
+      characterImageUrls.map((imageUrl) => loadImageAsset(imageUrl)),
+    );
 
     logIllustration("illustration.assets_loaded", "캐릭터·그림체 이미지 로드 완료", {
       characterCount: characterImages.length,
-    });
-
-    const fullPrompt = buildIllustrationEditPrompt({
-      sceneDescription: prompt,
-      pageType: illustration.pageType === "COVER" ? "COVER" : "PAGE",
-      character1Name: selectedCharacters[0]?.label ?? "",
-      characterCount: characterImages.length,
+      styledAsset: Boolean(styledAsset),
     });
 
     logIllustration("illustration.openai_request", "OpenAI 이미지 생성 요청", {
@@ -248,11 +322,21 @@ export async function runIllustrationGeneration(options: {
 
     let generated;
     try {
-      generated = await generateIllustrationViaResponsesAPI({
-        prompt: fullPrompt,
-        characters: characterImages,
-        style: styleImage,
-      });
+      generated = styledAsset
+        ? await generateIllustrationViaResponsesAPI({
+            prompt,
+            characters: characterImages,
+          })
+        : await generateIllustrationViaResponsesAPI({
+            prompt: buildIllustrationEditPrompt({
+              sceneDescription: prompt,
+              pageType: illustration.pageType === "COVER" ? "COVER" : "PAGE",
+              character1Name: selectedCharacters[0]?.label ?? "",
+              characterCount: characterImages.length,
+            }),
+            characters: characterImages,
+            style: await loadImageAsset(styleImageUrl as string),
+          });
     } finally {
       clearInterval(openAiWaitLog);
     }
@@ -264,6 +348,7 @@ export async function runIllustrationGeneration(options: {
 
     const imagePath = await persistGeneratedIllustrationBuffer(
       Buffer.from(generated.b64, "base64"),
+      mimeForOutputFormat(ILLUSTRATION_OUTPUT_FORMAT),
     );
 
     logIllustration("illustration.upload_done", "이미지 저장 완료", {
@@ -282,6 +367,9 @@ export async function runIllustrationGeneration(options: {
       },
     });
   } catch (error) {
+    if (fromQueue && toOpenAIRateLimitError(error)) {
+      throw error;
+    }
     const errorReason = illustrationErrorReason(error);
     logIllustration("illustration.failed", "삽화 생성 실패", {
       error: errorReason,
@@ -298,6 +386,7 @@ export async function runIllustrationGeneration(options: {
     });
     revalidateIllustrationWork(illustration.orderId);
     await markOrderPreviewGeneratedIfReady(illustration.orderId);
+    await chainFollowingPage();
     return {
       error:
         error instanceof Error
@@ -311,5 +400,6 @@ export async function runIllustrationGeneration(options: {
   revalidateIllustrationWork(illustration.orderId);
   await markOrderPreviewGeneratedIfReady(illustration.orderId);
   logIllustration("illustration.completed", "삽화 생성 완료");
+  await chainFollowingPage();
   return { success: true, regenerated: keepImage };
 }

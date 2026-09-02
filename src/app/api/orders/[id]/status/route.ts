@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { enqueueIllustrationGenerations } from "@/lib/enqueue-illustration-generation";
 import { illustrationStatusPayload } from "@/lib/generation-status";
+import { illustrationQueueProgress } from "@/lib/gpt-image-progress";
 import { shouldKickPendingIllustration } from "@/lib/illustration-generation-policy";
 import { prisma } from "@/lib/prisma";
 
@@ -27,11 +28,14 @@ export async function GET(
     where: { orderId: order.id },
     select: {
       id: true,
+      pageNumber: true,
       status: true,
       imagePath: true,
+      progressLabel: true,
       prompt: true,
       updatedAt: true,
     },
+    orderBy: { pageNumber: "asc" },
   });
 
   const staleIds = illustrations
@@ -39,17 +43,25 @@ export async function GET(
     .map((page) => page.id);
 
   if (staleIds.length > 0) {
-    // Fire-and-forget retry for IDLE / timed-out PROCESSING pages.
     void enqueueIllustrationGenerations(staleIds);
   }
 
-  return NextResponse.json(
-    illustrationStatusPayload(
-      illustrations.map((page) => ({
-        id: page.id,
-        status: page.status,
-        imagePath: page.imagePath,
-      })),
-    ),
+  const withQueue = await Promise.all(
+    illustrations.map(async (item) => {
+      const queue = await illustrationQueueProgress({
+        illustrationId: item.id,
+        orderId: order.id,
+        status: item.status,
+        progressLabel: item.progressLabel,
+      });
+      return {
+        ...item,
+        queueStatus: queue.queueStatus,
+        queueAhead: queue.queueAhead,
+        progressLabel: queue.label,
+      };
+    }),
   );
+
+  return NextResponse.json(illustrationStatusPayload(withQueue));
 }

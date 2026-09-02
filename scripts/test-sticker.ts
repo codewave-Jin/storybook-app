@@ -21,6 +21,7 @@ import {
   generateIllustrationViaResponsesAPI,
   loadImageAsset,
 } from "../src/lib/openai-illustration";
+import { STICKER_OUTPUT_FORMAT, extensionForOutputFormat } from "../src/lib/image-generation-config";
 import { buildStickerPreviewPrompt } from "../src/lib/sticker-prompt";
 
 /** gpt-5.6-sol short-context rates (USD per 1M tokens). */
@@ -244,6 +245,7 @@ async function main() {
       characters: [character],
       style: design,
       quality: IMAGE_GEN_QUALITY,
+      outputFormat: STICKER_OUTPUT_FORMAT,
     });
 
     logResponsesApiUsage(generated.usage, generated.elapsedMs);
@@ -254,7 +256,7 @@ async function main() {
     const outDir = path.join(process.cwd(), "scripts", "output");
     await mkdir(outDir, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const defaultName = `sticker-simple-${template.key}-${costume.key}-${slugPhrase(cli.phrase)}-${stamp}.png`;
+    const defaultName = `sticker-simple-${template.key}-${costume.key}-${slugPhrase(cli.phrase)}-${stamp}.${extensionForOutputFormat(STICKER_OUTPUT_FORMAT)}`;
     const outPath = path.resolve(cli.out ?? path.join(outDir, defaultName));
     await mkdir(path.dirname(outPath), { recursive: true });
     await writeFile(outPath, Buffer.from(generated.b64, "base64"));

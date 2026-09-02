@@ -258,6 +258,7 @@ const forestPageTemplates: Array<{
   pageType: "COVER" | "PAGE";
   promptTemplate: string;
   characterSlots: number;
+  expressionHint?: string;
 }> = [
   {
     pageNumber: 1,
@@ -279,6 +280,7 @@ const forestPageTemplates: Array<{
     characterSlots: 1,
     promptTemplate:
       "{{character_1}}가 오두막을 나와 숲속 길을 산책하다가, 앞에서 {{answer.favorite_animal}}을(를) 만난다.",
+    expressionHint: "눈을 크게 뜨고 입을 살짝 벌린 놀란 표정",
   },
   {
     pageNumber: 4,
@@ -595,6 +597,7 @@ async function seedForestFriendsTemplate(
         pageType: page.pageType,
         promptTemplate: page.promptTemplate,
         characterSlots: page.characterSlots,
+        expressionHint: page.expressionHint ?? null,
       },
       create: {
         storybookTemplateId: template.id,
@@ -602,6 +605,7 @@ async function seedForestFriendsTemplate(
         pageType: page.pageType,
         promptTemplate: page.promptTemplate,
         characterSlots: page.characterSlots,
+        expressionHint: page.expressionHint ?? null,
       },
     });
   }

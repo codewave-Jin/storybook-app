@@ -1,164 +1,44 @@
 /**
- * Standalone GPT illustration smoke test (not wired to order flow).
+ * Standalone gpt-image-2 expression-diversity test (not wired to order flow).
  *
- * Default path uses the Responses API image_generation tool so a mainline
- * model can rewrite the prompt before gpt-image-2 generates the image.
- * Pass --api images to compare against the older images.edit path.
+ * Generates one scene per run so identity/art style stay locked while
+ * expression and pose can change with the scene.
  *
- * Usage:
- *   npx tsx scripts/test-illustration.ts --page 1 --style watercolor --character ./test-character.png
- *   npx tsx scripts/test-illustration.ts --style watercolor --character ./test-character.png --character ./test-character-2.png --scene "두 아이가 공원에서 공을 주고받으며 신나게 놀고 있다"
+ * Usage (from storybook-app):
+ *   npx tsx scripts/test-illustration.ts
+ *   npx tsx scripts/test-illustration.ts 0
+ *   npx tsx scripts/test-illustration.ts 2
+ *
+ * Inputs:
+ *   scripts/test-assets/character.png
+ *   scripts/test-assets/scenes.json
+ *
+ * Outputs:
+ *   scripts/test-output/scene-{index}-{timestamp}.png
  */
-import { readFileSync } from "fs";
-import { mkdir, writeFile } from "fs/promises";
+import { existsSync, readFileSync } from "fs";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { PrismaClient } from "@prisma/client";
-import OpenAI, { toFile } from "openai";
-import {
-  TEST_ILLUSTRATION_VARIABLES,
-  buildIllustrationEditPrompt,
-  substitutePromptTemplate,
-} from "../src/lib/illustration-prompt";
-import {
-  IMAGE_GEN_QUALITY,
-  IMAGE_GEN_TOOL_MODEL,
-  RESPONSES_MODEL,
-  generateIllustrationViaResponsesAPI,
-  loadImageAsset,
-} from "../src/lib/openai-illustration";
+import { fileURLToPath } from "url";
+import OpenAI from "openai";
 
-const FOREST_TEMPLATE_TITLE = "숲속 친구들과의 하루";
-const IMAGE_EDIT_MODEL = "gpt-image-1.5" as const;
-const INPUT_FIDELITY = "high" as const;
-const DEFAULT_IMAGE_QUALITY = IMAGE_GEN_QUALITY;
+const RESPONSES_MODEL = "gpt-5.6" as const;
+const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
+const IMAGE_GEN_SIZE = "1024x1024" as const;
+const IMAGE_GEN_QUALITY = "high" as const;
 
-/** gpt-image-1.5 token rates (USD per 1M tokens). */
-const GPT_IMAGE_1_5_RATES = {
-  textInput: 5,
-  imageInput: 8,
-  textOutput: 10,
-  imageOutput: 32,
-} as const;
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ASSETS_DIR = path.join(SCRIPT_DIR, "test-assets");
+const OUTPUT_DIR = path.join(SCRIPT_DIR, "test-output");
+const CHARACTER_PATH = path.join(ASSETS_DIR, "character.png");
+const SCENES_PATH = path.join(ASSETS_DIR, "scenes.json");
 
-/** gpt-5.6-sol short-context rates (USD per 1M tokens). */
-const GPT_5_6_RATES = {
-  input: 4,
-  cachedInput: 0.4,
-  output: 20,
-} as const;
-
-type ImageEditUsage = NonNullable<OpenAI.ImagesResponse["usage"]>;
 type ResponsesUsage = NonNullable<OpenAI.Responses.Response["usage"]>;
-type ApiMode = "responses" | "images";
-type ImageQuality = "low" | "medium" | "high";
 
-type GenerateResult = {
-  b64: string;
-  elapsedMs: number;
-  usage?: ImageEditUsage | ResponsesUsage;
-  revisedPrompt?: string | null;
+type SceneEntry = {
+  scene: string;
+  expression?: string;
 };
-
-type CliArgs = {
-  page?: number;
-  scene?: string;
-  style: string;
-  characters: string[];
-  out?: string;
-  templateTitle?: string;
-  api: ApiMode;
-  quality: ImageQuality;
-};
-
-type LocalImage = {
-  path: string;
-  bytes: Buffer;
-  mime: string;
-  name: string;
-};
-
-function printUsage(): never {
-  console.error(`Usage:
-  npx tsx scripts/test-illustration.ts --page <n> --style <artStyleKey> --character <localImagePath> [--out <pngPath>] [--template <title>] [--api responses|images] [--quality low|medium|high]
-  npx tsx scripts/test-illustration.ts --style <artStyleKey> --character <path> --character <path> [--character <path>] --scene "<scene text>" [--quality low|medium|high]
-
-Example:
-  npx tsx scripts/test-illustration.ts --page 1 --style watercolor --character ./test-character.png
-  npx tsx scripts/test-illustration.ts --style watercolor --character ./test-character.png --character ./test-character-2.png --scene "두 아이가 공원 잔디밭에서 손을 잡고 함께 뛰어놀고 있다"
-  npx tsx scripts/test-illustration.ts --page 1 --style watercolor --character ./test-character.png --quality low
-  npx tsx scripts/test-illustration.ts --page 1 --style watercolor --character ./test-character.png --api images
-`);
-  process.exit(1);
-}
-
-function parseArgs(argv: string[]): CliArgs {
-  const args: Record<string, string> = {};
-  const characters: string[] = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (!token.startsWith("--")) {
-      continue;
-    }
-    const key = token.slice(2);
-    const value = argv[i + 1];
-    if (!value || value.startsWith("--")) {
-      console.error(`Missing value for --${key}`);
-      printUsage();
-    }
-    if (key === "character") {
-      characters.push(value);
-    } else {
-      args[key] = value;
-    }
-    i += 1;
-  }
-
-  if (!args.style?.trim()) {
-    console.error("--style is required (ArtStyle.key)");
-    printUsage();
-  }
-  if (characters.length < 1) {
-    console.error("--character is required (local image path, repeatable up to 3)");
-    printUsage();
-  }
-  if (characters.length > 3) {
-    console.error("--character can be passed at most 3 times");
-    printUsage();
-  }
-
-  const scene = args.scene?.trim();
-  let page: number | undefined;
-  if (!scene) {
-    page = Number(args.page);
-    if (!Number.isInteger(page) || page < 1) {
-      console.error("--page is required unless --scene is provided");
-      printUsage();
-    }
-  }
-
-  const apiRaw = args.api?.trim() || "responses";
-  if (apiRaw !== "responses" && apiRaw !== "images") {
-    console.error('--api must be "responses" or "images"');
-    printUsage();
-  }
-
-  const qualityRaw = args.quality?.trim() || DEFAULT_IMAGE_QUALITY;
-  if (qualityRaw !== "low" && qualityRaw !== "medium" && qualityRaw !== "high") {
-    console.error('--quality must be "low", "medium", or "high"');
-    printUsage();
-  }
-
-  return {
-    page,
-    scene,
-    style: args.style.trim(),
-    characters: characters.map((item) => item.trim()).filter(Boolean),
-    out: args.out?.trim(),
-    templateTitle: args.template?.trim() || FOREST_TEMPLATE_TITLE,
-    api: apiRaw,
-    quality: qualityRaw,
-  };
-}
 
 function loadEnvFiles() {
   for (const name of [".env", ".env.local"]) {
@@ -192,103 +72,171 @@ function loadEnvFiles() {
   }
 }
 
-function usdFromTokens(tokens: number, ratePerMillion: number): number {
-  return (tokens / 1_000_000) * ratePerMillion;
+function guessImageMime(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".jpg" || ext === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (ext === ".webp") {
+    return "image/webp";
+  }
+  if (ext === ".gif") {
+    return "image/gif";
+  }
+  return "image/png";
 }
 
-function formatUsd(amount: number): string {
-  return `$${amount.toFixed(4)}`;
+function toImageDataUrl(buffer: Buffer, mime: string): string {
+  return `data:${mime};base64,${buffer.toString("base64")}`;
 }
 
-function logImagesApiUsage(usage: ImageEditUsage | undefined, elapsedMs: number) {
-  console.log(`elapsed=${(elapsedMs / 1000).toFixed(2)}s`);
-  if (!usage) {
-    console.log("usage: (not returned)");
-    return;
+function buildScenePrompt(entry: SceneEntry): string {
+  const keepAndChange = entry.expression
+    ? [
+        "[유지할 것] 얼굴형, 이목구비의 생김새, 헤어스타일, 의상, 그림체",
+        `[변경할 것] 포즈, 배경, 그리고 표정: ${entry.expression}`,
+        "표정은 눈과 입의 변화로만 표현하고 얼굴형과 볼살은 유지하세요",
+      ]
+    : [
+        "[유지할 것] 얼굴형, 이목구비의 생김새, 표정, 헤어스타일, 의상, 그림체",
+        "[변경할 것] 포즈와 배경만 장면에 맞게 표현",
+      ];
+
+  return [
+    `이 캐릭터의 정체성과 그림체를 유지하면서 다음 장면을 그려주세요: ${entry.scene}`,
+    "",
+    ...keepAndChange,
+    "",
+    "얼굴에 사진 질감이나 광택 렌더링을 넣지 마세요.",
+  ].join("\n");
+}
+
+function parseScenes(raw: unknown): SceneEntry[] {
+  if (!Array.isArray(raw)) {
+    throw new Error("scenes.json must be an array of { scene, expression? } objects");
   }
 
-  const textIn = usage.input_tokens_details?.text_tokens ?? 0;
-  const imageIn = usage.input_tokens_details?.image_tokens ?? 0;
-  const textOut = usage.output_tokens_details?.text_tokens ?? 0;
-  const imageOut =
-    usage.output_tokens_details?.image_tokens ??
-    Math.max(0, usage.output_tokens - textOut);
+  const scenes = raw.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      throw new Error(`Invalid scene at index ${index} in scenes.json`);
+    }
+    const scene =
+      "scene" in item && typeof (item as { scene: unknown }).scene === "string"
+        ? (item as { scene: string }).scene.trim()
+        : "";
+    if (!scene) {
+      throw new Error(
+        `Invalid scene at index ${index} in scenes.json (need non-empty scene)`,
+      );
+    }
+    const expressionRaw =
+      "expression" in item &&
+      typeof (item as { expression: unknown }).expression === "string"
+        ? (item as { expression: string }).expression.trim()
+        : "";
+    return expressionRaw ? { scene, expression: expressionRaw } : { scene };
+  });
 
-  const textInUsd = usdFromTokens(textIn, GPT_IMAGE_1_5_RATES.textInput);
-  const imageInUsd = usdFromTokens(imageIn, GPT_IMAGE_1_5_RATES.imageInput);
-  const textOutUsd = usdFromTokens(textOut, GPT_IMAGE_1_5_RATES.textOutput);
-  const imageOutUsd = usdFromTokens(imageOut, GPT_IMAGE_1_5_RATES.imageOutput);
-  const totalUsd = textInUsd + imageInUsd + textOutUsd + imageOutUsd;
+  if (scenes.length === 0) {
+    throw new Error("scenes.json is empty");
+  }
 
-  console.log(
-    `tokens: input=${usage.input_tokens} (text=${textIn}, image=${imageIn}) output=${usage.output_tokens} (text=${textOut}, image=${imageOut}) total=${usage.total_tokens}`,
-  );
-  console.log(
-    `estimated cost=${formatUsd(totalUsd)} (text in ${formatUsd(textInUsd)} + image in ${formatUsd(imageInUsd)} + text out ${formatUsd(textOutUsd)} + image out ${formatUsd(imageOutUsd)})`,
-  );
+  return scenes;
 }
 
-function logResponsesApiUsage(usage: ResponsesUsage | undefined, elapsedMs: number) {
-  console.log(`elapsed=${(elapsedMs / 1000).toFixed(2)}s`);
+function parseSceneIndex(argv: string[], sceneCount: number): number {
+  const raw = argv[0]?.trim();
+  if (!raw) {
+    return 0;
+  }
+
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(
+      `Scene index must be a non-negative integer, got "${raw}"\nUsage: npx tsx scripts/test-illustration.ts [index]`,
+    );
+  }
+
+  const index = Number(raw);
+  if (index >= sceneCount) {
+    throw new Error(
+      `Scene index ${index} is out of range (scenes.json has ${sceneCount} scene(s), valid: 0–${sceneCount - 1})`,
+    );
+  }
+
+  return index;
+}
+
+function timestampForFilename(date = new Date()): string {
+  return date.toISOString().replace(/[:.]/g, "-");
+}
+
+function formatElapsed(elapsedMs: number): string {
+  return `${(elapsedMs / 1000).toFixed(2)}s`;
+}
+
+function logUsage(usage: ResponsesUsage | undefined) {
   if (!usage) {
     console.log("usage: (not returned)");
     return;
   }
 
   const cachedIn = usage.input_tokens_details?.cached_tokens ?? 0;
-  const uncachedIn = Math.max(0, usage.input_tokens - cachedIn);
   const reasoningOut = usage.output_tokens_details?.reasoning_tokens ?? 0;
-  const mainlineUsd =
-    usdFromTokens(uncachedIn, GPT_5_6_RATES.input) +
-    usdFromTokens(cachedIn, GPT_5_6_RATES.cachedInput) +
-    usdFromTokens(usage.output_tokens, GPT_5_6_RATES.output);
-
   console.log(
     `mainline tokens (${RESPONSES_MODEL}): input=${usage.input_tokens} (cached=${cachedIn}) output=${usage.output_tokens} (reasoning=${reasoningOut}) total=${usage.total_tokens}`,
   );
-  console.log(`estimated mainline cost=${formatUsd(mainlineUsd)}`);
   console.log(
     `image tool (${IMAGE_GEN_TOOL_MODEL}): token usage is not itemized in response.usage; billed separately at gpt-image-2 rates`,
   );
 }
 
-async function generateViaImagesAPI(opts: {
+async function generateSceneImage(opts: {
   openai: OpenAI;
   prompt: string;
-  characters: LocalImage[];
-  styleBytes: Buffer;
-  styleName: string;
-  styleMime: string;
-  quality?: ImageQuality;
-}): Promise<GenerateResult> {
-  const quality = opts.quality ?? DEFAULT_IMAGE_QUALITY;
-  const characterFiles = await Promise.all(
-    opts.characters.map((character) =>
-      toFile(character.bytes, character.name, { type: character.mime }),
-    ),
-  );
-  const styleFile = await toFile(opts.styleBytes, opts.styleName, {
-    type: opts.styleMime,
-  });
-
-  console.log(
-    `Calling OpenAI images.edit (model=${IMAGE_EDIT_MODEL}, input_fidelity=${INPUT_FIDELITY}, quality=${quality}, characters=${opts.characters.length})...`,
-  );
+  characterBytes: Buffer;
+  characterMime: string;
+}): Promise<{ b64: string; elapsedMs: number; usage?: ResponsesUsage }> {
   const startedAt = Date.now();
-  const result = await opts.openai.images.edit({
-    model: IMAGE_EDIT_MODEL,
-    image: [...characterFiles, styleFile],
-    prompt: opts.prompt,
-    input_fidelity: INPUT_FIDELITY,
-    quality,
+  const result = await opts.openai.responses.create({
+    model: RESPONSES_MODEL,
+    tools: [
+      {
+        type: "image_generation",
+        model: IMAGE_GEN_TOOL_MODEL,
+        size: IMAGE_GEN_SIZE,
+        quality: IMAGE_GEN_QUALITY,
+      },
+    ],
+    tool_choice: { type: "image_generation" },
+    input: [
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: opts.prompt },
+          {
+            type: "input_image",
+            image_url: toImageDataUrl(opts.characterBytes, opts.characterMime),
+            detail: "high",
+          },
+        ],
+      },
+    ],
   });
   const elapsedMs = Date.now() - startedAt;
-  logImagesApiUsage(result.usage, elapsedMs);
 
-  const b64 = result.data?.[0]?.b64_json;
+  const imageCall = result.output.find(
+    (item) => item.type === "image_generation_call",
+  );
+  if (!imageCall || imageCall.type !== "image_generation_call") {
+    throw new Error(
+      `No image_generation_call in response: ${JSON.stringify(result.output.map((item) => item.type))}`,
+    );
+  }
+
+  const b64 = imageCall.result;
   if (!b64) {
     throw new Error(
-      `No b64_json in response: ${JSON.stringify(result).slice(0, 500)}`,
+      `image_generation_call has no result (status=${imageCall.status})`,
     );
   }
 
@@ -297,144 +245,70 @@ async function generateViaImagesAPI(opts: {
 
 async function main() {
   loadEnvFiles();
-  const cli = parseArgs(process.argv.slice(2));
 
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set");
   }
 
-  const prisma = new PrismaClient();
+  if (!existsSync(CHARACTER_PATH)) {
+    throw new Error(
+      `Character image not found: ${CHARACTER_PATH}\nPlace a style-converted character PNG at scripts/test-assets/character.png and re-run.`,
+    );
+  }
+  if (!existsSync(SCENES_PATH)) {
+    throw new Error(`scenes.json not found: ${SCENES_PATH}`);
+  }
+
+  const scenes = parseScenes(JSON.parse(await readFile(SCENES_PATH, "utf8")));
+  const sceneIndex = parseSceneIndex(process.argv.slice(2), scenes.length);
+  const entry = scenes[sceneIndex];
+  const prompt = buildScenePrompt(entry);
+
+  const characterBytes = await readFile(CHARACTER_PATH);
+  const characterMime = guessImageMime(CHARACTER_PATH);
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     timeout: 10 * 60 * 1000,
   });
 
+  const outName = `scene-${sceneIndex}-${timestampForFilename()}.png`;
+  const outPath = path.join(OUTPUT_DIR, outName);
+
+  console.log(
+    `model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${IMAGE_GEN_QUALITY}`,
+  );
+  console.log(`character=${CHARACTER_PATH}`);
+  console.log(`scenes=${SCENES_PATH} (index=${sceneIndex}/${scenes.length - 1})`);
+  console.log(`scene=${entry.scene}`);
+  console.log(`expression=${entry.expression ?? "(keep original)"}`);
+  console.log(`output=${outPath}`);
+  console.log("");
+  console.log("=== Prompt ===");
+  console.log(prompt);
+  console.log("==============");
+  console.log(
+    `Calling responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${IMAGE_GEN_QUALITY}...`,
+  );
+
+  const startedAt = Date.now();
   try {
-    const artStyle = await prisma.artStyle.findUnique({
-      where: { key: cli.style },
+    const generated = await generateSceneImage({
+      openai,
+      prompt,
+      characterBytes,
+      characterMime,
     });
-    if (!artStyle) {
-      throw new Error(`ArtStyle not found for key="${cli.style}"`);
-    }
-    if (!artStyle.referenceImageUrl) {
-      throw new Error(
-        `ArtStyle "${cli.style}" has no referenceImageUrl. Update seed/DB first.`,
-      );
-    }
-
-    let sceneDescription: string;
-    let templateLog: string | undefined;
-    let pageType: "COVER" | "PAGE" = "PAGE";
-    if (cli.scene) {
-      sceneDescription = cli.scene;
-    } else {
-      if (cli.page == null) {
-        throw new Error("--page is required unless --scene is provided");
-      }
-      const pageTemplate = await prisma.pageTemplate.findFirst({
-        where: {
-          pageNumber: cli.page,
-          storybookTemplate: { title: cli.templateTitle },
-        },
-        include: {
-          storybookTemplate: { select: { id: true, title: true } },
-        },
-        orderBy: { updatedAt: "desc" },
-      });
-
-      if (!pageTemplate) {
-        throw new Error(
-          `PageTemplate not found: title="${cli.templateTitle}", pageNumber=${cli.page}`,
-        );
-      }
-
-      sceneDescription = substitutePromptTemplate(
-        pageTemplate.promptTemplate,
-        TEST_ILLUSTRATION_VARIABLES,
-      );
-      pageType = pageTemplate.pageType === "COVER" ? "COVER" : "PAGE";
-      templateLog = `template="${pageTemplate.storybookTemplate.title}" page=${pageTemplate.pageNumber} type=${pageTemplate.pageType}`;
-    }
-
-    const prompt = buildIllustrationEditPrompt({
-      sceneDescription,
-      pageType,
-      character1Name: TEST_ILLUSTRATION_VARIABLES.character_1,
-      characterCount: cli.characters.length,
-    });
-
-    console.log("=== Final prompt ===");
-    console.log(prompt);
-    console.log("====================");
-    console.log(`api=${cli.api} quality=${cli.quality} characters=${cli.characters.length}`);
-    if (templateLog) {
-      console.log(templateLog);
-    }
-    if (cli.scene) {
-      console.log(`scene=${cli.scene}`);
-    }
-    console.log(
-      `style=${artStyle.key} (${artStyle.label}) ref=${artStyle.referenceImageUrl}`,
-    );
-    for (const [index, characterPath] of cli.characters.entries()) {
-      console.log(`character ${index + 1}=${path.resolve(characterPath)}`);
-    }
-
-    const characters: LocalImage[] = [];
-    for (const characterPathArg of cli.characters) {
-      const characterPath = path.resolve(characterPathArg);
-      const image = await loadImageAsset(characterPath);
-      characters.push({
-        path: characterPath,
-        bytes: image.bytes,
-        mime: image.mime,
-        name: image.name,
-      });
-    }
-    const styleImage = await loadImageAsset(artStyle.referenceImageUrl);
-
-    const generated =
-      cli.api === "images"
-        ? await generateViaImagesAPI({
-            openai,
-            prompt,
-            characters,
-            styleBytes: styleImage.bytes,
-            styleName: styleImage.name,
-            styleMime: styleImage.mime,
-            quality: cli.quality,
-          })
-        : await generateIllustrationViaResponsesAPI({
-            openai,
-            prompt,
-            characters,
-            style: styleImage,
-            quality: cli.quality,
-          });
-
-    if (cli.api === "responses") {
-      logResponsesApiUsage(generated.usage as ResponsesUsage | undefined, generated.elapsedMs);
-      console.log("=== Revised prompt ===");
-      console.log(
-        "revisedPrompt" in generated ? generated.revisedPrompt ?? "(not returned)" : "(not returned)",
-      );
-      console.log("======================");
-    }
-
-    const outDir = path.join(process.cwd(), "scripts", "output");
-    await mkdir(outDir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const characterSuffix =
-      cli.characters.length > 1 ? `-c${cli.characters.length}` : "";
-    const pageOrScene = cli.scene ? "scene" : `p${cli.page}`;
-    const defaultName = `illustration-${cli.api}-${pageOrScene}-${cli.style}-${cli.quality}${characterSuffix}-${stamp}.png`;
-    const outPath = path.resolve(cli.out ?? path.join(outDir, defaultName));
-    await mkdir(path.dirname(outPath), { recursive: true });
     await writeFile(outPath, Buffer.from(generated.b64, "base64"));
-
+    console.log(`elapsed=${formatElapsed(generated.elapsedMs)}`);
+    logUsage(generated.usage);
     console.log(`Saved: ${outPath}`);
-  } finally {
-    await prisma.$disconnect();
+  } catch (error) {
+    const elapsedMs = Date.now() - startedAt;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[scene ${sceneIndex}] FAILED after ${formatElapsed(elapsedMs)}: ${message}`);
+    process.exit(1);
   }
 }
 

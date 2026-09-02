@@ -15,11 +15,16 @@ export function DeleteCharacterButton({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleDelete() {
     startTransition(async () => {
-      await deleteCharacter(characterId);
+      const result = await deleteCharacter(characterId);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
       setOpen(false);
     });
@@ -29,7 +34,10 @@ export function DeleteCharacterButton({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
         className={
           compact
             ? "h-8 rounded-lg px-2 text-xs font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-800"
@@ -57,6 +65,11 @@ export function DeleteCharacterButton({
               <span className="font-medium text-stone-800">{label}</span>{" "}
               캐릭터를 삭제할까요? 삭제하면 되돌릴 수 없습니다.
             </p>
+            {error ? (
+              <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </p>
+            ) : null}
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"

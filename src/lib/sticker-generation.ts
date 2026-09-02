@@ -4,10 +4,12 @@ import {
   generateIllustrationViaResponsesAPI,
   loadImageAsset,
 } from "@/lib/openai-illustration";
+import { mimeForOutputFormat, STICKER_OUTPUT_FORMAT } from "@/lib/image-generation-config";
 import { prisma } from "@/lib/prisma";
 import { buildStickerPreviewPrompt } from "@/lib/sticker-prompt";
 import { shouldReclaimStickerProcessing } from "@/lib/sticker-generation-policy";
 import { persistGeneratedStickerBuffer } from "@/lib/uploads";
+import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
 async function markPreviewFailed(orderId: string, error: string) {
   await prisma.stickerOrder.update({
@@ -19,7 +21,11 @@ async function markPreviewFailed(orderId: string, error: string) {
   });
 }
 
-export async function runStickerPreviewGeneration(orderId: string) {
+export async function runStickerPreviewGeneration(
+  orderId: string,
+  options?: { fromQueue?: boolean },
+) {
+  const fromQueue = options?.fromQueue === true;
   const order = await prisma.stickerOrder.findUnique({
     where: { id: orderId },
     include: {
@@ -71,15 +77,17 @@ export async function runStickerPreviewGeneration(orderId: string) {
     where: {
       id: orderId,
       previewImagePath: null,
-      OR: [
-        { previewStatus: { in: ["IDLE", "FAILED"] } },
-        {
-          previewStatus: "PROCESSING",
-          createdAt: {
-            lt: new Date(Date.now() - 75_000),
-          },
-        },
-      ],
+      OR: fromQueue
+        ? [{ previewStatus: { in: ["IDLE", "FAILED", "PROCESSING"] } }]
+        : [
+            { previewStatus: { in: ["IDLE", "FAILED"] } },
+            {
+              previewStatus: "PROCESSING",
+              createdAt: {
+                lt: new Date(Date.now() - 75_000),
+              },
+            },
+          ],
     },
     data: {
       previewStatus: "PROCESSING",
@@ -89,10 +97,14 @@ export async function runStickerPreviewGeneration(orderId: string) {
 
   if (claimed.count === 0) {
     if (
+      !fromQueue &&
       order.previewStatus === "PROCESSING" &&
       !shouldReclaimStickerProcessing(order)
     ) {
       logSticker("sticker.skipped", "이미 생성 중");
+      return { success: true, skipped: true };
+    }
+    if (order.previewStatus === "COMPLETED" || order.previewImagePath) {
       return { success: true, skipped: true };
     }
     logSticker("sticker.failed", "생성 슬롯 확보 실패");
@@ -156,6 +168,7 @@ export async function runStickerPreviewGeneration(orderId: string) {
         }),
         characters: [characterAsset],
         style: styleAsset,
+        outputFormat: STICKER_OUTPUT_FORMAT,
       });
     } finally {
       clearInterval(openAiWaitLog);
@@ -166,6 +179,7 @@ export async function runStickerPreviewGeneration(orderId: string) {
 
     const imagePath = await persistGeneratedStickerBuffer(
       Buffer.from(generated.b64, "base64"),
+      mimeForOutputFormat(STICKER_OUTPUT_FORMAT),
     );
     logSticker("sticker.upload_done", "이미지 저장 완료", { imagePath });
 
@@ -180,6 +194,9 @@ export async function runStickerPreviewGeneration(orderId: string) {
     logSticker("sticker.completed", "스티커 미리보기 완료");
     return { success: true };
   } catch (error) {
+    if (fromQueue && toOpenAIRateLimitError(error)) {
+      throw error;
+    }
     console.error("[sticker-generation] preview failed", orderId, error);
     const message =
       error instanceof Error ? error.message : "스티커 생성에 실패했습니다.";
