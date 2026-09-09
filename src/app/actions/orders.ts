@@ -16,7 +16,7 @@ import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
 import {
   MAX_SUPPORTING_CAST,
-  isHeroAgeRangeKey,
+  isEnabledHeroAgeRangeKey,
   isStorybookTemplateSelectable,
   parseCastRoles,
   parseCustomFields,
@@ -69,8 +69,8 @@ export async function createOrder(
     return { error: "주인공 캐릭터를 선택해 주세요." };
   }
 
-  if (!isHeroAgeRangeKey(heroAgeRange)) {
-    return { error: "주인공 나이를 선택해 주세요." };
+  if (!isEnabledHeroAgeRangeKey(heroAgeRange)) {
+    return { error: "주인공의 나이를 선택해 주세요." };
   }
 
   if (castCharacterIds.length !== castRelationKeys.length) {

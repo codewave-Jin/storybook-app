@@ -69,9 +69,9 @@ export function customFieldDisplayValue(field: CustomField, value: string) {
 export type HeroAgeRangeKey = "AGE_1_2" | "AGE_3_4" | "AGE_5_7";
 
 export const HERO_AGE_RANGES = [
-  { key: "AGE_1_2", label: "1~2세" },
-  { key: "AGE_3_4", label: "3~4세" },
-  { key: "AGE_5_7", label: "5~7세" },
+  { key: "AGE_1_2", label: "1~2세", disabled: false },
+  { key: "AGE_3_4", label: "3~4세", disabled: true },
+  { key: "AGE_5_7", label: "5~7세", disabled: true },
 ] as const;
 
 export type CastRole = {
@@ -104,6 +104,12 @@ const CAST_ROLES_BY_TITLE: Record<string, CastRole[]> = {
 
 export function isHeroAgeRangeKey(value: string): value is HeroAgeRangeKey {
   return HERO_AGE_RANGES.some((range) => range.key === value);
+}
+
+export function isEnabledHeroAgeRangeKey(
+  value: string,
+): value is HeroAgeRangeKey {
+  return HERO_AGE_RANGES.some((range) => range.key === value && !range.disabled);
 }
 
 export function heroAgeRangeLabel(key: string | null | undefined) {

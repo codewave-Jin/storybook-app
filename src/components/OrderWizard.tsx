@@ -15,6 +15,7 @@ import {
   customFieldDisplayValue,
   customFieldOptions,
   isChoiceCustomField,
+  isEnabledHeroAgeRangeKey,
 } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
@@ -160,7 +161,7 @@ export function OrderWizard({
       return canSkipArtStyle || Boolean(artStyleId);
     }
     if (step === STEP_CHARACTERS) {
-      return Boolean(characterId) && Boolean(heroAgeRange);
+      return Boolean(characterId) && isEnabledHeroAgeRangeKey(heroAgeRange ?? "");
     }
     if (step === STEP_FIELDS) {
       return customFields.every((field) => {
@@ -357,23 +358,35 @@ export function OrderWizard({
               />
 
               <div className="mt-8">
-                <h3 className="text-base font-semibold">나이를 선택해 주세요</h3>
+                <h3 className="text-base font-semibold">
+                  주인공의 나이를 선택해 주세요
+                </h3>
                 <p className="mt-1 text-sm text-stone-500">
                   나이에 따라 동화책 스토리가 달라져요.
                 </p>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {HERO_AGE_RANGES.map((range) => {
                     const selected = heroAgeRange === range.key;
+                    const disabled = range.disabled;
                     return (
                       <button
                         key={range.key}
                         type="button"
-                        onClick={() => setHeroAgeRange(range.key)}
+                        disabled={disabled}
+                        aria-disabled={disabled}
+                        onClick={() => {
+                          if (disabled) {
+                            return;
+                          }
+                          setHeroAgeRange(range.key);
+                        }}
                         className={cn(
                           "h-12 rounded-xl border text-sm font-medium",
-                          selected
-                            ? "border-sky-400 bg-sky-50 text-sky-700 ring-2 ring-sky-300"
-                            : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                          disabled
+                            ? "cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400"
+                            : selected
+                              ? "border-sky-400 bg-sky-50 text-sky-700 ring-2 ring-sky-300"
+                              : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
                         )}
                       >
                         {range.label}
