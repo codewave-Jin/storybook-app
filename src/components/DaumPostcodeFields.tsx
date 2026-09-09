@@ -135,7 +135,7 @@ export function DaumPostcodeFields() {
       return;
     }
 
-    function onKey(event: KeyboardEvent) {
+    function onKey(event: globalThis.KeyboardEvent) {
       if (event.key !== "Escape") {
         return;
       }
