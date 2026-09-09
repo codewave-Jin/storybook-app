@@ -129,7 +129,10 @@ export function leafPhotosFromStored(
   return out;
 }
 
-export function albumLayoutById(_layoutId: string) {
+export function albumLayoutById(layoutId: string) {
+  if (layoutId && layoutId !== PHOTO_ALBUM_LAYOUT.id) {
+    return PHOTO_ALBUM_LAYOUT;
+  }
   return PHOTO_ALBUM_LAYOUT;
 }
 
