@@ -6,6 +6,7 @@ import {
   ILLUSTRATION_OUTPUT_FORMAT,
   IMAGE_GEN_SIZE,
   IMAGE_QUALITY,
+  type IllustrationImageSize,
   type ImageGenerationQuality,
   type ImageOutputFormat,
 } from "@/lib/image-generation-config";
@@ -120,13 +121,15 @@ export async function generateIllustrationViaResponsesAPI(opts: {
   style?: IllustrationImageInput;
   quality?: ImageGenerationQuality;
   outputFormat?: ImageOutputFormat;
+  size?: IllustrationImageSize | typeof IMAGE_GEN_SIZE;
 }): Promise<GenerateIllustrationViaResponsesResult> {
   const quality = opts.quality ?? IMAGE_QUALITY;
   const outputFormat = opts.outputFormat ?? ILLUSTRATION_OUTPUT_FORMAT;
+  const size = opts.size ?? IMAGE_GEN_SIZE;
   const openai = opts.openai ?? createIllustrationOpenAIClient();
 
   console.log(
-    `[openai-illustration] responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${quality} output_format=${outputFormat} characters=${opts.characters.length} style=${opts.style ? 1 : 0}`,
+    `[openai-illustration] responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${size} quality=${quality} output_format=${outputFormat} characters=${opts.characters.length} style=${opts.style ? 1 : 0}`,
   );
 
   const startedAt = Date.now();
@@ -138,7 +141,7 @@ export async function generateIllustrationViaResponsesAPI(opts: {
       {
         type: "image_generation",
         model: IMAGE_GEN_TOOL_MODEL,
-        size: IMAGE_GEN_SIZE,
+        size,
         quality,
         output_format: outputFormat,
       },

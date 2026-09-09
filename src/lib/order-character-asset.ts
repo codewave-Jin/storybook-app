@@ -1,3 +1,4 @@
+import { artStyleSkipsStyleTransfer, skipsStyleTransfer } from "@/lib/art-styles";
 import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +29,69 @@ export async function findReadyStyledCharacterAsset(options: {
   });
 }
 
+export async function findReadyStyledCharacterAssets(
+  characterIds: string[],
+  artStyleId: string,
+) {
+  if (characterIds.length === 0) {
+    return new Map<
+      string,
+      { id: string; characterId: string; styledImageUrl: string | null }
+    >();
+  }
+
+  const assets = await prisma.characterAsset.findMany({
+    where: {
+      characterId: { in: characterIds },
+      artStyleId,
+      status: "READY",
+      styledImageUrl: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      characterId: true,
+      styledImageUrl: true,
+    },
+  });
+
+  const byCharacterId = new Map<
+    string,
+    { id: string; characterId: string; styledImageUrl: string | null }
+  >();
+  for (const asset of assets) {
+    if (!byCharacterId.has(asset.characterId)) {
+      byCharacterId.set(asset.characterId, asset);
+    }
+  }
+  return byCharacterId;
+}
+
+export async function illustrationQueueInputImages(options: {
+  characterIds: string[];
+  artStyleId: string | null;
+}) {
+  if (await artStyleSkipsStyleTransfer(options.artStyleId)) {
+    return Math.max(options.characterIds.length, 1);
+  }
+  if (options.characterIds.length === 0) {
+    return 1;
+  }
+  const characterCount = options.characterIds.length;
+  if (!options.artStyleId) {
+    return characterCount + 1;
+  }
+  const styled = await findReadyStyledCharacterAssets(
+    options.characterIds,
+    options.artStyleId,
+  );
+  if (styled.size === options.characterIds.length) {
+    // 변환본 + 얼굴 원본 + 그림체 레퍼런스
+    return characterCount * 2 + 1;
+  }
+  return characterCount + 1;
+}
+
 async function waitForAssetReady(assetId: string) {
   const deadline = Date.now() + STYLING_WAIT_MS;
   while (Date.now() < deadline) {
@@ -55,6 +119,52 @@ async function waitForAssetReady(assetId: string) {
   };
 }
 
+async function bindIdentityCharacterAsset(options: {
+  characterId: string;
+  artStyleId: string;
+  portraitUrl: string;
+  onAsset?: (assetId: string) => Promise<void>;
+}): Promise<{ ok: true; assetId: string; reused: boolean }> {
+  const existing = await prisma.characterAsset.findFirst({
+    where: {
+      characterId: options.characterId,
+      artStyleId: options.artStyleId,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const alreadyBound =
+    existing?.status === "READY" &&
+    existing.styledImageUrl === options.portraitUrl;
+
+  const asset =
+    existing ??
+    (await prisma.characterAsset.create({
+      data: {
+        characterId: options.characterId,
+        artStyleId: options.artStyleId,
+        rawPortraitUrl: options.portraitUrl,
+        styledImageUrl: options.portraitUrl,
+        status: "READY",
+      },
+    }));
+
+  await options.onAsset?.(asset.id);
+
+  if (!alreadyBound) {
+    await prisma.characterAsset.update({
+      where: { id: asset.id },
+      data: {
+        status: "READY",
+        rawPortraitUrl: options.portraitUrl,
+        styledImageUrl: options.portraitUrl,
+      },
+    });
+  }
+
+  return { ok: true, assetId: asset.id, reused: alreadyBound };
+}
+
 export async function ensureStyledCharacterAsset(options: {
   characterId: string;
   artStyleId: string;
@@ -73,6 +183,19 @@ export async function ensureStyledCharacterAsset(options: {
   }
   if (!character.generatedImagePath?.trim()) {
     return { ok: false, error: "캐릭터 초상화(generatedImagePath)가 없습니다." };
+  }
+
+  const artStyle = await prisma.artStyle.findUnique({
+    where: { id: options.artStyleId },
+    select: { key: true },
+  });
+  if (skipsStyleTransfer(artStyle?.key)) {
+    return bindIdentityCharacterAsset({
+      characterId: options.characterId,
+      artStyleId: options.artStyleId,
+      portraitUrl: character.generatedImagePath,
+      onAsset: options.onAsset,
+    });
   }
 
   const ready = await findReadyStyledCharacterAsset({
@@ -207,26 +330,45 @@ export async function ensureOrderStyledCharacterAsset(
     return { ok: false, error: "주문을 찾을 수 없습니다." };
   }
 
-  const characterId = parseIdList(order.selectedCharacterIds)[0];
-  if (!characterId) {
+  const characterIds = parseIdList(order.selectedCharacterIds);
+  if (characterIds.length === 0) {
     return { ok: false, error: "주문에 선택된 캐릭터가 없습니다." };
   }
   if (!order.artStyleId) {
     return { ok: false, error: "주문에 그림체가 없습니다." };
   }
 
-  return ensureStyledCharacterAsset({
-    characterId,
-    artStyleId: order.artStyleId,
-    deferIfBusy: options?.deferIfBusy,
-    onAsset: async (assetId) => {
-      if (order.characterAssetId !== assetId) {
-        await prisma.storybookOrder.update({
-          where: { id: orderId },
-          data: { characterAssetId: assetId },
-        });
-        order.characterAssetId = assetId;
-      }
-    },
-  });
+  let heroResult:
+    | { ok: true; assetId: string; reused: boolean }
+    | undefined;
+
+  for (const [index, characterId] of characterIds.entries()) {
+    const result = await ensureStyledCharacterAsset({
+      characterId,
+      artStyleId: order.artStyleId,
+      deferIfBusy: options?.deferIfBusy,
+      onAsset:
+        index === 0
+          ? async (assetId) => {
+              if (order.characterAssetId !== assetId) {
+                await prisma.storybookOrder.update({
+                  where: { id: orderId },
+                  data: { characterAssetId: assetId },
+                });
+                order.characterAssetId = assetId;
+              }
+            }
+          : undefined,
+    });
+    if (!result.ok) {
+      return result;
+    }
+    if (index === 0) {
+      heroResult = result;
+    }
+  }
+
+  return (
+    heroResult ?? { ok: false, error: "주문에 선택된 캐릭터가 없습니다." }
+  );
 }

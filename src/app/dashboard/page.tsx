@@ -12,10 +12,20 @@ import { DashboardCreateActions } from "@/components/DashboardCreateActions";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
+import { OrderOptionSummary } from "@/components/OrderOptionSummary";
 import { DashboardShell } from "@/components/DashboardShell";
 import { characterStatusPayload } from "@/lib/generation-status";
+import {
+  FULFILLMENT_STATUS_BADGE,
+  FULFILLMENT_STATUS_LABEL,
+} from "@/lib/fulfillment";
 import { PRODUCTION_STATUS_LABEL, formatDateTime } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import {
+  collectOrderCharacterIds,
+  storybookOrderOptionLines,
+  type OrderOptionLine,
+} from "@/lib/storybook-order-summary";
 import { FREE_TOKEN_DAILY_MAX, getOrCreateTodayFreeTokens } from "@/lib/tokens";
 
 const PRODUCTION_BADGE: Record<ProductionStatus, string> = {
@@ -38,6 +48,7 @@ type RecentWorkItem = {
   statusLabel: string;
   statusClass: string;
   canDelete: boolean;
+  optionLines?: OrderOptionLine[];
   generating?: {
     href: string;
     signature: string;
@@ -155,11 +166,11 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
           {items.map((item) => (
             <li
               key={`${item.kind}-${item.id}`}
-              className="flex items-center gap-1 rounded-2xl bg-white pr-2 shadow-sm ring-1 ring-stone-200"
+              className="flex items-start gap-1 rounded-2xl bg-white pr-2 shadow-sm ring-1 ring-stone-200"
             >
               <Link
                 href={item.href}
-                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition hover:bg-sky-50/70"
+                className="flex min-w-0 flex-1 items-start justify-between gap-3 px-4 py-3 transition hover:bg-sky-50/70"
               >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-1.5">
@@ -179,6 +190,9 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
                   <p className="mt-0.5 text-xs text-stone-500">
                     {formatDateTime(item.createdAt)}
                   </p>
+                  {item.optionLines ? (
+                    <OrderOptionSummary lines={item.optionLines} />
+                  ) : null}
                 </div>
                 {item.generating && item.kind === "sticker" ? (
                   <GenerationProgress
@@ -278,8 +292,17 @@ export default async function DashboardPage() {
           id: true,
           paymentStatus: true,
           productionStatus: true,
+          fulfillmentStatus: true,
           createdAt: true,
-          template: { select: { title: true } },
+          selectedCharacterIds: true,
+          customInputValues: true,
+          heroAgeRange: true,
+          supportingCast: true,
+          includePhotoAlbum: true,
+          artStyle: { select: { label: true } },
+          template: {
+            select: { title: true, customFields: true, castRoles: true },
+          },
         },
       },
       stickerOrders: {
@@ -315,18 +338,51 @@ export default async function DashboardPage() {
     (character) =>
       character.status === "PENDING" || character.status === "PROCESSING",
   );
+  const storybookOrders = user?.orders ?? [];
+  const optionCharacterIds = collectOrderCharacterIds(storybookOrders);
+  const optionCharacters =
+    optionCharacterIds.length > 0
+      ? await prisma.character.findMany({
+          where: { id: { in: optionCharacterIds } },
+          select: { id: true, label: true },
+        })
+      : [];
+  const characterLabelsById = new Map(
+    optionCharacters.map((character) => [character.id, character.label]),
+  );
   const recentWork: RecentWorkItem[] = [
-    ...(user?.orders ?? []).map((order) => ({
-      id: order.id,
-      kind: "storybook" as const,
-      title: order.template.title,
-      href: `/dashboard/orders/${order.id}/preview`,
-      createdAt: order.createdAt,
-      paymentStatus: order.paymentStatus,
-      statusLabel: PRODUCTION_STATUS_LABEL[order.productionStatus],
-      statusClass: PRODUCTION_BADGE[order.productionStatus],
-      canDelete: order.paymentStatus !== "PAID",
-    })),
+    ...storybookOrders.map((order) => {
+      const printRequested =
+        order.paymentStatus === "PAID" &&
+        order.fulfillmentStatus !== "PREPARING";
+      return {
+        id: order.id,
+        kind: "storybook" as const,
+        title: order.template.title,
+        href: `/dashboard/orders/${order.id}/preview`,
+        createdAt: order.createdAt,
+        paymentStatus: order.paymentStatus,
+        statusLabel: printRequested
+          ? FULFILLMENT_STATUS_LABEL[order.fulfillmentStatus]
+          : PRODUCTION_STATUS_LABEL[order.productionStatus],
+        statusClass: printRequested
+          ? FULFILLMENT_STATUS_BADGE[order.fulfillmentStatus]
+          : PRODUCTION_BADGE[order.productionStatus],
+        canDelete: order.paymentStatus !== "PAID",
+        optionLines: storybookOrderOptionLines({
+          selectedCharacterIds: order.selectedCharacterIds,
+          customInputValues: order.customInputValues,
+          heroAgeRange: order.heroAgeRange,
+          supportingCast: order.supportingCast,
+          artStyleLabel: order.artStyle?.label,
+          includePhotoAlbum: order.includePhotoAlbum,
+          templateTitle: order.template.title,
+          templateCustomFields: order.template.customFields,
+          templateCastRoles: order.template.castRoles,
+          characterLabelsById,
+        }),
+      };
+    }),
     ...(user?.stickerOrders ?? []).map((order) => {
       const status = stickerWorkStatus(order);
       const generating =

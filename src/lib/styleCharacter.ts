@@ -4,36 +4,21 @@ import path from "path";
 import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { skipsStyleTransfer } from "@/lib/art-styles";
 import {
   extensionForOutputFormat,
   ILLUSTRATION_OUTPUT_FORMAT,
   IMAGE_GEN_SIZE,
-  IMAGE_QUALITY,
   mimeForOutputFormat,
+  STYLE_TRANSFER_QUALITY,
 } from "@/lib/image-generation-config";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
+import { buildStyleCharacterPrompt } from "@/lib/storybook-prompts";
 
 export const CHARACTER_ASSET_BUCKET = "character-assets";
 
 const RESPONSES_MODEL = "gpt-5.6" as const;
 const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
-
-const STYLE_CHARACTER_PROMPT = [
-  "첫 번째 이미지는 캐릭터, 두 번째 이미지는 그림체 레퍼런스입니다.",
-  "첫 번째 이미지의 캐릭터를 두 번째 이미지와 완전히 동일한 그림체로 다시 그려주세요.",
-  "",
-  "[반드시 유지할 것]",
-  "- 얼굴형, 눈·코·입의 모양과 비율, 볼살",
-  "- 헤어스타일, 의상",
-  "- 정면 상반신 구도",
-  "",
-  "[반드시 바꿀 것]",
-  "- 렌더링 방식 전부: 광택, 하이라이트, 사실적인 피부 음영을 모두 제거",
-  "- 선, 채색, 질감을 두 번째 레퍼런스와 완전히 동일하게 통일",
-  "- 표정은 중립적인 무표정 또는 아주 옅은 미소로",
-  "",
-  "배경은 밝은 단색으로 해주세요.",
-].join("\n");
 
 type ImageInput = {
   bytes: Buffer;
@@ -125,9 +110,10 @@ async function generateStyledPortrait(opts: {
   openai: OpenAI;
   portrait: ImageInput;
   style: ImageInput;
+  artStyleKey?: string | null;
 }): Promise<string> {
   console.log(
-    `[styleCharacter] responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${IMAGE_QUALITY} output_format=${ILLUSTRATION_OUTPUT_FORMAT}`,
+    `[styleCharacter] responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${STYLE_TRANSFER_QUALITY} output_format=${ILLUSTRATION_OUTPUT_FORMAT} artStyle=${opts.artStyleKey ?? "unknown"}`,
   );
 
   let result;
@@ -139,7 +125,7 @@ async function generateStyledPortrait(opts: {
         type: "image_generation",
         model: IMAGE_GEN_TOOL_MODEL,
         size: IMAGE_GEN_SIZE,
-        quality: IMAGE_QUALITY,
+        quality: STYLE_TRANSFER_QUALITY,
         output_format: ILLUSTRATION_OUTPUT_FORMAT,
       },
     ],
@@ -148,7 +134,7 @@ async function generateStyledPortrait(opts: {
       {
         role: "user",
         content: [
-          { type: "input_text", text: STYLE_CHARACTER_PROMPT },
+          { type: "input_text", text: buildStyleCharacterPrompt(opts.artStyleKey) },
           {
             type: "input_image",
             image_url: toImageDataUrl(opts.portrait.bytes, opts.portrait.mime),
@@ -248,6 +234,18 @@ export async function styleCharacter(
     return { error: `CharacterAsset ${characterAssetId} has no rawPortraitUrl` };
   }
 
+  if (skipsStyleTransfer(asset.artStyle.key)) {
+    const styledImageUrl = asset.rawPortraitUrl;
+    await prisma.characterAsset.update({
+      where: { id: characterAssetId },
+      data: {
+        styledImageUrl,
+        status: "READY",
+      },
+    });
+    return { success: true, styledImageUrl };
+  }
+
   const referenceImageUrl = asset.artStyle.referenceImageUrl?.trim() || "";
   if (!referenceImageUrl) {
     return {
@@ -275,7 +273,12 @@ export async function styleCharacter(
       timeout: 10 * 60 * 1000,
     });
 
-    const b64 = await generateStyledPortrait({ openai, portrait, style });
+    const b64 = await generateStyledPortrait({
+      openai,
+      portrait,
+      style,
+      artStyleKey: asset.artStyle.key,
+    });
     const styledImageUrl = await uploadStyledImage({
       userId: asset.character.userId,
       characterId: asset.characterId,

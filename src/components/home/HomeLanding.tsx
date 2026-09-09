@@ -2,15 +2,12 @@ import Link from "next/link";
 import { AppImage } from "@/components/AppImage";
 import { BrandLogo } from "@/components/BrandLogo";
 import { BeforeAfterGallery } from "@/components/home/BeforeAfterGallery";
+import { FacePrivacySection } from "@/components/home/FacePrivacySection";
 import { HomeFaq } from "@/components/home/HomeFaq";
 import { HomeNav } from "@/components/home/HomeNav";
 import { MakeMore } from "@/components/home/MakeMore";
-import { MediaSlot } from "@/components/home/MediaSlot";
 import { StoryShowcase } from "@/components/home/StoryShowcase";
-import {
-  characterStartHref,
-  HOME_MEDIA,
-} from "@/components/home/media";
+import { characterStartHref } from "@/components/home/media";
 import type { LandingReviewCard } from "@/lib/reviews";
 
 type HomeLandingProps = {
@@ -115,56 +112,9 @@ export function HomeLanding({ isLoggedIn, reviews = [] }: HomeLandingProps) {
           </div>
         </section>
 
+        <FacePrivacySection />
+
         <StoryShowcase />
-
-        <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-16">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              똑같이 베끼지 않아요, 사랑스럽게 담아요
-            </h2>
-            <p className="mt-4 text-sm leading-relaxed text-stone-500 sm:text-base">
-              AI가 아이 얼굴을 그대로 복제하면 오히려 어색하고 낯설게 느껴질 수
-              있어요. 저희는 눈매, 미소, 헤어스타일 같은 사랑스러운 특징만
-              자연스럽게 담아, 그림책 속 캐릭터로 재탄생시켜드려요.
-            </p>
-          </div>
-
-          <div className="mx-auto mt-8 max-w-sm sm:mt-10 sm:max-w-3xl">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
-              <figure className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100 sm:rounded-[28px]">
-                <div className="aspect-[4/5]">
-                  <MediaSlot
-                    src={HOME_MEDIA.whyPhoto}
-                    alt="실제 얼굴 사진 예시"
-                    label="실제 얼굴"
-                    kind="child"
-                    tone="photo"
-                  />
-                </div>
-              </figure>
-              <p
-                aria-hidden
-                className="text-center text-xl font-light text-sky-400 sm:text-4xl"
-              >
-                →
-              </p>
-              <figure className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100 sm:rounded-[28px]">
-                <div className="aspect-[4/5]">
-                  <MediaSlot
-                    src={HOME_MEDIA.whyCharacter}
-                    alt="그림책 캐릭터 예시"
-                    label="그림 캐릭터"
-                    kind="child"
-                    tone="art"
-                  />
-                </div>
-              </figure>
-            </div>
-            <p className="mt-3 text-center text-sm font-medium text-[#E07A5F] sm:mt-4">
-              실사가 아닌, 사랑스러운 그림체로
-            </p>
-          </div>
-        </section>
 
         <section
           id="how"
@@ -319,7 +269,7 @@ export function HomeLanding({ isLoggedIn, reviews = [] }: HomeLandingProps) {
             <article className="rounded-[24px] bg-white p-6 ring-1 ring-sky-100">
               <h3 className="font-semibold">개인정보 보호</h3>
               <p className="mt-2 text-sm leading-relaxed text-stone-500">
-                올려 주신 사진은 제작 이후 즉시 폐기되며, 외부에 공개되지
+                올려 주신 사진은 캐릭터 제작 이후 즉시 폐기되며, 외부에 공개되지
                 않습니다.
               </p>
             </article>

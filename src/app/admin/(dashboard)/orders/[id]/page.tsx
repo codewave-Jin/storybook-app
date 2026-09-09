@@ -10,6 +10,7 @@ import {
   parseStringRecord,
 } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { loadOrderPrintComment } from "@/lib/order-print-comment";
 import { parseCustomFields } from "@/lib/templates";
 
 export default async function AdminOrderDetailPage({
@@ -44,6 +45,7 @@ export default async function AdminOrderDetailPage({
 
   const customFields = parseCustomFields(order.template.customFields);
   const customValues = parseStringRecord(order.customInputValues);
+  const printComment = await loadOrderPrintComment(order.id);
 
   return (
     <div className="max-w-4xl">
@@ -88,6 +90,15 @@ export default async function AdminOrderDetailPage({
         </div>
       </section>
 
+      {printComment ? (
+        <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-5">
+          <h2 className="text-sm font-medium text-stone-500">수정 사항</h2>
+          <p className="mt-3 whitespace-pre-wrap text-sm font-medium text-stone-800">
+            {printComment}
+          </p>
+        </section>
+      ) : null}
+
       <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-5">
         <h2 className="text-sm font-medium text-stone-500">선택된 캐릭터</h2>
         <div className="mt-4">
@@ -124,13 +135,27 @@ export default async function AdminOrderDetailPage({
         )}
       </section>
 
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <Link
           href={`/admin/illustrations/${order.id}`}
           className="inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
         >
           삽화 생성하러 가기
         </Link>
+        <a
+          href={`/api/admin/orders/${order.id}/download-zip`}
+          className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 px-5 text-sm font-medium text-stone-700 hover:bg-stone-50"
+        >
+          동화책 이미지 받기
+        </a>
+        {order.includePhotoAlbum ? (
+          <a
+            href={`/api/admin/orders/${order.id}/download-album-zip`}
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 px-5 text-sm font-medium text-stone-700 hover:bg-stone-50"
+          >
+            사진첩 이미지 받기
+          </a>
+        ) : null}
         <DeleteOrderButton orderId={order.id} redirectTo="/admin/orders" />
       </div>
     </div>

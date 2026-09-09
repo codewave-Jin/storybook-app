@@ -12,6 +12,7 @@ import {
   shouldGenerateIllustration,
   staleProcessingBefore,
 } from "@/lib/illustration-generation-policy";
+import { illustrationQueueInputImages } from "@/lib/order-character-asset";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 
@@ -38,9 +39,7 @@ export async function POST(
       updatedAt: true,
       order: {
         select: {
-          characterAsset: {
-            select: { status: true, styledImageUrl: true },
-          },
+          artStyleId: true,
         },
       },
     },
@@ -66,12 +65,6 @@ export async function POST(
   }
 
   const characterIds = parseIdList(illustration.selectedCharacterIds);
-  if (characterIds.length < 1) {
-    return NextResponse.json(
-      { error: "characterIds are required" },
-      { status: 400 },
-    );
-  }
 
   if (isComfyMockEnabled()) {
     waitUntil(
@@ -110,14 +103,15 @@ export async function POST(
     },
   });
 
-  const styledReady =
-    illustration.order.characterAsset?.status === "READY" &&
-    Boolean(illustration.order.characterAsset.styledImageUrl);
+  const inputImages = await illustrationQueueInputImages({
+    characterIds: parseIdList(illustration.selectedCharacterIds),
+    artStyleId: illustration.order.artStyleId,
+  });
 
   await enqueueGptImageJob({
     kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
     targetId: illustration.id,
-    inputImages: styledReady ? 1 : 2,
+    inputImages,
     priority: gptImageIllustrationPriority(
       illustration.pageNumber,
       illustration.pageType,

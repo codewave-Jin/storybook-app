@@ -7,7 +7,15 @@ import { useFormState, useFormStatus } from "react-dom";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { createOrder, type CreateOrderState } from "@/app/actions/orders";
 import { CUSTOM_INPUT_MAX_LENGTH } from "@/lib/custom-input-guard";
-import type { CustomField } from "@/lib/templates";
+import type { CastRole, CustomField, HeroAgeRangeKey } from "@/lib/templates";
+import {
+  HERO_AGE_RANGES,
+  MAX_SUPPORTING_CAST,
+  castRoleLabel,
+  customFieldDisplayValue,
+  customFieldOptions,
+  isChoiceCustomField,
+} from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
 export type OrderArtStyleOption = {
@@ -23,6 +31,7 @@ export type OrderTemplateOption = {
   description: string | null;
   available: boolean;
   customFields: CustomField[];
+  castRoles: CastRole[];
   artStyles: OrderArtStyleOption[];
 };
 
@@ -38,7 +47,7 @@ export type OrderCharacterOption = {
 const STEP_LABELS = [
   "동화책 유형",
   "그림체",
-  "캐릭터",
+  "주인공",
   "추가 정보",
   "미리보기",
 ] as const;
@@ -86,6 +95,15 @@ export function OrderWizard({
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [artStyleId, setArtStyleId] = useState<string | null>(null);
   const [characterId, setCharacterId] = useState<string | null>(null);
+  const [heroAgeRange, setHeroAgeRange] = useState<HeroAgeRangeKey | null>(
+    null,
+  );
+  const [supportingCast, setSupportingCast] = useState<
+    Array<{ characterId: string; relationKey: string }>
+  >([]);
+  const [addingCast, setAddingCast] = useState(false);
+  const [draftRelationKey, setDraftRelationKey] = useState<string | null>(null);
+  const [draftCharacterId, setDraftCharacterId] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, formAction] = useFormState<CreateOrderState, FormData>(
     createOrder,
@@ -94,10 +112,19 @@ export function OrderWizard({
 
   const selectedTemplate = templates.find((template) => template.id === templateId);
   const customFields = selectedTemplate?.customFields ?? [];
+  const castRoles = selectedTemplate?.castRoles ?? [];
   const artStyles = selectedTemplate?.artStyles ?? [];
   const selectedArtStyle = artStyles.find((style) => style.id === artStyleId);
   const selectedCharacter = characters.find(
     (character) => character.id === characterId,
+  );
+  const usedCharacterIds = new Set([
+    ...(characterId ? [characterId] : []),
+    ...supportingCast.map((member) => member.characterId),
+  ]);
+  const extraCastCandidates = characters.filter(
+    (character) =>
+      character.status === "COMPLETED" && !usedCharacterIds.has(character.id),
   );
 
   const canSkipArtStyle = artStyles.length === 0;
@@ -133,7 +160,7 @@ export function OrderWizard({
       return canSkipArtStyle || Boolean(artStyleId);
     }
     if (step === STEP_CHARACTERS) {
-      return Boolean(characterId);
+      return Boolean(characterId) && Boolean(heroAgeRange);
     }
     if (step === STEP_FIELDS) {
       return customFields.every((field) => {
@@ -150,6 +177,7 @@ export function OrderWizard({
     artStyleId,
     canSkipArtStyle,
     characterId,
+    heroAgeRange,
     customFields,
     customValues,
   ]);
@@ -209,6 +237,10 @@ export function OrderWizard({
                     setTemplateId(template.id);
                     setCustomValues({});
                     setArtStyleId(defaultArtStyleId(template.artStyles));
+                    setSupportingCast([]);
+                    setAddingCast(false);
+                    setDraftRelationKey(null);
+                    setDraftCharacterId(null);
                   }}
                   className={cn(
                     "rounded-2xl border bg-white p-5 text-left shadow-sm transition",
@@ -287,9 +319,12 @@ export function OrderWizard({
 
       {step === STEP_CHARACTERS ? (
         <section>
-          <h2 className="text-lg font-semibold">등장할 캐릭터를 선택해 주세요</h2>
+          <h2 className="text-lg font-semibold">
+            처음 주인공 캐릭터를 선택해 주세요
+          </h2>
           <p className="mt-1 text-sm text-stone-500">
-            생성이 완료된 캐릭터만 선택할 수 있습니다. 하나만 고를 수 있어요.
+            생성이 완료된 캐릭터만 선택할 수 있습니다. 주인공은 한 명만 고를 수
+            있어요.
           </p>
 
           {characters.length === 0 ? (
@@ -307,79 +342,213 @@ export function OrderWizard({
             </div>
           ) : (
             <>
-              <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 lg:grid-cols-5">
-                {characters.map((character) => {
-                  const selectable = character.status === "COMPLETED";
-                  const selected = character.id === characterId;
-                  const imageSrc =
-                    character.status === "COMPLETED" && character.generatedImagePath
-                      ? character.generatedImagePath
-                      : character.originalPhotoPath;
-
-                  return (
-                    <button
-                      key={character.id}
-                      type="button"
-                      disabled={!selectable}
-                      aria-pressed={selected}
-                      onClick={() => selectable && setCharacterId(character.id)}
-                      className={cn(
-                        "relative overflow-hidden rounded-xl border bg-white text-left shadow-sm",
-                        selectable ? "cursor-pointer" : "cursor-not-allowed",
-                        selected
-                          ? "border-sky-400 ring-2 ring-sky-300"
-                          : selectable
-                            ? "border-stone-200 hover:border-stone-400"
-                            : "border-stone-200",
-                        !selectable && "opacity-60",
-                      )}
-                    >
-                      <div className="no-image-save relative aspect-square bg-stone-100">
-                        <AppImage
-                          src={imageSrc}
-                          alt={character.label}
-                          fill
-                          draggable={false}
-                          onContextMenu={(event) => event.preventDefault()}
-                          className={cn(
-                            "pointer-events-none object-cover",
-                            !selectable && "grayscale",
-                          )}
-                          sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                        />
-                        <div
-                          className="pointer-events-none absolute inset-0"
-                          onContextMenu={(event) => event.preventDefault()}
-                        />
-                        {!selectable ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45">
-                            {character.status === "FAILED" ? (
-                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium">
-                                생성 실패
-                              </span>
-                            ) : (
-                              <div className="rounded-xl bg-white/95 px-2 py-1.5">
-                                <GenerationProgress
-                                  kind="character"
-                                  id={character.id}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="px-1.5 py-1.5">
-                        <p className="truncate text-center text-xs font-semibold sm:text-sm">
-                          {character.label}
-                        </p>
-                        <p className="truncate text-center text-[11px] text-stone-500">
-                          {GENDER_LABEL[character.gender]}
-                        </p>
-                      </div>
-                    </button>
+              <CharacterPickGrid
+                characters={characters}
+                selectedId={characterId}
+                onSelect={(id) => {
+                  setCharacterId(id);
+                  setSupportingCast((current) =>
+                    current.filter((member) => member.characterId !== id),
                   );
-                })}
+                  if (draftCharacterId === id) {
+                    setDraftCharacterId(null);
+                  }
+                }}
+              />
+
+              <div className="mt-8">
+                <h3 className="text-base font-semibold">나이를 선택해 주세요</h3>
+                <p className="mt-1 text-sm text-stone-500">
+                  나이에 따라 동화책 스토리가 달라져요.
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {HERO_AGE_RANGES.map((range) => {
+                    const selected = heroAgeRange === range.key;
+                    return (
+                      <button
+                        key={range.key}
+                        type="button"
+                        onClick={() => setHeroAgeRange(range.key)}
+                        className={cn(
+                          "h-12 rounded-xl border text-sm font-medium",
+                          selected
+                            ? "border-sky-400 bg-sky-50 text-sky-700 ring-2 ring-sky-300"
+                            : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                        )}
+                      >
+                        {range.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              {castRoles.length > 0 ? (
+                <div className="mt-8">
+                  <h3 className="text-base font-semibold">등장인물 추가</h3>
+                  <p className="mt-1 text-sm text-stone-500">
+                    한 명만 추가할 수 있어요. 없어도 다음으로 갈 수 있어요.
+                  </p>
+
+                  {supportingCast.length > 0 ? (
+                    <ul className="mt-4 space-y-2">
+                      {supportingCast.map((member) => {
+                        const character = characters.find(
+                          (item) => item.id === member.characterId,
+                        );
+                        if (!character) {
+                          return null;
+                        }
+                        const imageSrc =
+                          character.generatedImagePath ??
+                          character.originalPhotoPath;
+                        return (
+                          <li
+                            key={`${member.characterId}-${member.relationKey}`}
+                            className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-2"
+                          >
+                            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-stone-100">
+                              <AppImage
+                                src={imageSrc}
+                                alt={character.label}
+                                fill
+                                className="object-cover"
+                                sizes="48px"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {character.label}
+                              </p>
+                              <p className="text-xs text-stone-500">
+                                {castRoleLabel(castRoles, member.relationKey)}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSupportingCast((current) =>
+                                  current.filter(
+                                    (item) =>
+                                      item.characterId !== member.characterId,
+                                  ),
+                                )
+                              }
+                              className="rounded-lg px-3 py-1.5 text-xs font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+                            >
+                              삭제
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+
+                  {addingCast &&
+                  supportingCast.length < MAX_SUPPORTING_CAST ? (
+                    <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
+                      <div>
+                        <p className="text-sm font-medium text-stone-700">
+                          관계
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {castRoles.map((role) => {
+                            const selected = draftRelationKey === role.key;
+                            return (
+                              <button
+                                key={role.key}
+                                type="button"
+                                onClick={() => setDraftRelationKey(role.key)}
+                                className={cn(
+                                  "h-10 rounded-full border px-4 text-sm font-medium",
+                                  selected
+                                    ? "border-sky-400 bg-sky-50 text-sky-700"
+                                    : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                                )}
+                              >
+                                {role.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-stone-700">
+                          캐릭터
+                        </p>
+                        {extraCastCandidates.length === 0 ? (
+                          <p className="mt-2 text-sm text-stone-500">
+                            추가할 수 있는 다른 캐릭터가 없어요.
+                          </p>
+                        ) : (
+                          <div className="mt-2">
+                            <CharacterPickGrid
+                              characters={extraCastCandidates}
+                              selectedId={draftCharacterId}
+                              onSelect={setDraftCharacterId}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddingCast(false);
+                            setDraftRelationKey(null);
+                            setDraftCharacterId(null);
+                          }}
+                          className="flex h-11 flex-1 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!draftRelationKey || !draftCharacterId}
+                          onClick={() => {
+                            if (!draftRelationKey || !draftCharacterId) {
+                              return;
+                            }
+                            setSupportingCast((current) => {
+                              if (current.length >= MAX_SUPPORTING_CAST) {
+                                return current;
+                              }
+                              return [
+                                ...current,
+                                {
+                                  characterId: draftCharacterId,
+                                  relationKey: draftRelationKey,
+                                },
+                              ];
+                            });
+                            setAddingCast(false);
+                            setDraftRelationKey(null);
+                            setDraftCharacterId(null);
+                          }}
+                          className="flex h-11 flex-1 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          추가하기
+                        </button>
+                      </div>
+                    </div>
+                  ) : extraCastCandidates.length > 0 &&
+                    supportingCast.length < MAX_SUPPORTING_CAST ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddingCast(true);
+                        setDraftRelationKey(
+                          castRoles.length === 1 ? castRoles[0].key : null,
+                        );
+                        setDraftCharacterId(null);
+                      }}
+                      className="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white text-sm font-medium text-stone-700 hover:border-sky-400 hover:bg-sky-50"
+                    >
+                      등장인물 추가
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </>
           )}
         </section>
@@ -387,11 +556,60 @@ export function OrderWizard({
 
       {step === STEP_FIELDS ? (
         <section>
-          <h2 className="text-lg font-semibold">추가 정보를 입력해 주세요</h2>
-          <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
+          <h2 className="text-lg font-semibold">추가 정보를 선택해 주세요</h2>
+          <div className="mt-4 space-y-8 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
             {customFields.map((field) => {
               const isRequired = field.required !== false;
               const current = customValues[field.key] ?? "";
+              const options = customFieldOptions(field);
+              if (isChoiceCustomField(field) && options.length > 0) {
+                return (
+                  <div key={field.key}>
+                    <p className="text-sm font-medium text-stone-800">
+                      {field.label}
+                      {isRequired ? null : (
+                        <span className="ml-1 font-normal text-stone-400">
+                          (선택)
+                        </span>
+                      )}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {options.map((option) => {
+                        const selected = current === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              setCustomValues((currentValues) => ({
+                                ...currentValues,
+                                [field.key]:
+                                  !isRequired &&
+                                  currentValues[field.key] === option.value
+                                    ? ""
+                                    : option.value,
+                              }))
+                            }
+                            className={cn(
+                              "inline-flex h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium",
+                              selected
+                                ? "border-sky-400 bg-sky-50 text-sky-700 ring-2 ring-sky-300"
+                                : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                            )}
+                          >
+                            {option.emoji ? (
+                              <span className="text-base leading-none">
+                                {option.emoji}
+                              </span>
+                            ) : null}
+                            <span>{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <label
                   key={field.key}
@@ -449,13 +667,43 @@ export function OrderWizard({
               </div>
             ) : null}
             <div>
-              <p className="text-sm text-stone-500">선택한 캐릭터</p>
+              <p className="text-sm text-stone-500">주인공</p>
               <p className="mt-1 font-medium">
                 {selectedCharacter
                   ? `${selectedCharacter.label} (${GENDER_LABEL[selectedCharacter.gender]})`
                   : "-"}
               </p>
             </div>
+            <div>
+              <p className="text-sm text-stone-500">나이</p>
+              <p className="mt-1 font-medium">
+                {HERO_AGE_RANGES.find((range) => range.key === heroAgeRange)
+                  ?.label ?? "-"}
+              </p>
+            </div>
+            {supportingCast.length > 0 ? (
+              <div>
+                <p className="text-sm text-stone-500">등장인물</p>
+                <ul className="mt-1 space-y-1">
+                  {supportingCast.map((member) => {
+                    const character = characters.find(
+                      (item) => item.id === member.characterId,
+                    );
+                    return (
+                      <li key={`${member.characterId}-${member.relationKey}`}>
+                        <span className="font-medium">
+                          {character?.label ?? "캐릭터"}
+                        </span>
+                        <span className="text-stone-500">
+                          {" "}
+                          · {castRoleLabel(castRoles, member.relationKey)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
             {customFields.length > 0 ? (
               <div>
                 <p className="text-sm text-stone-500">추가 입력</p>
@@ -464,7 +712,10 @@ export function OrderWizard({
                     <li key={field.key}>
                       <span className="text-stone-500">{field.label}: </span>
                       <span className="font-medium">
-                        {customValues[field.key]}
+                        {customFieldDisplayValue(
+                          field,
+                          customValues[field.key] ?? "",
+                        ) || "-"}
                       </span>
                     </li>
                   ))}
@@ -472,14 +723,37 @@ export function OrderWizard({
               </div>
             ) : null}
             <p className="rounded-lg bg-[#F6E7C1]/70 px-3 py-2 text-sm text-[#8A5A12]">
-              지금은 결제 없이 표지와 장면 2장을 먼저 만들어요.
+              지금은 표지와 1페이지, 3페이지를 먼저 만들어요. 마음에 들면 결제로 나머지 장을 이어서 완성할 수 있어요.
             </p>
           </div>
 
           <form action={formAction} className="mt-6">
             <input type="hidden" name="templateId" value={templateId ?? ""} />
             <input type="hidden" name="artStyleId" value={artStyleId ?? ""} />
-            <input type="hidden" name="characterIds" value={characterId ?? ""} />
+            <input
+              type="hidden"
+              name="heroCharacterId"
+              value={characterId ?? ""}
+            />
+            <input
+              type="hidden"
+              name="heroAgeRange"
+              value={heroAgeRange ?? ""}
+            />
+            {supportingCast.map((member) => (
+              <span key={`${member.characterId}-${member.relationKey}`}>
+                <input
+                  type="hidden"
+                  name="castCharacterIds"
+                  value={member.characterId}
+                />
+                <input
+                  type="hidden"
+                  name="castRelationKeys"
+                  value={member.relationKey}
+                />
+              </span>
+            ))}
             {customFields.map((field) => (
               <input
                 key={field.key}
@@ -537,6 +811,89 @@ export function OrderWizard({
           이전
         </button>
       )}
+    </div>
+  );
+}
+
+function CharacterPickGrid({
+  characters,
+  selectedId,
+  onSelect,
+}: {
+  characters: OrderCharacterOption[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 lg:grid-cols-5">
+      {characters.map((character) => {
+        const selectable = character.status === "COMPLETED";
+        const selected = character.id === selectedId;
+        const imageSrc =
+          character.status === "COMPLETED" && character.generatedImagePath
+            ? character.generatedImagePath
+            : character.originalPhotoPath;
+
+        return (
+          <button
+            key={character.id}
+            type="button"
+            disabled={!selectable}
+            aria-pressed={selected}
+            onClick={() => selectable && onSelect(character.id)}
+            className={cn(
+              "relative overflow-hidden rounded-xl border bg-white text-left shadow-sm",
+              selectable ? "cursor-pointer" : "cursor-not-allowed",
+              selected
+                ? "border-sky-400 ring-2 ring-sky-300"
+                : selectable
+                  ? "border-stone-200 hover:border-stone-400"
+                  : "border-stone-200",
+              !selectable && "opacity-60",
+            )}
+          >
+            <div className="no-image-save relative aspect-square bg-stone-100">
+              <AppImage
+                src={imageSrc}
+                alt={character.label}
+                fill
+                draggable={false}
+                onContextMenu={(event) => event.preventDefault()}
+                className={cn(
+                  "pointer-events-none object-cover",
+                  !selectable && "grayscale",
+                )}
+                sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 20vw"
+              />
+              <div
+                className="pointer-events-none absolute inset-0"
+                onContextMenu={(event) => event.preventDefault()}
+              />
+              {!selectable ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45">
+                  {character.status === "FAILED" ? (
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium">
+                      생성 실패
+                    </span>
+                  ) : (
+                    <div className="rounded-xl bg-white/95 px-2 py-1.5">
+                      <GenerationProgress kind="character" id={character.id} />
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <div className="px-1.5 py-1.5">
+              <p className="truncate text-center text-xs font-semibold sm:text-sm">
+                {character.label}
+              </p>
+              <p className="truncate text-center text-[11px] text-stone-500">
+                {GENDER_LABEL[character.gender]}
+              </p>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

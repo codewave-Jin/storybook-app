@@ -69,7 +69,7 @@ function parseImageQuality(raw: string | undefined): ImageGenerationQuality {
   if (value === "low" || value === "medium" || value === "high") {
     return value;
   }
-  return "medium";
+  return "low";
 }
 
 function printUsage(): never {
@@ -222,7 +222,7 @@ async function main() {
     timeout: 10 * 60 * 1000,
   });
 
-  const outName = `sticker-${timestampForFilename()}.jpg`;
+  const outName = `sticker-${quality}-${timestampForFilename()}.jpg`;
   const outPath = path.join(OUTPUT_DIR, outName);
 
   console.log(

@@ -21,18 +21,18 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
+import { buildStyledIllustrationPrompt } from "../src/lib/illustration-prompt";
 
 const RESPONSES_MODEL = "gpt-5.6" as const;
 const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
 const IMAGE_GEN_SIZE = "1024x1024" as const;
-const IMAGE_GEN_QUALITY = "high" as const;
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS_DIR = path.join(SCRIPT_DIR, "test-assets");
 const OUTPUT_DIR = path.join(SCRIPT_DIR, "test-output");
-const CHARACTER_PATH = path.join(ASSETS_DIR, "character.png");
 const SCENES_PATH = path.join(ASSETS_DIR, "scenes.json");
 
+type ImageQuality = "low" | "medium" | "high";
 type ResponsesUsage = NonNullable<OpenAI.Responses.Response["usage"]>;
 
 type SceneEntry = {
@@ -91,24 +91,10 @@ function toImageDataUrl(buffer: Buffer, mime: string): string {
 }
 
 function buildScenePrompt(entry: SceneEntry): string {
-  const keepAndChange = entry.expression
-    ? [
-        "[유지할 것] 얼굴형, 이목구비의 생김새, 헤어스타일, 의상, 그림체",
-        `[변경할 것] 포즈, 배경, 그리고 표정: ${entry.expression}`,
-        "표정은 눈과 입의 변화로만 표현하고 얼굴형과 볼살은 유지하세요",
-      ]
-    : [
-        "[유지할 것] 얼굴형, 이목구비의 생김새, 표정, 헤어스타일, 의상, 그림체",
-        "[변경할 것] 포즈와 배경만 장면에 맞게 표현",
-      ];
-
-  return [
-    `이 캐릭터의 정체성과 그림체를 유지하면서 다음 장면을 그려주세요: ${entry.scene}`,
-    "",
-    ...keepAndChange,
-    "",
-    "얼굴에 사진 질감이나 광택 렌더링을 넣지 마세요.",
-  ].join("\n");
+  return buildStyledIllustrationPrompt({
+    sceneDescription: entry.scene,
+    expressionHint: entry.expression,
+  });
 }
 
 function parseScenes(raw: unknown): SceneEntry[] {
@@ -144,8 +130,28 @@ function parseScenes(raw: unknown): SceneEntry[] {
   return scenes;
 }
 
+function parseFlag(argv: string[], name: string, fallback: string) {
+  const index = argv.indexOf(`--${name}`);
+  if (index >= 0 && argv[index + 1] && !argv[index + 1].startsWith("--")) {
+    return argv[index + 1];
+  }
+  return fallback;
+}
+
+function positionalArgs(argv: string[]): string[] {
+  const args: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--character") {
+      i += 1;
+      continue;
+    }
+    args.push(argv[i]);
+  }
+  return args;
+}
+
 function parseSceneIndex(argv: string[], sceneCount: number): number {
-  const raw = argv[0]?.trim();
+  const raw = positionalArgs(argv)[0]?.trim();
   if (!raw) {
     return 0;
   }
@@ -164,6 +170,36 @@ function parseSceneIndex(argv: string[], sceneCount: number): number {
   }
 
   return index;
+}
+
+function imageQuality(): ImageQuality {
+  const value = process.env.IMAGE_QUALITY?.trim().toLowerCase();
+  if (value === "low" || value === "medium" || value === "high") {
+    return value;
+  }
+  return "low";
+}
+
+function resolveCharacterPath(argv: string[]) {
+  const flagged = parseFlag(argv, "character", "");
+  if (flagged) {
+    const resolved = path.resolve(flagged);
+    if (!existsSync(resolved)) {
+      throw new Error(`Character image not found: ${resolved}`);
+    }
+    return resolved;
+  }
+  const named = path.join(ASSETS_DIR, "character.png");
+  if (existsSync(named)) {
+    return named;
+  }
+  const sheet = path.join(ASSETS_DIR, "character-sheet.png");
+  if (existsSync(sheet)) {
+    return sheet;
+  }
+  throw new Error(
+    `Character image not found. Place a PNG at scripts/test-assets/character.png or character-sheet.png`,
+  );
 }
 
 function timestampForFilename(date = new Date()): string {
@@ -195,6 +231,7 @@ async function generateSceneImage(opts: {
   prompt: string;
   characterBytes: Buffer;
   characterMime: string;
+  quality: ImageQuality;
 }): Promise<{ b64: string; elapsedMs: number; usage?: ResponsesUsage }> {
   const startedAt = Date.now();
   const result = await opts.openai.responses.create({
@@ -204,7 +241,7 @@ async function generateSceneImage(opts: {
         type: "image_generation",
         model: IMAGE_GEN_TOOL_MODEL,
         size: IMAGE_GEN_SIZE,
-        quality: IMAGE_GEN_QUALITY,
+        quality: opts.quality,
       },
     ],
     tool_choice: { type: "image_generation" },
@@ -250,22 +287,20 @@ async function main() {
     throw new Error("OPENAI_API_KEY is not set");
   }
 
-  if (!existsSync(CHARACTER_PATH)) {
-    throw new Error(
-      `Character image not found: ${CHARACTER_PATH}\nPlace a style-converted character PNG at scripts/test-assets/character.png and re-run.`,
-    );
-  }
+  const argv = process.argv.slice(2);
+  const characterPath = resolveCharacterPath(argv);
+  const quality = imageQuality();
   if (!existsSync(SCENES_PATH)) {
     throw new Error(`scenes.json not found: ${SCENES_PATH}`);
   }
 
   const scenes = parseScenes(JSON.parse(await readFile(SCENES_PATH, "utf8")));
-  const sceneIndex = parseSceneIndex(process.argv.slice(2), scenes.length);
+  const sceneIndex = parseSceneIndex(argv, scenes.length);
   const entry = scenes[sceneIndex];
   const prompt = buildScenePrompt(entry);
 
-  const characterBytes = await readFile(CHARACTER_PATH);
-  const characterMime = guessImageMime(CHARACTER_PATH);
+  const characterBytes = await readFile(characterPath);
+  const characterMime = guessImageMime(characterPath);
   await mkdir(OUTPUT_DIR, { recursive: true });
 
   const openai = new OpenAI({
@@ -273,13 +308,13 @@ async function main() {
     timeout: 10 * 60 * 1000,
   });
 
-  const outName = `scene-${sceneIndex}-${timestampForFilename()}.png`;
+  const outName = `scene-${sceneIndex}-${quality}-${timestampForFilename()}.png`;
   const outPath = path.join(OUTPUT_DIR, outName);
 
   console.log(
-    `model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${IMAGE_GEN_QUALITY}`,
+    `model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${quality}`,
   );
-  console.log(`character=${CHARACTER_PATH}`);
+  console.log(`character=${characterPath}`);
   console.log(`scenes=${SCENES_PATH} (index=${sceneIndex}/${scenes.length - 1})`);
   console.log(`scene=${entry.scene}`);
   console.log(`expression=${entry.expression ?? "(keep original)"}`);
@@ -289,7 +324,7 @@ async function main() {
   console.log(prompt);
   console.log("==============");
   console.log(
-    `Calling responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${IMAGE_GEN_QUALITY}...`,
+    `Calling responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${quality}...`,
   );
 
   const startedAt = Date.now();
@@ -299,6 +334,7 @@ async function main() {
       prompt,
       characterBytes,
       characterMime,
+      quality,
     });
     await writeFile(outPath, Buffer.from(generated.b64, "base64"));
     console.log(`elapsed=${formatElapsed(generated.elapsedMs)}`);

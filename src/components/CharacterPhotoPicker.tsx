@@ -14,6 +14,7 @@ type Mode = "camera" | "album";
 type CameraPhase = "live" | "preview";
 type AlbumPhase = "pick" | "crop" | "preview";
 type CameraError = "permission" | "unsupported" | "insecure" | "notfound";
+type FacingMode = "user" | "environment";
 
 function assignFileToInput(input: HTMLInputElement | null, file: File | null) {
   if (!input) {
@@ -43,6 +44,87 @@ function cameraErrorMessage(error: CameraError) {
     default:
       return "이 브라우저에서는 카메라를 사용할 수 없습니다. 앨범에서 선택해 주세요.";
   }
+}
+
+function isFacingLabel(label: string, facing: FacingMode) {
+  const value = label.toLowerCase();
+  if (facing === "environment") {
+    return /back|rear|environment|후면|뒷/.test(value);
+  }
+  return /front|user|face|전면/.test(value);
+}
+
+async function openCameraStream(facing: FacingMode) {
+  const size = {
+    width: { ideal: 1280 },
+    height: { ideal: 1280 },
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { ...size, facingMode: { exact: facing } },
+    });
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : "";
+    if (name !== "OverconstrainedError" && name !== "NotFoundError") {
+      throw error;
+    }
+  }
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { ...size, facingMode: { ideal: facing } },
+    });
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : "";
+    if (name !== "OverconstrainedError" && name !== "NotFoundError") {
+      throw error;
+    }
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const match = devices.find(
+    (device) => device.kind === "videoinput" && isFacingLabel(device.label, facing),
+  );
+  if (match) {
+    return navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { ...size, deviceId: { exact: match.deviceId } },
+    });
+  }
+
+  throw new DOMException("Requested camera was not found", "NotFoundError");
+}
+
+async function alignStreamFacing(stream: MediaStream, facing: FacingMode) {
+  const track = stream.getVideoTracks()[0];
+  const settings = track?.getSettings();
+  if (!settings?.facingMode || settings.facingMode === facing) {
+    return stream;
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const match = devices.find(
+    (device) =>
+      device.kind === "videoinput" &&
+      device.deviceId !== settings.deviceId &&
+      isFacingLabel(device.label, facing),
+  );
+  if (!match) {
+    return stream;
+  }
+
+  stopStream(stream);
+  return navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: {
+      deviceId: { exact: match.deviceId },
+      width: { ideal: 1280 },
+      height: { ideal: 1280 },
+    },
+  });
 }
 
 export function CharacterPhotoPicker({
@@ -75,6 +157,7 @@ export function CharacterPhotoPicker({
   const [reviewUrl, setReviewUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [cameraSession, setCameraSession] = useState(0);
+  const [facing, setFacing] = useState<FacingMode>("user");
 
   useEffect(() => {
     if (!reviewFile) {
@@ -127,14 +210,10 @@ export function CharacterPhotoPicker({
       }
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "user" },
-            width: { ideal: 1280 },
-            height: { ideal: 1280 },
-          },
-        });
+        const stream = await alignStreamFacing(
+          await openCameraStream(facing),
+          facing,
+        );
 
         if (cancelled) {
           stopStream(stream);
@@ -190,7 +269,7 @@ export function CharacterPhotoPicker({
       cancelled = true;
       stopCamera();
     };
-  }, [mode, cameraPhase, disabled, cameraSession, stopCamera]);
+  }, [mode, cameraPhase, disabled, cameraSession, facing, stopCamera]);
 
   const clearAlbumSrc = useCallback(() => {
     setAlbumSrc((prev) => {
@@ -396,12 +475,26 @@ export function CharacterPhotoPicker({
               <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900">
                 <video
                   ref={videoRef}
-                  className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+                  className={`absolute inset-0 h-full w-full object-cover ${
+                    facing === "user" ? "-scale-x-100" : ""
+                  }`}
                   autoPlay
                   muted
                   playsInline
                   aria-label="카메라 미리보기"
                 />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFacing((current) =>
+                      current === "user" ? "environment" : "user",
+                    )
+                  }
+                  disabled={disabled || busy || !cameraReady}
+                  className="absolute right-3 top-3 z-10 rounded-full bg-black/55 px-3 py-2 text-xs font-medium text-white backdrop-blur-sm hover:bg-black/70 disabled:opacity-50"
+                >
+                  {facing === "user" ? "후면 카메라" : "전면 카메라"}
+                </button>
                 <div className="pointer-events-none absolute inset-0">
                   <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden>
                     <defs>

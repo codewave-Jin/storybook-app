@@ -6,6 +6,7 @@ import {
   GptImageJobDeferError,
   hasReadyQueuedGptImageJob,
   kickGptImageWorker,
+  kickGptImageWorkers,
   requeueGptImageJob,
   succeedGptImageJob,
   claimNextGptImageJob,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/gpt-image-queue";
 import {
   GPT_IMAGE_JOB_KIND,
+  gptImageConcurrency,
   gptImageWorkerMaxDurationMs,
   gptImageWorkerStopBeforeMs,
 } from "@/lib/gpt-image-queue-config";
@@ -139,65 +141,108 @@ async function executeJob(job: GptImageJob) {
   throw new Error(`Unknown gpt image job kind: ${job.kind}`);
 }
 
+async function settleJob(
+  job: GptImageJob,
+): Promise<"ok" | "deferred" | "requeued" | "failed"> {
+  try {
+    await executeJob(job);
+    await succeedGptImageJob(job.id);
+    return "ok";
+  } catch (error) {
+    const rateLimit = toOpenAIRateLimitError(error);
+    if (error instanceof GptImageJobDeferError) {
+      await deferGptImageJob(job, {
+        retryAfterMs: error.retryAfterMs,
+        reason: error.message,
+      });
+      return "deferred";
+    }
+    if (rateLimit || isOpenAIRateLimitError(error)) {
+      const retryAfterMs = rateLimit?.retryAfterMs ?? 60_000;
+      const requeued = await requeueGptImageJob(job.id, {
+        retryAfterMs,
+        error: rateLimit ?? error,
+      });
+      console.warn(
+        "[gpt-image-worker] 429 backoff",
+        job.id,
+        job.kind,
+        `${Math.ceil(retryAfterMs / 1000)}s`,
+        requeued.failed ? "exhausted" : "requeued",
+      );
+      return requeued.failed ? "failed" : "requeued";
+    }
+    console.error("[gpt-image-worker] job failed", job.id, job.kind, error);
+    await failGptImageJob(job.id, error);
+    return "failed";
+  }
+}
+
 export async function runGptImageWorker() {
   const startedAt = Date.now();
   const stopBeforeMs = gptImageWorkerStopBeforeMs();
   const maxDurationMs = gptImageWorkerMaxDurationMs();
+  const parallel = gptImageConcurrency();
+  const inFlight = new Map<string, Promise<void>>();
   let processed = 0;
   let deferred = 0;
   let stoppedEarly = false;
 
-  while (Date.now() - startedAt < maxDurationMs - stopBeforeMs) {
-    const claimed = await claimNextGptImageJob();
-    if (claimed.type === "empty") {
-      break;
+  const launch = (job: GptImageJob) => {
+    const promise = (async () => {
+      const result = await settleJob(job);
+      if (result === "ok" || result === "failed") {
+        processed += 1;
+      }
+      if (result === "deferred") {
+        deferred += 1;
+      }
+    })().finally(() => {
+      inFlight.delete(job.id);
+    });
+    inFlight.set(job.id, promise);
+  };
+
+  const stillHaveTime = () =>
+    Date.now() - startedAt < maxDurationMs - stopBeforeMs;
+
+  while (stillHaveTime() || inFlight.size > 0) {
+    while (stillHaveTime() && inFlight.size < parallel) {
+      const claimed = await claimNextGptImageJob();
+      if (claimed.type === "empty") {
+        break;
+      }
+      if (claimed.type === "concurrency") {
+        break;
+      }
+      if (claimed.type === "deferred") {
+        deferred += 1;
+        break;
+      }
+      launch(claimed.job);
     }
-    if (claimed.type === "concurrency") {
-      break;
-    }
-    if (claimed.type === "deferred") {
-      deferred += 1;
+
+    if (inFlight.size === 0) {
       break;
     }
 
-    const { job } = claimed;
-    if (await hasReadyQueuedGptImageJob()) {
+    if (
+      inFlight.size >= parallel &&
+      stillHaveTime() &&
+      (await hasReadyQueuedGptImageJob())
+    ) {
       kickGptImageWorker();
     }
-    try {
-      await executeJob(job);
-      await succeedGptImageJob(job.id);
-      processed += 1;
-    } catch (error) {
-      const rateLimit = toOpenAIRateLimitError(error);
-      if (error instanceof GptImageJobDeferError) {
-        await deferGptImageJob(job, {
-          retryAfterMs: error.retryAfterMs,
-          reason: error.message,
-        });
-        deferred += 1;
-        continue;
-      }
-      if (rateLimit || isOpenAIRateLimitError(error)) {
-        const retryAfterMs = rateLimit?.retryAfterMs ?? 60_000;
-        const requeued = await requeueGptImageJob(job.id, {
-          retryAfterMs,
-          error: rateLimit ?? error,
-        });
-        console.warn(
-          "[gpt-image-worker] 429 backoff",
-          job.id,
-          job.kind,
-          `${Math.ceil(retryAfterMs / 1000)}s`,
-          requeued.failed ? "exhausted" : "requeued",
-        );
-        continue;
-      }
-      console.error("[gpt-image-worker] job failed", job.id, job.kind, error);
-      await failGptImageJob(job.id, error);
-      processed += 1;
+
+    if (!stillHaveTime()) {
+      stoppedEarly = true;
+      break;
     }
+
+    await Promise.race(inFlight.values());
   }
+
+  await Promise.all(inFlight.values());
 
   if (Date.now() - startedAt >= maxDurationMs - stopBeforeMs) {
     stoppedEarly = true;
@@ -205,7 +250,7 @@ export async function runGptImageWorker() {
 
   if (processed > 0 || stoppedEarly) {
     if (await hasReadyQueuedGptImageJob()) {
-      kickGptImageWorker();
+      kickGptImageWorkers(gptImageConcurrency());
     }
   }
 

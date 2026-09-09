@@ -1,4 +1,5 @@
-import type { PaymentStatus, ProductionStatus } from "@prisma/client";
+import type { FulfillmentStatus, PaymentStatus, ProductionStatus } from "@prisma/client";
+import { FULFILLMENT_STATUS_LABEL } from "@/lib/fulfillment";
 
 export const PRODUCTION_STATUS_LABEL: Record<ProductionStatus, string> = {
   WAITING: "대기중",
@@ -16,9 +17,14 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
 export function getFulfillmentLabel(
   paymentStatus: PaymentStatus,
   productionStatus: ProductionStatus,
+  fulfillmentStatus?: FulfillmentStatus | null,
 ): string {
   if (paymentStatus !== "PAID") {
     return "미리보기";
+  }
+
+  if (fulfillmentStatus && fulfillmentStatus !== "PREPARING") {
+    return FULFILLMENT_STATUS_LABEL[fulfillmentStatus];
   }
 
   switch (productionStatus) {
@@ -37,9 +43,24 @@ export function getFulfillmentLabel(
 export function getFulfillmentHint(
   paymentStatus: PaymentStatus,
   productionStatus: ProductionStatus,
+  fulfillmentStatus?: FulfillmentStatus | null,
 ): string | null {
   if (paymentStatus !== "PAID") {
     return "결제 후 제작·배송이 시작됩니다.";
+  }
+  if (fulfillmentStatus && fulfillmentStatus !== "PREPARING") {
+    switch (fulfillmentStatus) {
+      case "PRINTING":
+        return "인쇄 의뢰가 접수되었어요.";
+      case "PRINTED":
+        return "인쇄가 끝나 배송 준비 중이에요.";
+      case "SHIPPING":
+        return "배송이 시작되었어요.";
+      case "DELIVERED":
+        return "배송이 완료되었어요.";
+      default:
+        return null;
+    }
   }
   if (productionStatus === "COMPLETED") {
     return "영업일 기준 6~7일 내 제작·배송됩니다.";

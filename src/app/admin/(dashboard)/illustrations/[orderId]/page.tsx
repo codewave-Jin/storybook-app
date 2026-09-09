@@ -164,6 +164,7 @@ export default async function AdminIllustrationWorkPage({
                   illustration.selectedCharacterIds,
                 ),
                 errorReason: illustration.errorReason,
+                pageType: illustration.pageType,
               }}
             />
           ))

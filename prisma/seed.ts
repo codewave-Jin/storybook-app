@@ -1,5 +1,12 @@
 import { hash } from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { forestBirthdayPagesForSeed } from "../src/lib/storybook-prompts";
+import {
+  ACTIVE_STORYBOOK_TEMPLATE_TITLE,
+  BIRTHDAY_STORYBOOK_TEMPLATE_TITLES,
+  FAVORITE_ANIMAL_OPTIONS,
+  FAVORITE_COLOR_OPTIONS,
+} from "../src/lib/templates";
 
 const prisma = new PrismaClient();
 
@@ -263,139 +270,28 @@ const defaultArtStyles = [
   },
 ];
 
-const FOREST_TEMPLATE_TITLE = "숲속 친구들과의 하루";
+const FOREST_TEMPLATE_TITLE = ACTIVE_STORYBOOK_TEMPLATE_TITLE;
 
 const forestTemplateQuestions = [
   {
     key: "favorite_color",
-    label: "좋아하는 색깔이 뭐예요?",
-    answerType: "text",
+    label: "좋아하는 색깔은 무엇인가요?",
+    answerType: "choice",
     required: true,
     sortOrder: 1,
+    options: FAVORITE_COLOR_OPTIONS,
   },
   {
     key: "favorite_animal",
-    label: "좋아하는 동물이 뭐예요?",
-    answerType: "text",
+    label: "좋아하는 동물 친구는 누구인가요?",
+    answerType: "choice",
     required: true,
     sortOrder: 2,
-  },
-  {
-    key: "favorite_place",
-    label: "가고 싶은 곳이 어디예요?",
-    answerType: "text",
-    required: false,
-    sortOrder: 3,
+    options: FAVORITE_ANIMAL_OPTIONS,
   },
 ];
 
-const forestPageTemplates: Array<{
-  pageNumber: number;
-  pageType: "COVER" | "PAGE";
-  promptTemplate: string;
-  characterSlots: number;
-  expressionHint?: string;
-}> = [
-  {
-    pageNumber: 1,
-    pageType: "COVER",
-    characterSlots: 1,
-    promptTemplate:
-      "1번 캐릭터가 초록빛 숲 입구에 서서 손을 흔들고, 좋아하는 색깔 {{answer.favorite_color}} 풍선이 하늘로 떠오른다.",
-  },
-  {
-    pageNumber: 2,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "{{character_1}}가 아침 햇살이 들어오는 방에서 침대에 일어나 기지개를 켜고 있다.\n포인트 색깔은 {{answer.favorite_color}}이다.",
-  },
-  {
-    pageNumber: 3,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "{{character_1}}가 오두막을 나와 숲속 길을 산책하다가, 앞에서 {{answer.favorite_animal}}을(를) 만난다.",
-    expressionHint: "눈을 크게 뜨고 입을 살짝 벌린 놀란 표정",
-  },
-  {
-    pageNumber: 4,
-    pageType: "PAGE",
-    characterSlots: 2,
-    promptTemplate:
-      "{{character_1}}이(가) 덤불 사이로 손을 내밀자 {{answer.favorite_animal}}이(가) 살며시 다가와, 함께 {{answer.favorite_color}} 꽃길을 걸어간다.",
-  },
-  {
-    pageNumber: 5,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "키 큰 나무 아래에서 {{character_1}}이(가) 이끼 방석에 앉아 도시락을 펼치고, {{answer.favorite_animal}}에게도 간식을 나눠 준다.",
-  },
-  {
-    pageNumber: 6,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "갑자기 바람이 불어 {{answer.favorite_color}} 나뭇잎이 흩날리고, {{character_1}}이(가) 신나게 뛰어다니며 잎사귀를 모아 둔다.",
-  },
-  {
-    pageNumber: 7,
-    pageType: "PAGE",
-    characterSlots: 2,
-    promptTemplate:
-      "{{character_1}}과(와) {{character_2}}이(가) 통나무 다리를 조심조심 건너며, 건너편에 있을 {{answer.favorite_place}}를(을) 상상해 이야기한다.",
-  },
-  {
-    pageNumber: 8,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "반짝이는 반딧불이 {{answer.favorite_color}} 빛처럼 맴돌고, {{character_1}}이(가) 조용히 손을 모아 길을 밝힌다.",
-  },
-  {
-    pageNumber: 9,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "오래된 나무집 앞에서 {{character_1}}이(가) 문을 두드리자, 안에서 {{answer.favorite_animal}}이(가) 반가운 얼굴로 맞이한다.",
-  },
-  {
-    pageNumber: 10,
-    pageType: "PAGE",
-    characterSlots: 2,
-    promptTemplate:
-      "{{character_1}}과(와) {{character_2}}이(가) 나무집 창가에 앉아, 언젠가 꼭 가 보고 싶은 {{answer.favorite_place}}에 대해 그림을 그린다.",
-  },
-  {
-    pageNumber: 11,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "저녁노을이 {{answer.favorite_color}}로 물든 언덕에서 {{character_1}}이(가) {{answer.favorite_animal}}과(와) 나란히 서서 멀리 {{answer.favorite_place}} 쪽 하늘을 바라본다.",
-  },
-  {
-    pageNumber: 12,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "집으로 돌아가는 길에 {{character_1}}이(가) 주운 {{answer.favorite_color}} 돌을 주머니에 넣고, 오늘 만난 숲속 친구들에게 작별 인사를 한다.",
-  },
-  {
-    pageNumber: 13,
-    pageType: "PAGE",
-    characterSlots: 2,
-    promptTemplate:
-      "{{character_1}}과(와) {{character_2}}이(가) 손전등을 들고 밤길을 비추며, 내일은 {{answer.favorite_place}}로 떠나는 꿈을 속삭인다.",
-  },
-  {
-    pageNumber: 14,
-    pageType: "PAGE",
-    characterSlots: 1,
-    promptTemplate:
-      "따뜻한 이불 속에서 {{character_1}}이(가) 미소 지으며 잠들고, 꿈속에 {{answer.favorite_animal}}과(와) 함께 {{answer.favorite_place}}를(을) 다시 거닌다.",
-  },
-];
+const forestPageTemplates = forestBirthdayPagesForSeed();
 
 type CustomFieldSeed = {
   key: string;
@@ -403,6 +299,7 @@ type CustomFieldSeed = {
   type: string;
   placeholder?: string;
   required?: boolean;
+  options?: Array<{ value: string; label: string; emoji?: string }>;
 };
 
 function parseCustomFieldSeed(value: unknown): CustomFieldSeed[] {
@@ -433,6 +330,7 @@ function parseCustomFieldSeed(value: unknown): CustomFieldSeed[] {
             : undefined,
         required:
           typeof parsed.required === "boolean" ? parsed.required : true,
+        options: Array.isArray(parsed.options) ? parsed.options : undefined,
       },
     ];
   });
@@ -571,20 +469,27 @@ async function seedForestFriendsTemplate(
   artStyles: Array<{ id: string; sortOrder: number }>,
 ) {
   const existing = await prisma.storybookTemplate.findFirst({
-    where: { title: FOREST_TEMPLATE_TITLE },
+    where: {
+      title: { in: [...BIRTHDAY_STORYBOOK_TEMPLATE_TITLES] },
+    },
   });
 
   const templateData = {
     title: FOREST_TEMPLATE_TITLE,
-    description: "숲속 친구들과 하루를 보내며 좋아하는 색깔·동물·장소를 담는 테스트용 동화책",
+    description: "생일파티에서 좋아하는 색깔과 동물 친구를 담는 1~3세 동화책",
     category: "FUN" as const,
     customFields: forestTemplateQuestions.map((q) => ({
       key: q.key,
       label: q.label,
       type: q.answerType,
       required: q.required,
+      options: q.options,
     })),
     topicPresets: [],
+    castRoles: [
+      { key: "mom", label: "엄마" },
+      { key: "dad", label: "아빠" },
+    ],
   };
 
   const template = existing
@@ -621,6 +526,13 @@ async function seedForestFriendsTemplate(
     });
   }
 
+  await prisma.templateQuestion.deleteMany({
+    where: {
+      storybookTemplateId: template.id,
+      key: "favorite_place",
+    },
+  });
+
   for (const page of forestPageTemplates) {
     await prisma.pageTemplate.upsert({
       where: {
@@ -645,6 +557,13 @@ async function seedForestFriendsTemplate(
       },
     });
   }
+
+  await prisma.pageTemplate.deleteMany({
+    where: {
+      storybookTemplateId: template.id,
+      pageNumber: { gt: 9 },
+    },
+  });
 
   await linkArtStylesToTemplate(template.id, artStyles);
   return template.id;

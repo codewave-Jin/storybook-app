@@ -12,7 +12,7 @@ import {
 
 export { markOrderPreviewGeneratedIfReady, revalidateOrderPreview };
 
-/** 주문 생성 직후: 표지+본문 2장만 insert + 생성 트리거 (기존 row skip) */
+/** 주문 생성 직후: 표지+1페이지+3페이지만 insert + 생성 트리거 (기존 row skip) */
 export async function startOrderPreviewGeneration(
   orderId: string,
   options?: { wait?: boolean },

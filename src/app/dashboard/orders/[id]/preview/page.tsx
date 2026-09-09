@@ -4,6 +4,8 @@ import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { OrderPreviewBook } from "@/components/OrderPreviewBook";
 import { illustrationStatusPayload } from "@/lib/generation-status";
 import { prisma } from "@/lib/prisma";
+import { parseIdList } from "@/lib/orders";
+import { storybookOrderOptionLines } from "@/lib/storybook-order-summary";
 import {
   startOrderPaidGeneration,
   startOrderPreviewGeneration,
@@ -36,6 +38,7 @@ export default async function OrderPreviewPage({
     },
     include: {
       template: true,
+      artStyle: { select: { label: true } },
       illustrations: {
         orderBy: { pageNumber: "asc" },
       },
@@ -47,24 +50,23 @@ export default async function OrderPreviewPage({
   }
 
   const paid = order.paymentStatus === "PAID";
+  const illustrations = order.illustrations;
   const previewPageSet = new Set<number>(PREVIEW_PAGE_NUMBERS);
   const showFullBook = paid && FULL_BOOK_GENERATION_ENABLED;
   const needsPaidPages =
     showFullBook &&
-    (order.illustrations.length < TOTAL_STORYBOOK_PAGES ||
-      order.illustrations.some(
+    (illustrations.length < TOTAL_STORYBOOK_PAGES ||
+      illustrations.some(
         (page) =>
           !previewPageSet.has(page.pageNumber) &&
           shouldKickPendingIllustration(page),
       ));
   const needsPreviewPages =
     !paid &&
-    (order.illustrations.length === 0 ||
-      order.illustrations.some(
-        (page) =>
-          previewPageSet.has(page.pageNumber) &&
-          shouldKickPendingIllustration(page),
-      ));
+    PREVIEW_PAGE_NUMBERS.some((pageNumber) => {
+      const page = illustrations.find((item) => item.pageNumber === pageNumber);
+      return !page || shouldKickPendingIllustration(page);
+    });
 
   if (needsPaidPages) {
     await startOrderPaidGeneration(order.id);
@@ -77,6 +79,7 @@ export default async function OrderPreviewPage({
       where: { id: order.id, userId: session.user.id },
       include: {
         template: true,
+        artStyle: { select: { label: true } },
         illustrations: {
           orderBy: { pageNumber: "asc" },
         },
@@ -108,6 +111,27 @@ export default async function OrderPreviewPage({
     (page) => page.id && page.status === "COMPLETED" && page.imagePath,
   );
 
+  const characterIds = parseIdList(order.selectedCharacterIds);
+  const characters = await prisma.character.findMany({
+    where: { id: { in: characterIds } },
+    select: { id: true, label: true },
+  });
+  const optionLines = storybookOrderOptionLines({
+    selectedCharacterIds: order.selectedCharacterIds,
+    customInputValues: order.customInputValues,
+    heroAgeRange: order.heroAgeRange,
+    supportingCast: order.supportingCast,
+    artStyleLabel: order.artStyle?.label,
+    includePhotoAlbum: order.includePhotoAlbum,
+    quantity: order.quantity,
+    templateTitle: order.template.title,
+    templateCustomFields: order.template.customFields,
+    templateCastRoles: order.template.castRoles,
+    characterLabelsById: new Map(
+      characters.map((character) => [character.id, character.label]),
+    ),
+  });
+
   return (
     <>
       <IntervalRefresher
@@ -134,6 +158,10 @@ export default async function OrderPreviewPage({
         ready={!paid && bookComplete}
         bookComplete={bookComplete}
         orderId={order.id}
+        includePhotoAlbum={order.includePhotoAlbum}
+        optionLines={optionLines}
+        defaultEmail={session.user.email ?? undefined}
+        defaultName={session.user.name ?? undefined}
       />
     </>
   );

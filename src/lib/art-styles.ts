@@ -1,5 +1,27 @@
 import { prisma } from "@/lib/prisma";
 
+/** 캐릭터 초상화를 다시 그리지 않고 삽화 레퍼런스로 그대로 쓴다. */
+export const BASIC_ART_STYLE_KEY = "basic";
+
+export function skipsStyleTransfer(
+  artStyleKey: string | null | undefined,
+): boolean {
+  return artStyleKey === BASIC_ART_STYLE_KEY;
+}
+
+export async function artStyleSkipsStyleTransfer(
+  artStyleId: string | null | undefined,
+): Promise<boolean> {
+  if (!artStyleId) {
+    return false;
+  }
+  const style = await prisma.artStyle.findUnique({
+    where: { id: artStyleId },
+    select: { key: true },
+  });
+  return skipsStyleTransfer(style?.key);
+}
+
 export async function resolveDefaultArtStyleId(
   templateId: string,
 ): Promise<string | null> {
@@ -56,12 +78,9 @@ export async function resolveArtStyleForOrder(options: {
   templateId: string;
 }) {
   if (options.artStyleId) {
-    const selected = await prisma.artStyle.findUnique({
+    return prisma.artStyle.findUnique({
       where: { id: options.artStyleId },
     });
-    if (selected?.referenceImageUrl) {
-      return selected;
-    }
   }
 
   const fallbackId = await resolveDefaultArtStyleId(options.templateId);

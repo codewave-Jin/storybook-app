@@ -140,6 +140,14 @@ export async function enqueueGptImageJob(input: EnqueueGptImageJobInput) {
     orderBy: { createdAt: "asc" },
   });
   if (existing) {
+    const nextPriority = input.priority ?? existing.priority;
+    if (nextPriority !== existing.priority) {
+      const job = await prisma.gptImageJob.update({
+        where: { id: existing.id },
+        data: { priority: nextPriority },
+      });
+      return { job, created: false };
+    }
     return { job: existing, created: false };
   }
 
@@ -219,20 +227,22 @@ export async function getGptImageQueueSnapshot(
     return null;
   }
 
+  const ahead = {
+    OR: [
+      { priority: { gt: job.priority } },
+      { priority: job.priority, createdAt: { lt: job.createdAt } },
+      {
+        priority: job.priority,
+        createdAt: job.createdAt,
+        id: { lt: job.id },
+      },
+    ],
+  };
   const queueAhead = await prisma.gptImageJob.count({
     where: {
       status: { in: [...ACTIVE_STATUSES] },
       id: { not: job.id },
-      OR: [
-        { status: GPT_IMAGE_JOB_STATUS.RUNNING },
-        { priority: { gt: job.priority } },
-        { priority: job.priority, createdAt: { lt: job.createdAt } },
-        {
-          priority: job.priority,
-          createdAt: job.createdAt,
-          id: { lt: job.id },
-        },
-      ],
+      ...ahead,
     },
   });
 

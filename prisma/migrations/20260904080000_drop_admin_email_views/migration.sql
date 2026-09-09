@@ -1,0 +1,12 @@
+DROP VIEW IF EXISTS token_balance_with_email;
+DROP VIEW IF EXISTS token_transaction_with_email;
+DROP VIEW IF EXISTS character_with_email;
+DROP VIEW IF EXISTS character_asset_with_email;
+DROP VIEW IF EXISTS storybook_order_with_email;
+DROP VIEW IF EXISTS sticker_order_with_email;
+DROP VIEW IF EXISTS review_with_email;
+DROP VIEW IF EXISTS review_image_with_email;
+DROP VIEW IF EXISTS illustration_with_email;
+DROP VIEW IF EXISTS photo_album_page_with_email;
+DROP VIEW IF EXISTS order_status_log_with_email;
+DROP VIEW IF EXISTS generation_event_with_email;

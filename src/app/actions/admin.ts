@@ -7,6 +7,7 @@ import {
   canTransitionFulfillment,
   isFulfillmentStatus,
 } from "@/lib/fulfillment";
+import { loadOrderPrintComment } from "@/lib/order-print-comment";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { deleteIllustrationFile } from "@/lib/uploads";
@@ -50,6 +51,7 @@ export type AdminOrderDetail = {
   userName: string;
   userEmail: string;
   productTitle: string;
+  printComment: string | null;
   characters: Array<{
     id: string;
     label: string;
@@ -80,6 +82,7 @@ function serializeAdminOrder(order: {
   trackingNumber: string | null;
   user: { name: string; email: string };
   template: { title: string };
+  printComment: string | null;
   characters: AdminOrderDetail["characters"];
   statusLogs: Array<{
     id: string;
@@ -99,6 +102,7 @@ function serializeAdminOrder(order: {
     userName: order.user.name,
     userEmail: order.user.email,
     productTitle: order.template.title,
+    printComment: order.printComment,
     characters: order.characters,
     logs: order.statusLogs.map((log) => ({
       id: log.id,
@@ -146,6 +150,7 @@ async function loadAdminOrderDetail(orderId: string) {
 
   return serializeAdminOrder({
     ...order,
+    printComment: await loadOrderPrintComment(orderId),
     characters: characterIds
       .map((id) => characterMap.get(id))
       .filter((character) => character !== undefined),

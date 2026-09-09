@@ -1,3 +1,4 @@
+import { artStyleSkipsStyleTransfer } from "@/lib/art-styles";
 import { enqueuePendingIllustrations } from "@/lib/enqueue-illustration-generation";
 import { enqueueOrderStyleTransfer } from "@/lib/enqueue-style-transfer";
 import { logGenerationEvent } from "@/lib/generation-events";
@@ -10,14 +11,30 @@ import {
   substitutePromptTemplate,
 } from "@/lib/illustration-prompt";
 import {
+  birthdayCastCharacterIds,
+  birthdayCharacterLabels,
+  FOREST_BIRTHDAY_WORLD_HINT,
+  resolveBirthdayPage,
+} from "@/lib/storybook-prompts";
+import { isBirthdayStorybookTitle } from "@/lib/templates";
+import {
   ensureOrderStyledCharacterAsset,
-  findReadyStyledCharacterAsset,
+  findReadyStyledCharacterAssets,
   STYLE_TRANSFER_PROGRESS_LABEL,
 } from "@/lib/order-character-asset";
-import { parseIdList, parseStringRecord } from "@/lib/orders";
-import { prisma } from "@/lib/prisma";
-import { markOrderPreviewGeneratedIfReady, revalidateOrderPreview } from "@/lib/preview-status";
 import { customInputsContainProfanity } from "@/lib/custom-input-guard";
+import { parseIdList, parseStringRecord } from "@/lib/orders";
+import {
+  castRoleLabel,
+  heroAgeRangeLabel,
+  parseCastRoles,
+  parseSupportingCast,
+} from "@/lib/templates";
+import { prisma } from "@/lib/prisma";
+import { PREVIEW_PAGE_NUMBERS } from "@/lib/preview-pages";
+import { markOrderPreviewGeneratedIfReady, revalidateOrderPreview } from "@/lib/preview-status";
+
+export { PREVIEW_PAGE_NUMBERS } from "@/lib/preview-pages";
 
 export {
   ILLUSTRATION_GENERATE_MAX_DURATION_SECONDS,
@@ -27,21 +44,21 @@ export {
   STALE_PROCESSING_MS,
 } from "@/lib/illustration-generation-policy";
 
-/** 표지 1 + 본문 — 랜딩 카피(13~15p)에 맞춘 전체 권 분량 */
-export const TOTAL_STORYBOOK_PAGES = 14;
+/** 표지 1 + 본문 8 = 9장 */
+export const TOTAL_STORYBOOK_PAGES = 9;
 
-/** 결제 전 미리보기: 표지 + 본문 2장 */
-export const PREVIEW_PAGE_NUMBERS = [1, 2, 3] as const;
-
-/** false면 결제 후에도 4~14장을 만들지 않는다. 배포 전에 다시 켜면 된다. */
-export const FULL_BOOK_GENERATION_ENABLED = false;
+/** false면 결제 후에도 미리보기 밖 장을 만들지 않는다. 배포 전에 다시 켜면 된다. */
+export const FULL_BOOK_GENERATION_ENABLED = true;
 
 export function paidPageNumbers(
   totalPages: number = TOTAL_STORYBOOK_PAGES,
 ): number[] {
+  const preview = new Set<number>(PREVIEW_PAGE_NUMBERS);
   const pages: number[] = [];
-  for (let n = PREVIEW_PAGE_NUMBERS.length + 1; n <= totalPages; n += 1) {
-    pages.push(n);
+  for (let n = 1; n <= totalPages; n += 1) {
+    if (!preview.has(n)) {
+      pages.push(n);
+    }
   }
   return pages;
 }
@@ -50,15 +67,18 @@ async function loadOrderContext(orderId: string) {
   const order = await prisma.storybookOrder.findUnique({
     where: { id: orderId },
     include: {
+      artStyle: { select: { key: true } },
       template: {
         select: {
           title: true,
+          castRoles: true,
           pageTemplates: {
             select: {
               pageNumber: true,
               pageType: true,
               promptTemplate: true,
               expressionHint: true,
+              characterSlots: true,
             },
           },
         },
@@ -79,6 +99,7 @@ async function loadOrderContext(orderId: string) {
   }
 
   const characterIds = parseIdList(order.selectedCharacterIds);
+  const supportingCast = parseSupportingCast(order.supportingCast);
   const characters = await prisma.character.findMany({
     where: { id: { in: characterIds } },
     select: { id: true, label: true },
@@ -87,9 +108,25 @@ async function loadOrderContext(orderId: string) {
     .map((id) => characters.find((character) => character.id === id)?.label)
     .filter((label): label is string => Boolean(label));
   const customValues = parseStringRecord(order.customInputValues);
+  const castRoles = parseCastRoles(order.template.castRoles, order.template.title);
   const variables = buildOrderPromptVariables({
     characterLabels: labels,
     customInputValues: customValues,
+    heroAgeLabel: heroAgeRangeLabel(order.heroAgeRange),
+    supportingCast: supportingCast.flatMap((member) => {
+      const label = characters.find(
+        (character) => character.id === member.characterId,
+      )?.label;
+      if (!label) {
+        return [];
+      }
+      return [
+        {
+          relationKey: member.relationKey,
+          label: `${label} (${castRoleLabel(castRoles, member.relationKey)})`,
+        },
+      ];
+    }),
   });
   const pageTemplatesByNumber = new Map(
     order.template.pageTemplates.map((page) => [page.pageNumber, page]),
@@ -107,26 +144,67 @@ function sceneFromTemplate(
       pageType: "COVER" | "PAGE";
       promptTemplate: string;
       expressionHint: string | null;
+      characterSlots: number;
     }
   >,
   variables: Record<string, string>,
+  options?: { title?: string; artStyleKey?: string | null },
 ) {
+  const fromCode =
+    options?.title && isBirthdayStorybookTitle(options.title)
+      ? resolveBirthdayPage(pageNumber)
+      : null;
+  if (fromCode) {
+    const sceneDescription = substitutePromptTemplate(
+      fromCode.illustration,
+      variables,
+    );
+    const characterLabels = birthdayCharacterLabels(variables, fromCode.cast);
+    return {
+      prompt: buildStyledIllustrationPrompt({
+        sceneDescription,
+        characterLabels,
+        pageType: fromCode.pageType,
+        cast: fromCode.cast,
+        worldHint: substitutePromptTemplate(
+          FOREST_BIRTHDAY_WORLD_HINT,
+          variables,
+        ),
+        artStyleKey: options?.artStyleKey,
+      }),
+      pageType: fromCode.pageType,
+      cast: fromCode.cast,
+    };
+  }
+
   const pageTemplate = pageTemplatesByNumber.get(pageNumber);
   if (!pageTemplate) {
     return null;
   }
 
+  const cast =
+    pageTemplate.characterSlots === 0
+      ? ("none" as const)
+      : pageTemplate.characterSlots >= 2
+        ? ("extraOptional" as const)
+        : ("hero" as const);
   const sceneDescription = substitutePromptTemplate(
     pageTemplate.promptTemplate,
     variables,
   );
+  const characterLabels = birthdayCharacterLabels(variables, cast);
 
   return {
     prompt: buildStyledIllustrationPrompt({
       sceneDescription,
       expressionHint: pageTemplate.expressionHint,
+      characterLabels,
+      pageType: pageTemplate.pageType,
+      cast,
+      artStyleKey: options?.artStyleKey,
     }),
     pageType: pageTemplate.pageType,
+    cast,
   };
 }
 
@@ -147,7 +225,7 @@ async function generatePages(options: {
     await runIllustrationGeneration({
       illustrationId: page.id,
       prompt: page.prompt,
-      characterIds: options.characterIds,
+      characterIds: parseIdList(page.selectedCharacterIds),
     });
   }
 
@@ -306,6 +384,10 @@ export async function ensureIllustrationsAndGenerate(options: {
           pageNumber,
           pageTemplatesByNumber,
           variables,
+          {
+            title: order.template.title,
+            artStyleKey: order.artStyle?.key,
+          },
         );
         if (!scene) {
           console.error(
@@ -326,7 +408,10 @@ export async function ensureIllustrationsAndGenerate(options: {
           orderId,
           pageNumber,
           prompt: scene.prompt,
-          selectedCharacterIds: characterIds,
+          selectedCharacterIds: birthdayCastCharacterIds(
+            characterIds,
+            scene.cast,
+          ),
           pageType: scene.pageType,
           isAutoGenerated: true,
         };
@@ -355,6 +440,10 @@ export async function ensureIllustrationsAndGenerate(options: {
           page.pageNumber,
           pageTemplatesByNumber,
           variables,
+          {
+            title: order.template.title,
+            artStyleKey: order.artStyle?.key,
+          },
         );
         if (!scene) {
           return prisma.illustration.update({
@@ -367,22 +456,41 @@ export async function ensureIllustrationsAndGenerate(options: {
           data: {
             prompt: scene.prompt,
             pageType: scene.pageType,
+            selectedCharacterIds: birthdayCastCharacterIds(
+              characterIds,
+              scene.cast,
+            ),
           },
         });
       }),
     );
   }
 
-  const characterId = characterIds[0];
-  const readyAsset =
-    characterId && order.artStyleId
-      ? await findReadyStyledCharacterAsset({
-          characterId,
-          artStyleId: order.artStyleId,
-        })
-      : null;
+  if (await artStyleSkipsStyleTransfer(order.artStyleId)) {
+    await releaseStyleTransferHold(orderId, pageNumbers);
+    if (wait) {
+      await generatePages({
+        orderId,
+        pageNumbers,
+        characterIds,
+      });
+      return;
+    }
+    await enqueueOrderIllustrations(orderId, pageNumbers);
+    return;
+  }
 
-  if (readyAsset) {
+  const styledByCharacterId = order.artStyleId
+    ? await findReadyStyledCharacterAssets(characterIds, order.artStyleId)
+    : new Map();
+  const readyAsset = characterIds[0]
+    ? styledByCharacterId.get(characterIds[0])
+    : null;
+  const allCharactersStyled =
+    characterIds.length > 0 &&
+    styledByCharacterId.size === characterIds.length;
+
+  if (readyAsset && allCharactersStyled) {
     if (order.characterAssetId !== readyAsset.id) {
       await prisma.storybookOrder.update({
         where: { id: orderId },

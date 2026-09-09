@@ -178,6 +178,14 @@ function OrderDetailModal({
                 <dt className="text-stone-500">상품명</dt>
                 <dd className="mt-0.5 font-medium">{detail.productTitle}</dd>
               </div>
+              {detail.printComment ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-stone-500">수정 사항</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap font-medium text-stone-800">
+                    {detail.printComment}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
 
             <form action={formAction} className="mt-5 space-y-4">
@@ -259,6 +267,18 @@ function OrderDetailModal({
 
               <div className="flex flex-wrap items-center gap-2">
                 <SubmitStatusButton />
+                <a
+                  href={`/api/admin/orders/${detail.id}/download-zip`}
+                  className="inline-flex h-10 items-center rounded-lg border border-stone-300 px-4 text-sm font-medium text-stone-600 hover:bg-stone-50"
+                >
+                  동화책 이미지
+                </a>
+                <a
+                  href={`/api/admin/orders/${detail.id}/download-album-zip`}
+                  className="inline-flex h-10 items-center rounded-lg border border-stone-300 px-4 text-sm font-medium text-stone-600 hover:bg-stone-50"
+                >
+                  사진첩 이미지
+                </a>
                 <Link
                   href={`/admin/orders/${detail.id}`}
                   className="inline-flex h-10 items-center rounded-lg border border-stone-300 px-4 text-sm font-medium text-stone-600 hover:bg-stone-50"

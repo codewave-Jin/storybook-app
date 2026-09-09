@@ -4,6 +4,25 @@ type SessionUser = {
   isAdmin?: boolean;
 };
 
+function ensureCanonicalAuthUrl() {
+  const raw = process.env.AUTH_URL?.trim();
+  if (!raw) {
+    return;
+  }
+
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.replace(/^www\./i, "").toLowerCase();
+    if (host === "panbagi.co.kr") {
+      process.env.AUTH_URL = "https://www.panbagi.co.kr";
+    }
+  } catch {
+    // Keep the original AUTH_URL if it is not a valid URL.
+  }
+}
+
+ensureCanonicalAuthUrl();
+
 export const authConfig = {
   trustHost: true,
   pages: {

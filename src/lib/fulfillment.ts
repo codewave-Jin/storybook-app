@@ -10,10 +10,18 @@ export const FULFILLMENT_STATUSES = [
 
 export const FULFILLMENT_STATUS_LABEL: Record<FulfillmentStatus, string> = {
   PREPARING: "준비중",
-  PRINTING: "인쇄중",
+  PRINTING: "인쇄 의뢰",
   PRINTED: "인쇄완료",
   SHIPPING: "배송중",
   DELIVERED: "배송완료",
+};
+
+export const FULFILLMENT_STATUS_BADGE: Record<FulfillmentStatus, string> = {
+  PREPARING: "bg-stone-100 text-stone-600",
+  PRINTING: "bg-amber-50 text-amber-700",
+  PRINTED: "bg-violet-50 text-violet-700",
+  SHIPPING: "bg-sky-100 text-sky-700",
+  DELIVERED: "bg-emerald-50 text-emerald-700",
 };
 
 export const FULFILLMENT_STATUS_FILTERS: Array<{
@@ -22,7 +30,7 @@ export const FULFILLMENT_STATUS_FILTERS: Array<{
 }> = [
   { value: "ALL", label: "전체" },
   { value: "PREPARING", label: "준비중" },
-  { value: "PRINTING", label: "인쇄중" },
+  { value: "PRINTING", label: "인쇄 의뢰" },
   { value: "PRINTED", label: "인쇄완료" },
   { value: "SHIPPING", label: "배송중" },
   { value: "DELIVERED", label: "배송완료" },

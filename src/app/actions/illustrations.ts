@@ -12,6 +12,7 @@ import {
 } from "@/lib/revalidate-admin";
 import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
 import { toAbsolutePublicPath } from "@/lib/uploads";
+import { illustrationQueueInputImages } from "@/lib/order-character-asset";
 
 export async function addIllustrationPage(orderId: string) {
   await requireAdmin();
@@ -62,10 +63,6 @@ export async function requestIllustrationGeneration(
     return { error: "프롬프트를 입력해 주세요." };
   }
 
-  if (characterIds.length < 1) {
-    return { error: "캐릭터를 한 명 이상 선택해 주세요." };
-  }
-
   if (isComfyMockEnabled()) {
     return runIllustrationGeneration({
       illustrationId,
@@ -81,9 +78,7 @@ export async function requestIllustrationGeneration(
       orderId: true,
       order: {
         select: {
-          characterAsset: {
-            select: { status: true, styledImageUrl: true },
-          },
+          artStyleId: true,
         },
       },
     },
@@ -105,14 +100,15 @@ export async function requestIllustrationGeneration(
     },
   });
 
-  const styledReady =
-    illustration.order.characterAsset?.status === "READY" &&
-    Boolean(illustration.order.characterAsset.styledImageUrl);
+  const inputImages = await illustrationQueueInputImages({
+    characterIds,
+    artStyleId: illustration.order.artStyleId,
+  });
 
   await enqueueAndKickGptImageJob({
     kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
     targetId: illustrationId,
-    inputImages: styledReady ? 1 : 2,
+    inputImages,
     payload: { chainNext: false, keepImage },
   });
   revalidateIllustrationWork(illustration.orderId);

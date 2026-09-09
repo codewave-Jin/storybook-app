@@ -6,6 +6,7 @@ import { OrderWizard } from "@/components/OrderWizard";
 import { prisma } from "@/lib/prisma";
 import {
   isStorybookTemplateSelectable,
+  parseCastRoles,
   parseCustomFields,
 } from "@/lib/templates";
 
@@ -63,6 +64,7 @@ export default async function NewOrderPage() {
               description: template.description,
               available: isStorybookTemplateSelectable(template.title),
               customFields: parseCustomFields(template.customFields),
+              castRoles: parseCastRoles(template.castRoles, template.title),
               artStyles: template.artStyles.flatMap((link) => {
                 const url = link.artStyle.referenceImageUrl;
                 if (!url) {

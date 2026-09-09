@@ -1,4 +1,8 @@
-import type { CustomField } from "@/lib/templates";
+import {
+  customFieldOptions,
+  isChoiceCustomField,
+  type CustomField,
+} from "@/lib/templates";
 
 export const CUSTOM_INPUT_MAX_LENGTH = 20;
 
@@ -66,7 +70,20 @@ export function validateCustomInputValues(
     const sanitized = sanitizeCustomInputValue(rawValues[field.key] ?? "");
 
     if (required && !sanitized) {
-      return { error: `${field.label}을(를) 입력해 주세요.` };
+      return {
+        error: isChoiceCustomField(field)
+          ? `${field.label} 선택해 주세요.`
+          : `${field.label}을(를) 입력해 주세요.`,
+      };
+    }
+
+    if (isChoiceCustomField(field) && sanitized) {
+      const allowed = new Set(
+        customFieldOptions(field).map((option) => option.value),
+      );
+      if (!allowed.has(sanitized)) {
+        return { error: `${field.label} 보기를 다시 선택해 주세요.` };
+      }
     }
 
     if (sanitized.length > CUSTOM_INPUT_MAX_LENGTH) {

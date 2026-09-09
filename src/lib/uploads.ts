@@ -29,6 +29,14 @@ const STICKERS_UPLOAD_DIR = path.join(
   "uploads",
   "stickers",
 );
+const ALBUMS_UPLOAD_DIR = path.join(
+  process.cwd(),
+  "public",
+  "uploads",
+  "albums",
+);
+
+type UploadFolder = "characters" | "illustrations" | "stickers" | "albums";
 
 function extensionFromMime(type: string): string {
   if (type === "image/png") return "png";
@@ -67,7 +75,7 @@ export function isRemoteAsset(value: string | null | undefined) {
 
 async function saveBuffer(
   buffer: Buffer,
-  folder: "characters" | "illustrations" | "stickers",
+  folder: UploadFolder,
   extension: string,
   contentType?: string,
 ) {
@@ -87,7 +95,9 @@ async function saveBuffer(
       ? CHARACTERS_UPLOAD_DIR
       : folder === "stickers"
         ? STICKERS_UPLOAD_DIR
-        : ILLUSTRATIONS_UPLOAD_DIR;
+        : folder === "albums"
+          ? ALBUMS_UPLOAD_DIR
+          : ILLUSTRATIONS_UPLOAD_DIR;
   await mkdir(destDir, { recursive: true });
   await writeFile(path.join(destDir, filename), buffer);
   return `/uploads/${folder}/${filename}`;
@@ -109,6 +119,19 @@ export async function saveCharacterPhoto(file: File): Promise<string> {
     extensionFromMime(file.type),
     file.type,
   );
+}
+
+export async function saveAlbumPhoto(file: File): Promise<string> {
+  if (!ALLOWED_TYPES.has(file.type)) {
+    throw new Error("JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.");
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("이미지 크기는 5MB 이하여야 합니다.");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return saveBuffer(buffer, "albums", extensionFromMime(file.type), file.type);
 }
 
 export function toAbsolutePublicPath(publicPath: string) {

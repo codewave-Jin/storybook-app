@@ -27,7 +27,9 @@ import {
   loadImageAsset,
 } from "../src/lib/openai-illustration";
 
-const FOREST_TEMPLATE_TITLE = "숲속 친구들과의 하루";
+import { ACTIVE_STORYBOOK_TEMPLATE_TITLE } from "../src/lib/templates";
+
+const FOREST_TEMPLATE_TITLE = ACTIVE_STORYBOOK_TEMPLATE_TITLE;
 const IMAGE_EDIT_MODEL = "gpt-image-1.5" as const;
 const INPUT_FIDELITY = "high" as const;
 const DEFAULT_IMAGE_QUALITY = IMAGE_GEN_QUALITY;

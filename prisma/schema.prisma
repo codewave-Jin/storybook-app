@@ -28,20 +28,28 @@ model User {
 
 model TokenBalance {
   id                String    @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email             String?
   userId            String    @unique
   user              User      @relation(fields: [userId], references: [id])
   freeBalance       Int       @default(0)
   paidBalance       Int       @default(0)
   lastFreeGrantDate DateTime?
+
+  @@index([email])
 }
 
 model TokenTransaction {
   id        String                @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email     String?
   userId    String
   user      User                  @relation(fields: [userId], references: [id])
   amount    Int
   type      TokenTransactionType
   createdAt DateTime              @default(now())
+
+  @@index([email])
 }
 
 enum TokenTransactionType {
@@ -52,6 +60,8 @@ enum TokenTransactionType {
 
 model Character {
   id                 String           @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email              String?
   userId             String
   user               User             @relation(fields: [userId], references: [id])
   label              String
@@ -66,6 +76,8 @@ model Character {
 
   stickerOrders      StickerOrder[]
   characterAssets    CharacterAsset[]
+
+  @@index([email])
 }
 
 enum Gender {
@@ -84,6 +96,8 @@ enum CharacterStatus {
 /// Source photo is Character.originalPhotoPath via characterId.
 model CharacterAsset {
   id             String    @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email          String?
   characterId    String
   character      Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   artStyleId     String
@@ -102,6 +116,7 @@ model CharacterAsset {
 
   @@index([characterId, artStyleId])
   @@index([artStyleId])
+  @@index([email])
 }
 
 enum TemplateCategory {
@@ -118,6 +133,8 @@ model StorybookTemplate {
   /// Legacy JSON question fields; prefer TemplateQuestion going forward.
   customFields Json
   topicPresets Json             @default("[]")
+  /// Allowed extra-cast relations for this book, e.g. [{ key, label }]
+  castRoles    Json             @default("[]")
   orders       StorybookOrder[]
   pageTemplates PageTemplate[]
   questions    TemplateQuestion[]
@@ -187,12 +204,18 @@ model TemplateArtStyle {
 
 model StorybookOrder {
   id                   String           @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email                String?
   userId               String
   user                 User             @relation(fields: [userId], references: [id])
   templateId           String
   template             StorybookTemplate @relation(fields: [templateId], references: [id])
   selectedCharacterIds Json
   customInputValues    Json
+  /// AGE_1_2 | AGE_3_4 | AGE_5_7
+  heroAgeRange         String?
+  /// Extra cast: [{ characterId, relationKey }]
+  supportingCast       Json             @default("[]")
   artStyleId           String?
   artStyle             ArtStyle?        @relation(fields: [artStyleId], references: [id], onDelete: SetNull)
   characterAssetId     String?
@@ -204,6 +227,19 @@ model StorybookOrder {
   shippingCarrier      String?
   trackingNumber       String?
   previewGeneratedAt   DateTime?
+  checkoutEmail        String?
+  checkoutPhone        String?
+  shippingName         String?
+  shippingPostalCode   String?
+  shippingAddress      String?
+  shippingAddressDetail String?
+  zonecode             String?
+  roadAddress          String?
+  detailAddress        String?
+  sido                 String?
+  includePhotoAlbum    Boolean          @default(false)
+  quantity             Int              @default(1)
+  printComment         String?
   createdAt            DateTime         @default(now())
 
   illustrations   Illustration[]
@@ -213,10 +249,13 @@ model StorybookOrder {
 
   @@index([artStyleId])
   @@index([characterAssetId])
+  @@index([email])
 }
 
 model GenerationEvent {
   id        String   @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email     String?
   kind      String
   entityId  String   @map("entity_id")
   orderId   String?  @map("order_id")
@@ -229,6 +268,7 @@ model GenerationEvent {
   @@index([entityId, createdAt])
   @@index([orderId, createdAt])
   @@index([kind, createdAt])
+  @@index([email])
   @@map("generation_events")
 }
 
@@ -255,6 +295,8 @@ enum FulfillmentStatus {
 
 model OrderStatusLog {
   id              String             @id @default(cuid())
+  /// Copied from order owner User.email for Table Editor search. Synced by DB trigger.
+  email           String?
   orderId         String             @map("order_id")
   order           StorybookOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   fromStatus      FulfillmentStatus? @map("from_status")
@@ -266,11 +308,14 @@ model OrderStatusLog {
   createdAt       DateTime           @default(now()) @map("created_at")
 
   @@index([orderId, createdAt])
+  @@index([email])
   @@map("order_status_logs")
 }
 
 model Illustration {
   id                   String              @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email                String?
   orderId              String
   order                StorybookOrder      @relation(fields: [orderId], references: [id])
   pageNumber           Int
@@ -288,6 +333,8 @@ model Illustration {
   errorReason          String?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt @default(now())
+
+  @@index([email])
 }
 
 enum IllustrationStatus {
@@ -311,10 +358,16 @@ enum StickerPreviewStatus {
 
 model PhotoAlbumPage {
   id         String         @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email      String?
   orderId    String
   order      StorybookOrder @relation(fields: [orderId], references: [id])
+  pageNumber Int
   layoutId   String
   photoPaths Json
+
+  @@unique([orderId, pageNumber])
+  @@index([email])
 }
 
 model StickerTemplate {
@@ -392,6 +445,8 @@ model StickerSizeOption {
 
 model StickerOrder {
   id               String            @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email            String?
   userId           String
   user             User              @relation(fields: [userId], references: [id])
   characterId      String
@@ -420,10 +475,13 @@ model StickerOrder {
 
   @@index([costumeId])
   @@index([borderId])
+  @@index([email])
 }
 
 model Review {
   id               String   @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email            String?
   userId           String   @map("user_id")
   user             User     @relation(fields: [userId], references: [id])
   storybookOrderId String?  @unique @map("storybook_order_id")
@@ -441,17 +499,21 @@ model Review {
 
   @@index([userId, createdAt])
   @@index([isFeatured, featuredAt])
+  @@index([email])
   @@map("reviews")
 }
 
 model ReviewImage {
   id        String @id @default(cuid())
+  /// Copied from User.email for Table Editor search. Synced by DB trigger.
+  email     String?
   reviewId  String @map("review_id")
   review    Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   imageUrl  String @map("image_url")
   sortOrder Int    @default(0) @map("sort_order") @db.SmallInt
 
   @@index([reviewId])
+  @@index([email])
   @@map("review_images")
 }
 

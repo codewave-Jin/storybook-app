@@ -14,11 +14,13 @@ function StickerFace({
   phrase,
   overlayPhrase,
   compact = false,
+  watermark = false,
 }: {
   src: string;
   phrase: string;
   overlayPhrase: boolean;
   compact?: boolean;
+  watermark?: boolean;
 }) {
   return (
     <div
@@ -51,6 +53,7 @@ function StickerFace({
           </p>
         </div>
       ) : null}
+      {watermark ? <PreviewWatermark size="sm" /> : null}
     </div>
   );
 }
@@ -82,8 +85,12 @@ export function StickerPreviewViews({
           className="no-image-save relative mx-auto mt-5 w-[70%] max-w-[16rem]"
           onContextMenu={(event) => event.preventDefault()}
         >
-          <StickerFace src={src} phrase={phrase} overlayPhrase={overlayPhrase} />
-          {showWatermark ? <PreviewWatermark /> : null}
+          <StickerFace
+            src={src}
+            phrase={phrase}
+            overlayPhrase={overlayPhrase}
+            watermark={showWatermark}
+          />
         </div>
       </section>
 

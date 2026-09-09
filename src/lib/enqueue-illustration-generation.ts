@@ -8,6 +8,7 @@ import {
 } from "@/lib/gpt-image-queue";
 import {
   GPT_IMAGE_JOB_KIND,
+  gptImageConcurrency,
   gptImageIllustrationPriority,
 } from "@/lib/gpt-image-queue-config";
 import { runIllustrationGeneration } from "@/lib/illustration-generate";
@@ -16,6 +17,7 @@ import {
   shouldGenerateIllustration,
   staleProcessingBefore,
 } from "@/lib/illustration-generation-policy";
+import { illustrationQueueInputImages } from "@/lib/order-character-asset";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 
@@ -55,9 +57,7 @@ export function enqueueIllustrationGenerations(
         order: {
           select: {
             userId: true,
-            characterAsset: {
-              select: { status: true, styledImageUrl: true },
-            },
+            artStyleId: true,
           },
         },
       },
@@ -86,9 +86,9 @@ export function enqueueIllustrationGenerations(
     let created = 0;
     for (const page of targets) {
       const characterIds = parseIdList(page.selectedCharacterIds);
-      if (!page.prompt.trim() || characterIds.length < 1) {
+      if (!page.prompt.trim()) {
         console.error(
-          "[storybook-generation] skip generate (missing prompt/characters)",
+          "[storybook-generation] skip generate (missing prompt)",
           page.id,
         );
         continue;
@@ -128,14 +128,15 @@ export function enqueueIllustrationGenerations(
         },
       });
 
-      const styledReady =
-        page.order.characterAsset?.status === "READY" &&
-        Boolean(page.order.characterAsset.styledImageUrl);
+      const inputImages = await illustrationQueueInputImages({
+        characterIds,
+        artStyleId: page.order.artStyleId,
+      });
 
       const result = await enqueueGptImageJob({
         kind: GPT_IMAGE_JOB_KIND.ILLUSTRATION,
         targetId: page.id,
-        inputImages: styledReady ? 1 : 2,
+        inputImages,
         priority: gptImageIllustrationPriority(page.pageNumber, page.pageType),
         payload: { chainNext, keepImage: false },
       });
@@ -145,7 +146,9 @@ export function enqueueIllustrationGenerations(
     }
 
     if (!isComfyMockEnabled()) {
-      kickGptImageWorkers(Math.max(created, targets.length));
+      kickGptImageWorkers(
+        Math.min(Math.max(created, targets.length), gptImageConcurrency()),
+      );
     }
   })();
 

@@ -1,5 +1,5 @@
 /**
- * Create a forest-template order and run preview generation (pages 1–3)
+ * Create a birthday-template order and run preview generation (pages 1, 2, 4)
  * through the same path as createOrder: PageTemplate substitution +
  * Responses API (gpt-image-2).
  *
@@ -16,9 +16,11 @@ import path from "path";
 import { PrismaClient } from "@prisma/client";
 import { TEST_ILLUSTRATION_VARIABLES } from "../src/lib/illustration-prompt";
 import { startOrderPreviewGeneration } from "../src/lib/preview-generation";
+import { ACTIVE_STORYBOOK_TEMPLATE_TITLE } from "../src/lib/templates";
 
 const DEMO_EMAIL = "test@codewave.im";
-const FOREST_TEMPLATE_TITLE = "숲속 친구들과의 하루";
+
+const FOREST_TEMPLATE_TITLE = ACTIVE_STORYBOOK_TEMPLATE_TITLE;
 
 type CliArgs = {
   characters: string[];
@@ -158,7 +160,7 @@ async function main() {
     }
     if (template.pageTemplates.length < 3) {
       throw new Error(
-        `Template "${FOREST_TEMPLATE_TITLE}" needs page templates 1–3.`,
+        `Template "${FOREST_TEMPLATE_TITLE}" needs page templates 1, 2, and 4.`,
       );
     }
 
@@ -203,7 +205,7 @@ async function main() {
 
     console.log(`order=${order.id}`);
     console.log(`style=${artStyle.key} ref=${artStyle.referenceImageUrl}`);
-    console.log("Generating preview pages 1–3 (this can take several minutes)...");
+    console.log("Generating preview pages 1 and 3 (this can take several minutes)...");
 
     await startOrderPreviewGeneration(order.id, { wait: true });
 

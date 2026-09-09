@@ -8,8 +8,8 @@ import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { OrderPreviewPayButton } from "@/components/OrderPreviewPayButton";
 import { PreviewWatermark } from "@/components/PreviewWatermark";
+import type { OrderOptionLine } from "@/lib/storybook-order-summary";
 import type { PreviewBookPage } from "@/lib/preview-pages";
-import { cn } from "@/lib/utils";
 
 type OrderStatusPayload = {
   illustrations?: Array<{
@@ -66,6 +66,10 @@ export function OrderPreviewBook({
   ready,
   bookComplete,
   orderId,
+  includePhotoAlbum = false,
+  optionLines = [],
+  defaultEmail,
+  defaultName,
 }: {
   title: string;
   backHref: string;
@@ -74,6 +78,10 @@ export function OrderPreviewBook({
   ready: boolean;
   bookComplete: boolean;
   orderId: string;
+  includePhotoAlbum?: boolean;
+  optionLines?: OrderOptionLine[];
+  defaultEmail?: string;
+  defaultName?: string;
 }) {
   const [index, setIndex] = useState(0);
   const [livePages, setLivePages] = useState(pages);
@@ -155,13 +163,9 @@ export function OrderPreviewBook({
     };
   }, [orderId, waitingForGeneration]);
 
-  const completedCount = livePages.filter(
-    (page) => page.status === "COMPLETED" && page.imagePath,
-  ).length;
   const liveComplete = livePages.every(
     (page) => page.id && page.status === "COMPLETED" && page.imagePath,
   );
-  const showProgress = !liveComplete && (paid || waitingForGeneration);
   const counterLabel = `${safeIndex + 1} / ${livePages.length}`;
   const payReady = ready || bookComplete || (!paid && liveComplete);
 
@@ -204,28 +208,32 @@ export function OrderPreviewBook({
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-40 pt-4 sm:px-4 sm:pt-6">
-        {showProgress ? (
-          <div className="mb-4 rounded-2xl bg-white px-4 py-3 text-center shadow-sm ring-1 ring-sky-100 sm:px-6">
-            <p className="text-base font-semibold text-stone-800">
-              AI가 이야기를 그리고 있어요
-            </p>
-            <p className="mt-1 text-sm tabular-nums text-stone-500">
-              {completedCount}/{livePages.length} 페이지 완성
-            </p>
-            <div className="mx-auto mt-3 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-stone-200">
-              <div
-                className="h-full rounded-full bg-sky-400 transition-[width] duration-500"
-                style={{
-                  width: `${Math.max((completedCount / Math.max(livePages.length, 1)) * 100, 4)}%`,
-                }}
-              />
-            </div>
-          </div>
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-48 pt-4 sm:px-4 sm:pt-6">
+        {optionLines.length > 0 ? (
+          <section
+            aria-label="선택한 옵션"
+            className="mb-4 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-sky-100 sm:px-5"
+          >
+            <ul className="flex flex-wrap gap-x-5 gap-y-2">
+              {optionLines.map((line) => (
+                <li
+                  key={line.label}
+                  className="flex min-w-0 items-baseline gap-1.5"
+                >
+                  <span className="shrink-0 text-xs text-stone-400">
+                    {line.label}
+                  </span>
+                  <span className="text-sm font-medium text-stone-800">
+                    {line.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
 
         <div className="flex flex-1 items-center justify-center">
-          <article className="w-full max-w-md sm:max-w-lg">
+          <article className="w-full max-w-2xl sm:max-w-3xl">
             {livePages.map((page, pageIndex) => (
               <div
                 key={`${page.kind}-${page.pageNumber}-${page.id ?? pageIndex}`}
@@ -279,14 +287,37 @@ export function OrderPreviewBook({
             </button>
           </div>
           {paid ? (
-            <Link
-              href="/dashboard"
-              className="flex h-12 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500"
-            >
-              대시보드로 돌아가기
-            </Link>
+            liveComplete && includePhotoAlbum && safeIndex === lastIndex ? (
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/dashboard/orders/${orderId}/album`}
+                  className="flex h-12 items-center justify-center rounded-xl bg-[#E07A5F] text-sm font-semibold text-white hover:bg-[#d56c51]"
+                >
+                  사진첩 진행하기
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-600 hover:bg-stone-50"
+                >
+                  대시보드로 돌아가기
+                </Link>
+              </div>
+            ) : (
+              <Link
+                href="/dashboard"
+                className="flex h-12 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500"
+              >
+                대시보드로 돌아가기
+              </Link>
+            )
           ) : (
-            <OrderPreviewPayButton orderId={orderId} ready={payReady} />
+            <OrderPreviewPayButton
+              orderId={orderId}
+              ready={payReady}
+              optionLines={optionLines}
+              defaultEmail={defaultEmail}
+              defaultName={defaultName}
+            />
           )}
         </div>
       </footer>
@@ -304,55 +335,31 @@ function BookLeaf({
     imagePath?: string | null;
   }) => void;
 }) {
+  if (page.kind === "cover") {
+    return <CoverSpread page={page} onLiveChange={onLiveChange} />;
+  }
+
   const showImage = page.status === "COMPLETED" && page.imagePath;
 
   return (
     <figure className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100">
       <div
-        className="no-image-save relative aspect-square bg-stone-100"
+        className="no-image-save relative aspect-[2/1] bg-stone-100"
         onContextMenu={(event) => event.preventDefault()}
       >
         {showImage && page.imagePath ? (
           <AppImage
             src={page.imagePath}
-            alt={page.kind === "cover" ? "표지" : `${page.label}페이지`}
+            alt={`${page.label}페이지`}
             fill
             draggable={false}
             className="pointer-events-none object-contain"
             sizes="(max-width: 640px) 100vw, 32rem"
           />
         ) : page.status === "FAILED" ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center">
-            <p className="text-sm font-medium text-red-600">생성 실패</p>
-            <p className="text-xs text-stone-500">잠시 후 다시 시도해 주세요</p>
-          </div>
+          <FailedLeaf />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-stone-100 via-stone-200/80 to-stone-100" />
-            {page.id ? (
-              <div className="relative z-10">
-                <GenerationProgress
-                  kind="illustration"
-                  id={page.id}
-                  onSnapshot={(snapshot) => {
-                    const status = snapshot.status;
-                    if (status && isIllustrationStatus(status)) {
-                      onLiveChange({
-                        status,
-                        imagePath: snapshot.imageUrl,
-                      });
-                    } else if (snapshot.imageUrl) {
-                      onLiveChange({ imagePath: snapshot.imageUrl });
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <p className="relative z-10 text-sm font-medium text-stone-500">
-                대기 중
-              </p>
-            )}
-          </div>
+          <GeneratingLeaf page={page} onLiveChange={onLiveChange} />
         )}
         <PreviewWatermark />
         <div
@@ -360,17 +367,159 @@ function BookLeaf({
           onContextMenu={(event) => event.preventDefault()}
           onDragStart={(event) => event.preventDefault()}
         />
-        <span
-          className={cn(
-            "absolute left-3 top-3 z-10 rounded-full px-2.5 py-1 text-[11px] font-semibold shadow-sm",
-            page.kind === "cover"
-              ? "bg-[#F6E7C1] text-[#8A5A12]"
-              : "bg-white/90 text-stone-700",
-          )}
-        >
+        <span className="absolute left-3 top-3 z-10 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-stone-700 shadow-sm">
           {page.label}
         </span>
       </div>
     </figure>
+  );
+}
+
+function CoverSpread({
+  page,
+  onLiveChange,
+}: {
+  page: PreviewBookPage;
+  onLiveChange: (next: {
+    status?: IllustrationStatus;
+    imagePath?: string | null;
+  }) => void;
+}) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const showImage = page.status === "COMPLETED" && page.imagePath;
+
+  useEffect(() => {
+    return () => {
+      if (photoUrl) {
+        URL.revokeObjectURL(photoUrl);
+      }
+    };
+  }, [photoUrl]);
+
+  return (
+    <figure className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100">
+      <div className="no-image-save relative aspect-[2/1] bg-stone-100">
+        <div className="absolute inset-0 grid grid-cols-2">
+          <div className="relative flex items-center justify-center bg-[#f3eee6]">
+            <label className="relative z-10 flex aspect-[3/4] w-[56%] max-h-[78%] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[2px] bg-white p-[7px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-stone-400/70">
+              <span className="relative flex h-full w-full items-center justify-center overflow-hidden bg-stone-100">
+                {photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt="표지 왼쪽 사진"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="px-2 text-center">
+                    <span className="block text-sm font-medium text-stone-600">
+                      사진 추가
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-stone-400">
+                      액자에 넣을 사진을 골라 주세요
+                    </span>
+                  </span>
+                )}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) {
+                    return;
+                  }
+                  const nextUrl = URL.createObjectURL(file);
+                  setPhotoUrl((current) => {
+                    if (current) {
+                      URL.revokeObjectURL(current);
+                    }
+                    return nextUrl;
+                  });
+                }}
+              />
+            </label>
+          </div>
+          <div className="relative bg-stone-100">
+            {showImage && page.imagePath ? (
+              <AppImage
+                src={page.imagePath}
+                alt="표지"
+                fill
+                draggable={false}
+                className="pointer-events-none object-cover"
+                sizes="(max-width: 640px) 50vw, 16rem"
+              />
+            ) : page.status === "FAILED" ? (
+              <FailedLeaf />
+            ) : (
+              <GeneratingLeaf page={page} onLiveChange={onLiveChange} />
+            )}
+            <PreviewWatermark />
+            <div
+              className="absolute inset-0 z-[1]"
+              onContextMenu={(event) => event.preventDefault()}
+              onDragStart={(event) => event.preventDefault()}
+            />
+            <span className="absolute right-3 top-3 z-10 rounded-full bg-[#F6E7C1] px-2.5 py-1 text-[11px] font-semibold text-[#8A5A12] shadow-sm">
+              표지
+            </span>
+          </div>
+        </div>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px bg-stone-300/80"
+        />
+      </div>
+    </figure>
+  );
+}
+
+function FailedLeaf() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center">
+      <p className="text-sm font-medium text-red-600">생성 실패</p>
+      <p className="text-xs text-stone-500">잠시 후 다시 시도해 주세요</p>
+    </div>
+  );
+}
+
+function GeneratingLeaf({
+  page,
+  onLiveChange,
+}: {
+  page: PreviewBookPage;
+  onLiveChange: (next: {
+    status?: IllustrationStatus;
+    imagePath?: string | null;
+  }) => void;
+}) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+      <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-stone-100 via-stone-200/80 to-stone-100" />
+      {page.id ? (
+        <div className="relative z-10">
+          <GenerationProgress
+            kind="illustration"
+            id={page.id}
+            onSnapshot={(snapshot) => {
+              const status = snapshot.status;
+              if (status && isIllustrationStatus(status)) {
+                onLiveChange({
+                  status,
+                  imagePath: snapshot.imageUrl,
+                });
+              } else if (snapshot.imageUrl) {
+                onLiveChange({ imagePath: snapshot.imageUrl });
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <p className="relative z-10 text-sm font-medium text-stone-500">
+          대기 중
+        </p>
+      )}
+    </div>
   );
 }

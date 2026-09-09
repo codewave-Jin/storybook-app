@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
+import { OrderOptionSummary } from "@/components/OrderOptionSummary";
 import { MyPageShell } from "@/components/mypage/MyPageShell";
 import {
   formatDateTime,
@@ -10,6 +11,10 @@ import {
   PAYMENT_STATUS_LABEL,
 } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import {
+  collectOrderCharacterIds,
+  storybookOrderOptionLines,
+} from "@/lib/storybook-order-summary";
 import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +35,12 @@ export default async function MyPage() {
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: 20,
-      include: { template: { select: { title: true } } },
+      include: {
+        artStyle: { select: { label: true } },
+        template: {
+          select: { title: true, customFields: true, castRoles: true },
+        },
+      },
     }),
     prisma.stickerOrder.findMany({
       where: { userId },
@@ -48,6 +58,18 @@ export default async function MyPage() {
     redirect("/api/auth/force-logout?callbackUrl=/login%3FcallbackUrl%3D%2Fmypage");
   }
 
+  const optionCharacterIds = collectOrderCharacterIds(storybookOrders);
+  const optionCharacters =
+    optionCharacterIds.length > 0
+      ? await prisma.character.findMany({
+          where: { id: { in: optionCharacterIds } },
+          select: { id: true, label: true },
+        })
+      : [];
+  const characterLabelsById = new Map(
+    optionCharacters.map((character) => [character.id, character.label]),
+  );
+
   const orders = [
     ...storybookOrders.map((order) => ({
       id: order.id,
@@ -56,7 +78,21 @@ export default async function MyPage() {
       href: `/dashboard/orders/${order.id}/preview`,
       paymentStatus: order.paymentStatus,
       productionStatus: order.productionStatus,
+      fulfillmentStatus: order.fulfillmentStatus,
       createdAt: order.createdAt,
+      optionLines: storybookOrderOptionLines({
+        selectedCharacterIds: order.selectedCharacterIds,
+        customInputValues: order.customInputValues,
+        heroAgeRange: order.heroAgeRange,
+        supportingCast: order.supportingCast,
+        artStyleLabel: order.artStyle?.label,
+        includePhotoAlbum: order.includePhotoAlbum,
+        quantity: order.quantity,
+        templateTitle: order.template.title,
+        templateCustomFields: order.template.customFields,
+        templateCastRoles: order.template.castRoles,
+        characterLabelsById,
+      }),
     })),
     ...stickerOrders.map((order) => ({
       id: order.id,
@@ -90,10 +126,12 @@ export default async function MyPage() {
             const fulfillment = getFulfillmentLabel(
               order.paymentStatus,
               order.productionStatus,
+              "fulfillmentStatus" in order ? order.fulfillmentStatus : undefined,
             );
             const hint = getFulfillmentHint(
               order.paymentStatus,
               order.productionStatus,
+              "fulfillmentStatus" in order ? order.fulfillmentStatus : undefined,
             );
 
             return (
@@ -121,6 +159,9 @@ export default async function MyPage() {
                     </span>
                   </div>
                   <p className="mt-2 font-semibold text-stone-800">{order.title}</p>
+                  {"optionLines" in order && order.optionLines ? (
+                    <OrderOptionSummary lines={order.optionLines} />
+                  ) : null}
                   <p className="mt-1 text-xs text-stone-500">
                     {formatDateTime(order.createdAt)}
                     <span className="mx-1.5 text-stone-300">·</span>

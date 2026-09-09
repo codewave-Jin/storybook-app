@@ -50,6 +50,7 @@ export const HOME_MEDIA = {
   ] satisfies HomeMediaPair[],
   whyPhoto: "/landing/child-before.png" as string | null,
   whyCharacter: "/landing/child-after.png" as string | null,
+  whyGoods: "/landing/character-product.png" as string | null,
 };
 
 export function characterStartHref() {

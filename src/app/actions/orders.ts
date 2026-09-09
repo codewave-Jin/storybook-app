@@ -9,11 +9,16 @@ import {
 } from "@/lib/preview-generation";
 import { logGenerationEvent } from "@/lib/generation-events";
 import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
+import { parseCheckoutForm, validateCheckoutInput } from "@/lib/checkout";
 import { PAYMENTS_ENABLED } from "@/lib/payments";
+import { ensureOrderPhotoAlbumPages } from "@/lib/photo-album-pages";
 import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
 import {
+  MAX_SUPPORTING_CAST,
+  isHeroAgeRangeKey,
   isStorybookTemplateSelectable,
+  parseCastRoles,
   parseCustomFields,
 } from "@/lib/templates";
 import { validateCustomInputValues } from "@/lib/custom-input-guard";
@@ -43,21 +48,37 @@ export async function createOrder(
 
   const userId = session.user.id;
   const templateId = String(formData.get("templateId") ?? "");
-  const characterIds = formData
-    .getAll("characterIds")
-    .map((value) => String(value))
+  const heroCharacterId = String(
+    formData.get("heroCharacterId") || formData.get("characterIds") || "",
+  ).trim();
+  const heroAgeRange = String(formData.get("heroAgeRange") ?? "").trim();
+  const castCharacterIds = formData
+    .getAll("castCharacterIds")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const castRelationKeys = formData
+    .getAll("castRelationKeys")
+    .map((value) => String(value).trim())
     .filter(Boolean);
 
   if (!templateId) {
     return { error: "동화책 유형을 선택해 주세요." };
   }
 
-  if (characterIds.length < 1) {
-    return { error: "캐릭터를 한 명 이상 선택해 주세요." };
+  if (!heroCharacterId) {
+    return { error: "주인공 캐릭터를 선택해 주세요." };
   }
 
-  if (characterIds.length > 3) {
-    return { error: "캐릭터는 최대 3명까지 선택할 수 있습니다." };
+  if (!isHeroAgeRangeKey(heroAgeRange)) {
+    return { error: "주인공 나이를 선택해 주세요." };
+  }
+
+  if (castCharacterIds.length !== castRelationKeys.length) {
+    return { error: "등장인물 정보를 다시 확인해 주세요." };
+  }
+
+  if (castCharacterIds.length > MAX_SUPPORTING_CAST) {
+    return { error: "등장인물은 한 명만 추가할 수 있습니다." };
   }
 
   const template = await prisma.storybookTemplate.findUnique({
@@ -71,6 +92,26 @@ export async function createOrder(
   if (!isStorybookTemplateSelectable(template.title)) {
     return { error: "아직 준비 중인 동화책입니다." };
   }
+
+  const castRoles = parseCastRoles(template.castRoles, template.title);
+  const allowedRelationKeys = new Set(castRoles.map((role) => role.key));
+  const supportingCast: Array<{ characterId: string; relationKey: string }> = [];
+  const usedCastIds = new Set<string>([heroCharacterId]);
+
+  for (let index = 0; index < castCharacterIds.length; index += 1) {
+    const characterId = castCharacterIds[index];
+    const relationKey = castRelationKeys[index];
+    if (usedCastIds.has(characterId)) {
+      return { error: "같은 캐릭터는 한 번만 등장할 수 있습니다." };
+    }
+    if (!allowedRelationKeys.has(relationKey)) {
+      return { error: "이 동화책에서 쓸 수 없는 관계입니다." };
+    }
+    usedCastIds.add(characterId);
+    supportingCast.push({ characterId, relationKey });
+  }
+
+  const characterIds = [heroCharacterId, ...castCharacterIds];
 
   const characters = await prisma.character.findMany({
     where: {
@@ -116,6 +157,8 @@ export async function createOrder(
       templateId: template.id,
       selectedCharacterIds: characterIds,
       customInputValues,
+      heroAgeRange,
+      supportingCast,
       artStyleId: resolvedStyle.artStyleId,
       paymentStatus: "PENDING",
       productionStatus: "WAITING",
@@ -133,6 +176,8 @@ export async function createOrder(
       detail: {
         templateId: template.id,
         characterIds,
+        heroAgeRange,
+        supportingCast,
         artStyleId: resolvedStyle.artStyleId,
       },
     });
@@ -201,14 +246,64 @@ export async function payForOrder(
     return { error: "미리보기가 끝난 뒤에 결제할 수 있습니다." };
   }
 
-  await prisma.storybookOrder.update({
-    where: { id: orderId },
-    data: {
-      paymentStatus: "PAID",
-      expectedDeliveryAt:
-        order.expectedDeliveryAt ?? defaultExpectedDeliveryAt(new Date()),
-    },
-  });
+  const checkout = parseCheckoutForm(formData);
+  const checkoutError = validateCheckoutInput(checkout);
+  if (checkoutError) {
+    return { error: checkoutError };
+  }
+
+  try {
+    await prisma.storybookOrder.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: "PAID",
+        expectedDeliveryAt:
+          order.expectedDeliveryAt ?? defaultExpectedDeliveryAt(new Date()),
+        checkoutEmail: checkout.checkoutEmail,
+        checkoutPhone: checkout.checkoutPhone,
+        shippingName: checkout.shippingName,
+        shippingPostalCode: checkout.zonecode,
+        shippingAddress: checkout.roadAddress,
+        shippingAddressDetail: checkout.detailAddress,
+        includePhotoAlbum: checkout.includePhotoAlbum,
+      },
+    });
+  } catch (error) {
+    console.error("payForOrder update failed", error);
+    return { error: "결제 정보를 저장하지 못했습니다. 다시 시도해 주세요." };
+  }
+
+  try {
+    await prisma.$executeRaw`
+      UPDATE "StorybookOrder"
+      SET
+        "zonecode" = ${checkout.zonecode},
+        "roadAddress" = ${checkout.roadAddress},
+        "detailAddress" = ${checkout.detailAddress},
+        "sido" = ${checkout.sido},
+        "quantity" = ${checkout.quantity}
+      WHERE id = ${orderId}
+    `;
+  } catch (error) {
+    console.error("payForOrder extra fields failed", error);
+    try {
+      await prisma.$executeRaw`
+        UPDATE "StorybookOrder"
+        SET "quantity" = ${checkout.quantity}
+        WHERE id = ${orderId}
+      `;
+    } catch (quantityError) {
+      console.error("payForOrder quantity failed", quantityError);
+    }
+  }
+
+  if (checkout.includePhotoAlbum) {
+    try {
+      await ensureOrderPhotoAlbumPages(orderId);
+    } catch (error) {
+      console.error("photo album pages failed", error);
+    }
+  }
 
   try {
     await startOrderPaidGeneration(orderId);

@@ -63,6 +63,7 @@ export function IllustrationPageEditor({
     status: "IDLE" | "PROCESSING" | "COMPLETED" | "FAILED";
     selectedCharacterIds: string[];
     errorReason?: string | null;
+    pageType?: "COVER" | "PAGE";
   };
   characters: WorkCharacter[];
 }) {
@@ -157,8 +158,20 @@ export function IllustrationPageEditor({
 
   return (
     <article className="space-y-6 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
-      <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-xl bg-stone-100 xl:mx-0 xl:max-w-none">
+      <div
+        className={
+          illustration.pageType === "PAGE"
+            ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]"
+            : "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)]"
+        }
+      >
+      <div
+        className={
+          illustration.pageType === "PAGE"
+            ? "relative mx-auto aspect-[2/1] w-full max-w-xl overflow-hidden rounded-xl bg-stone-100 xl:mx-0 xl:max-w-none"
+            : "relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-xl bg-stone-100 xl:mx-0 xl:max-w-none"
+        }
+      >
         {illustration.imagePath ? (
           <AppImage
             src={illustration.imagePath}

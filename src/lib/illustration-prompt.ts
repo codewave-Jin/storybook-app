@@ -1,4 +1,10 @@
 import { sanitizeCustomInputValue } from "@/lib/custom-input-guard";
+export {
+  artStyleSceneHint,
+  buildFaceIdentityImageRoles,
+  buildSceneStyleReferenceRole,
+  buildStyledIllustrationPrompt,
+} from "@/lib/storybook-prompts";
 
 export type PromptTemplateVariables = Record<string, string>;
 
@@ -12,16 +18,33 @@ export const TEST_ILLUSTRATION_VARIABLES: PromptTemplateVariables = {
 export function buildOrderPromptVariables(input: {
   characterLabels: string[];
   customInputValues: Record<string, string>;
+  heroAgeLabel?: string | null;
+  supportingCast?: Array<{ relationKey: string; label: string }>;
 }): PromptTemplateVariables {
   const variables: PromptTemplateVariables = {};
 
-  input.characterLabels.slice(0, 3).forEach((label, index) => {
+  input.characterLabels.slice(0, 5).forEach((label, index) => {
     const name = label.trim();
     if (!name) {
       return;
     }
     variables[`character_${index + 1}`] = name;
   });
+
+  const age = input.heroAgeLabel?.trim();
+  if (age) {
+    variables.hero_age = age;
+  }
+
+  for (const member of input.supportingCast ?? []) {
+    const relationKey = member.relationKey.trim();
+    const name = member.label.trim();
+    if (!relationKey || !name) {
+      continue;
+    }
+    const key = `cast.${relationKey}`;
+    variables[key] = variables[key] ? `${variables[key]}, ${name}` : name;
+  }
 
   for (const [rawKey, value] of Object.entries(input.customInputValues)) {
     const key = rawKey.trim();
@@ -30,6 +53,10 @@ export function buildOrderPromptVariables(input: {
     }
     const answerKey = key.startsWith("answer.") ? key : `answer.${key}`;
     variables[answerKey] = sanitizeCustomInputValue(value);
+  }
+
+  if (!variables["answer.favorite_place"]) {
+    variables["answer.favorite_place"] = "바닷가";
   }
 
   return variables;
@@ -64,36 +91,6 @@ export type BuildIllustrationEditPromptInput = {
   characterCount?: number;
 };
 
-/**
- * Scene prompt used after the character sheet is already style-transferred.
- * Matches scripts/test-illustration.ts. expressionHint comes from PageTemplate.
- */
-export function buildStyledIllustrationPrompt(options: {
-  sceneDescription: string;
-  expressionHint?: string | null;
-}): string {
-  const scene = options.sceneDescription.trim();
-  const expression = options.expressionHint?.trim() || "";
-  const keepAndChange = expression
-    ? [
-        "[유지할 것] 얼굴형, 이목구비의 생김새, 헤어스타일, 의상, 그림체",
-        `[변경할 것] 포즈, 배경, 그리고 표정: ${expression}`,
-        "표정은 눈과 입의 변화로만 표현하고 얼굴형과 볼살은 유지하세요",
-      ]
-    : [
-        "[유지할 것] 얼굴형, 이목구비의 생김새, 표정, 헤어스타일, 의상, 그림체",
-        "[변경할 것] 포즈와 배경만 장면에 맞게 표현",
-      ];
-
-  return [
-    `이 캐릭터의 정체성과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
-    "",
-    ...keepAndChange,
-    "",
-    "얼굴에 사진 질감이나 광택 렌더링을 넣지 마세요.",
-  ].join("\n");
-}
-
 const CHARACTER_LABELS = ["Character A", "Character B", "Character C"] as const;
 const ORDINALS = ["first", "second", "third", "fourth"] as const;
 
@@ -115,7 +112,7 @@ export function withISuffix(name: string): string {
 }
 
 export function buildCoverTitle(character1Name: string): string {
-  return `${withISuffix(character1Name)}의 숲속 친구들과의 하루`;
+  return `${withISuffix(character1Name)}의 두근두근 생일 파티`;
 }
 
 /** Strip trailing sentence punctuation so `장면은 ${scene}.` does not double up. */
@@ -144,14 +141,25 @@ export function buildIllustrationEditPrompt(
   const parts = [buildIllustrationStyleClauses(), `장면은 ${scene}.`];
 
   if (input.pageType === "COVER") {
-    parts.push(
-      `제목은 "${buildCoverTitle(input.character1Name)}"라고 그림 안에 표지답게 예쁘게 넣어줘.`,
-    );
+    const sceneForbidsText =
+      /제목|글자/.test(input.sceneDescription) &&
+      /넣지/.test(input.sceneDescription);
+    if (sceneForbidsText) {
+      parts.push("그림 안에 제목이나 글자를 넣지 마.");
+    } else {
+      parts.push(
+        `제목은 "${buildCoverTitle(input.character1Name)}"라고 그림 안에 표지답게 예쁘게 넣어줘.`,
+      );
+    }
   } else {
     parts.push("글자는 넣지 마.");
   }
 
-  parts.push("사이즈는 1024*1024");
+  parts.push(
+    input.pageType === "COVER"
+      ? "사이즈는 1024*1024"
+      : "사이즈는 2048*1024, 가로로 긴 두 페이지 펼침",
+  );
 
   return parts.join(" ");
 }
@@ -188,8 +196,8 @@ export function buildIllustrationEditPromptLegacy(
     "Art style (second image):",
     "Match the second image's illustration style, brushwork/line quality, texture, color palette, and lighting mood.",
     "Do not copy the second image's composition or subjects—only its visual style.",
-    "The art style must show visible watercolor characteristics: soft bleeding edges where colors blend into each other, visible paper texture, uneven pigment saturation, loose and imperfect brushstrokes.",
-    "Avoid crisp vector-like outlines, avoid smooth airbrushed digital shading, avoid flat uniform color fills — this should look hand-painted, not digitally rendered.",
+    "The art style must match the art-style reference image's medium, line, texture, and coloring.",
+    "Do not default to a watercolor picture-book look unless that reference is watercolor.",
     "",
     "Scene to depict:",
     scene,
@@ -241,8 +249,8 @@ function buildMultiCharacterPromptLegacy(
     `Art style (${styleOrdinal} image):`,
     `Match the ${styleOrdinal} image's illustration style, brushwork/line quality, texture, color palette, and lighting mood.`,
     `Do not copy the ${styleOrdinal} image's composition or subjects—only its visual style.`,
-    "The art style must show visible watercolor characteristics: soft bleeding edges where colors blend into each other, visible paper texture, uneven pigment saturation, loose and imperfect brushstrokes.",
-    "Avoid crisp vector-like outlines, avoid smooth airbrushed digital shading, avoid flat uniform color fills — this should look hand-painted, not digitally rendered.",
+    "The art style must match the art-style reference image's medium, line, texture, and coloring.",
+    "Do not default to a watercolor picture-book look unless that reference is watercolor.",
     "",
     "Scene to depict:",
     scene,

@@ -148,7 +148,7 @@ export function GenerationProgress({
   }
 
   return (
-    <div className="flex w-40 flex-col items-center gap-2 px-2 text-center">
+    <div className="flex w-52 flex-col items-center gap-2 px-2 text-center">
       <span className="text-lg font-semibold tabular-nums text-stone-800">
         {percent}%
       </span>
@@ -158,6 +158,11 @@ export function GenerationProgress({
           style={{ width: `${Math.max(percent, 4)}%` }}
         />
       </div>
+      {kind === "illustration" || kind === "sticker" ? (
+        <p className="text-[11px] leading-snug text-stone-500">
+          2~3분 정도 걸릴 수 있어요
+        </p>
+      ) : null}
       <span className="text-xs text-stone-500">{label}</span>
     </div>
   );
