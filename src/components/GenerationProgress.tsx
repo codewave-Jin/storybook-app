@@ -121,9 +121,10 @@ export function GenerationProgress({
     }
 
     void poll();
+    const intervalMs = kind === "character" ? 2000 : 3000;
     const interval = window.setInterval(() => {
       void poll();
-    }, 1000);
+    }, intervalMs);
 
     return () => {
       cancelled = true;

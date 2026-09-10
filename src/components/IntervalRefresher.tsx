@@ -56,7 +56,7 @@ export function IntervalRefresher({
     void poll();
     const interval = window.setInterval(() => {
       void poll();
-    }, 5000);
+    }, 8000);
 
     return () => {
       cancelled = true;

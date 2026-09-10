@@ -1,9 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { OrderPreviewBook } from "@/components/OrderPreviewBook";
-import { illustrationStatusPayload } from "@/lib/generation-status";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaRetry } from "@/lib/prisma";
 import { parseIdList } from "@/lib/orders";
 import { storybookOrderOptionLines } from "@/lib/storybook-order-summary";
 import {
@@ -31,19 +29,22 @@ export default async function OrderPreviewPage({
     redirect(`/login?callbackUrl=/dashboard/orders/${params.id}/preview`);
   }
 
-  let order = await prisma.storybookOrder.findFirst({
-    where: {
-      id: params.id,
-      userId: session.user.id,
-    },
-    include: {
-      template: true,
-      artStyle: { select: { label: true } },
-      illustrations: {
-        orderBy: { pageNumber: "asc" },
+  const loadOrder = () =>
+    prisma.storybookOrder.findFirst({
+      where: {
+        id: params.id,
+        userId: session.user.id,
       },
-    },
-  });
+      include: {
+        template: true,
+        artStyle: { select: { label: true } },
+        illustrations: {
+          orderBy: { pageNumber: "asc" },
+        },
+      },
+    });
+
+  let order = await withPrismaRetry(loadOrder);
 
   if (!order) {
     notFound();
@@ -68,29 +69,27 @@ export default async function OrderPreviewPage({
       return !page || shouldKickPendingIllustration(page);
     });
 
+  let kicked = false;
   try {
     if (needsPaidPages) {
       await startOrderPaidGeneration(order.id);
+      kicked = true;
     } else if (needsPreviewPages) {
       await startOrderPreviewGeneration(order.id);
+      kicked = true;
     }
   } catch (error) {
     console.error("preview page generation kick failed", order.id, error);
   }
 
-  if (needsPaidPages || needsPreviewPages) {
-    const refreshed = await prisma.storybookOrder.findFirst({
-      where: { id: order.id, userId: session.user.id },
-      include: {
-        template: true,
-        artStyle: { select: { label: true } },
-        illustrations: {
-          orderBy: { pageNumber: "asc" },
-        },
-      },
-    });
-    if (refreshed) {
-      order = refreshed;
+  if (kicked) {
+    try {
+      const refreshed = await withPrismaRetry(loadOrder);
+      if (refreshed) {
+        order = refreshed;
+      }
+    } catch (error) {
+      console.error("preview page refresh failed", order.id, error);
     }
   }
 
@@ -107,19 +106,17 @@ export default async function OrderPreviewPage({
           : order.illustrations,
       );
 
-  const waitingForGeneration = pages.some(
-    (page) =>
-      !page.id || page.status === "IDLE" || page.status === "PROCESSING",
-  );
   const bookComplete = pages.every(
     (page) => page.id && page.status === "COMPLETED" && page.imagePath,
   );
 
   const characterIds = parseIdList(order.selectedCharacterIds);
-  const characters = await prisma.character.findMany({
-    where: { id: { in: characterIds } },
-    select: { id: true, label: true },
-  });
+  const characters = await withPrismaRetry(() =>
+    prisma.character.findMany({
+      where: { id: { in: characterIds } },
+      select: { id: true, label: true },
+    }),
+  );
   const optionLines = storybookOrderOptionLines({
     selectedCharacterIds: order.selectedCharacterIds,
     customInputValues: order.customInputValues,
@@ -138,22 +135,6 @@ export default async function OrderPreviewPage({
 
   return (
     <>
-      <IntervalRefresher
-        active={waitingForGeneration}
-        href={`/api/orders/${order.id}/status`}
-        initialSignature={JSON.stringify(
-          illustrationStatusPayload(
-            (showFullBook ? order.illustrations : previewIllustrations)
-              .filter((page) => page.id)
-              .map((page) => ({
-                id: page.id,
-                status: page.status,
-                imagePath: page.imagePath,
-                pageNumber: page.pageNumber,
-              })),
-          ),
-        )}
-      />
       <OrderPreviewBook
         title={order.template.title}
         backHref="/dashboard"

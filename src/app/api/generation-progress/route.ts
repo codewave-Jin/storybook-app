@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getAdminOrNull } from "@/lib/admin";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
-import {
-  illustrationQueueProgress,
-  stickerQueueProgress,
-} from "@/lib/gpt-image-progress";
+import { stickerQueueProgress } from "@/lib/gpt-image-progress";
 import { prisma } from "@/lib/prisma";
 
 type ProgressKind = "character" | "illustration" | "sticker";
@@ -62,105 +59,107 @@ async function authorizeRead(kind: ProgressKind, id: string) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const kind = searchParams.get("kind");
-  const id = searchParams.get("id");
+  try {
+    const { searchParams } = new URL(request.url);
+    const kind = searchParams.get("kind");
+    const id = searchParams.get("id");
 
-  if (!isProgressKind(kind) || !id) {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
-  }
+    if (!isProgressKind(kind) || !id) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
 
-  const unauthorized = await authorizeRead(kind, id);
-  if (unauthorized) {
-    return unauthorized;
-  }
+    const unauthorized = await authorizeRead(kind, id);
+    if (unauthorized) {
+      return unauthorized;
+    }
 
-  if (kind === "character") {
-    const character = await prisma.character.findUnique({
+    if (kind === "character") {
+      const character = await prisma.character.findUnique({
+        where: { id },
+        select: { progressPercent: true, progressLabel: true, status: true },
+      });
+      return NextResponse.json({
+        percent:
+          character?.status === "COMPLETED"
+            ? 100
+            : (character?.progressPercent ?? 0),
+        label:
+          character?.status === "COMPLETED"
+            ? "완료"
+            : (character?.progressLabel ?? "생성 중"),
+        active:
+          character?.status === "PENDING" || character?.status === "PROCESSING",
+      });
+    }
+
+    if (kind === "sticker") {
+      const order = await prisma.stickerOrder.findUnique({
+        where: { id },
+        select: { previewStatus: true },
+      });
+      const completed = order?.previewStatus === "COMPLETED";
+      const failed = order?.previewStatus === "FAILED";
+      const queue = await stickerQueueProgress({
+        stickerOrderId: id,
+        previewStatus: order?.previewStatus ?? "IDLE",
+      });
+      return NextResponse.json({
+        percent: completed ? 100 : failed ? 0 : 8,
+        label: failed
+          ? "실패"
+          : completed
+            ? "완료"
+            : queue.label,
+        queueStatus: queue.queueStatus,
+        queueAhead: queue.queueAhead,
+        active:
+          order?.previewStatus === "IDLE" ||
+          order?.previewStatus === "PROCESSING",
+      });
+    }
+
+    const illustration = await prisma.illustration.findUnique({
       where: { id },
-      select: { progressPercent: true, progressLabel: true, status: true },
+      select: {
+        progressPercent: true,
+        progressLabel: true,
+        status: true,
+        imagePath: true,
+      },
     });
+    const status = illustration?.status;
+    const completed = status === "COMPLETED";
+    const failed = status === "FAILED";
+    const queued =
+      status === "IDLE" ||
+      (status === "PROCESSING" &&
+        Boolean(illustration?.progressLabel?.startsWith("대기")));
     return NextResponse.json({
-      percent:
-        character?.status === "COMPLETED"
-          ? 100
-          : (character?.progressPercent ?? 0),
-      label:
-        character?.status === "COMPLETED"
-          ? "완료"
-          : (character?.progressLabel ?? "생성 중"),
-      active:
-        character?.status === "PENDING" || character?.status === "PROCESSING",
-    });
-  }
-
-  if (kind === "sticker") {
-    const order = await prisma.stickerOrder.findUnique({
-      where: { id },
-      select: { previewStatus: true },
-    });
-    const completed = order?.previewStatus === "COMPLETED";
-    const failed = order?.previewStatus === "FAILED";
-    const queue = await stickerQueueProgress({
-      stickerOrderId: id,
-      previewStatus: order?.previewStatus ?? "IDLE",
-    });
-    return NextResponse.json({
-      percent: completed ? 100 : failed ? 0 : 8,
+      percent: completed
+        ? 100
+        : failed
+          ? 0
+          : queued
+            ? Math.min(illustration?.progressPercent ?? 8, 12)
+            : (illustration?.progressPercent ?? 0),
       label: failed
         ? "실패"
         : completed
           ? "완료"
-          : queue.label,
-      queueStatus: queue.queueStatus,
-      queueAhead: queue.queueAhead,
-      active:
-        order?.previewStatus === "IDLE" ||
-        order?.previewStatus === "PROCESSING",
+          : (illustration?.progressLabel ?? "생성 중"),
+      status: status ?? "IDLE",
+      queueStatus: queued ? "QUEUED" : status === "PROCESSING" ? "RUNNING" : null,
+      queueAhead: 0,
+      imageUrl: illustration?.imagePath ?? null,
+      active: status === "PROCESSING" || status === "IDLE",
     });
+  } catch (error) {
+    console.error("generation-progress failed", error);
+    return NextResponse.json(
+      { error: "temporarily unavailable" },
+      { status: 503 },
+    );
   }
-
-  const illustration = await prisma.illustration.findUnique({
-    where: { id },
-    select: {
-      progressPercent: true,
-      progressLabel: true,
-      status: true,
-      imagePath: true,
-      orderId: true,
-    },
-  });
-  const queue = illustration
-    ? await illustrationQueueProgress({
-        illustrationId: id,
-        orderId: illustration.orderId,
-        status: illustration.status,
-        progressLabel: illustration.progressLabel,
-      })
-    : null;
-  const queued = queue?.queueStatus === "QUEUED";
-  const status = illustration?.status;
-  const completed = status === "COMPLETED";
-  const failed = status === "FAILED";
-  return NextResponse.json({
-    percent: completed
-      ? 100
-      : failed
-        ? 0
-        : queued
-          ? Math.min(illustration?.progressPercent ?? 8, 12)
-          : (illustration?.progressPercent ?? 0),
-    label: failed
-      ? "실패"
-      : completed
-        ? "완료"
-        : (queue?.label ?? illustration?.progressLabel ?? "생성 중"),
-    status: status ?? "IDLE",
-    queueStatus: queue?.queueStatus ?? null,
-    queueAhead: queue?.queueAhead ?? 0,
-    imageUrl: illustration?.imagePath ?? null,
-    active: status === "PROCESSING" || status === "IDLE",
-  });
 }
 
 export async function POST(request: Request) {

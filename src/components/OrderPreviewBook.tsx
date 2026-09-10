@@ -155,7 +155,7 @@ export function OrderPreviewBook({
     void poll();
     const interval = window.setInterval(() => {
       void poll();
-    }, 1000);
+    }, 4000);
 
     return () => {
       cancelled = true;
