@@ -38,6 +38,10 @@ export function enqueueOrderStyleTransfer(
     );
   });
 
-  waitUntil(dispatched);
+  try {
+    waitUntil(dispatched);
+  } catch (error) {
+    console.error("[storybook-generation] style waitUntil skipped", error);
+  }
   return dispatched;
 }

@@ -30,10 +30,15 @@ export function OrderPreviewPayButton({
   );
 
   useEffect(() => {
-    if (state?.success) {
-      setOpen(false);
-      router.refresh();
+    if (!state?.success) {
+      return;
     }
+    setOpen(false);
+    if (state.next) {
+      router.push(state.next);
+      return;
+    }
+    router.refresh();
   }, [state, router]);
 
   if (!PAYMENTS_ENABLED) {

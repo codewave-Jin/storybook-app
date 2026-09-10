@@ -68,10 +68,14 @@ export default async function OrderPreviewPage({
       return !page || shouldKickPendingIllustration(page);
     });
 
-  if (needsPaidPages) {
-    await startOrderPaidGeneration(order.id);
-  } else if (needsPreviewPages) {
-    await startOrderPreviewGeneration(order.id);
+  try {
+    if (needsPaidPages) {
+      await startOrderPaidGeneration(order.id);
+    } else if (needsPreviewPages) {
+      await startOrderPreviewGeneration(order.id);
+    }
+  } catch (error) {
+    console.error("preview page generation kick failed", order.id, error);
   }
 
   if (needsPaidPages || needsPreviewPages) {

@@ -446,7 +446,11 @@ export function kickGptImageWorker() {
       console.error("[gpt-image-queue] worker kick failed", error);
     });
 
-  waitUntil(dispatched);
+  try {
+    waitUntil(dispatched);
+  } catch (error) {
+    console.error("[gpt-image-queue] waitUntil skipped", error);
+  }
   return dispatched;
 }
 

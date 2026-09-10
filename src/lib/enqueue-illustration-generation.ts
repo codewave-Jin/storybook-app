@@ -152,7 +152,11 @@ export function enqueueIllustrationGenerations(
     }
   })();
 
-  waitUntil(dispatched);
+  try {
+    waitUntil(dispatched);
+  } catch (error) {
+    console.error("[storybook-generation] waitUntil skipped", error);
+  }
   return dispatched;
 }
 

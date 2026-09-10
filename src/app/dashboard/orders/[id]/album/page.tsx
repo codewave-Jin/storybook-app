@@ -32,7 +32,11 @@ export default async function OrderAlbumPage({
     redirect(`/dashboard/orders/${order.id}/preview`);
   }
 
-  await ensureOrderPhotoAlbumPages(order.id);
+  try {
+    await ensureOrderPhotoAlbumPages(order.id);
+  } catch (error) {
+    console.error("album page ensure failed", order.id, error);
+  }
 
   const pages = await prisma.photoAlbumPage.findMany({
     where: { orderId: order.id },

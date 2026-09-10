@@ -35,6 +35,7 @@ export type CreateOrderState = {
 export type PayOrderState = {
   error?: string;
   success?: boolean;
+  next?: string;
 } | undefined;
 
 export async function createOrder(
@@ -209,7 +210,12 @@ export async function payForOrder(
 
   const order = await prisma.storybookOrder.findFirst({
     where: { id: orderId, userId: session.user.id },
-    select: { id: true, paymentStatus: true, expectedDeliveryAt: true },
+    select: {
+      id: true,
+      paymentStatus: true,
+      expectedDeliveryAt: true,
+      includePhotoAlbum: true,
+    },
   });
 
   if (!order) {
@@ -223,7 +229,14 @@ export async function payForOrder(
       console.error("paid generation failed to start", error);
     }
     revalidatePath(`/dashboard/orders/${orderId}/preview`);
-    return { success: true };
+    revalidatePath(`/dashboard/orders/${orderId}/album`);
+    revalidatePath("/dashboard");
+    return {
+      success: true,
+      next: order.includePhotoAlbum
+        ? `/dashboard/orders/${orderId}/album`
+        : `/dashboard/orders/${orderId}/preview`,
+    };
   }
 
   const previewPages = await prisma.illustration.findMany({
@@ -312,9 +325,15 @@ export async function payForOrder(
   }
 
   revalidatePath(`/dashboard/orders/${orderId}/preview`);
+  revalidatePath(`/dashboard/orders/${orderId}/album`);
   revalidatePath(`/dashboard/orders/${orderId}`);
   revalidatePath("/dashboard");
-  return { success: true };
+  return {
+    success: true,
+    next: checkout.includePhotoAlbum
+      ? `/dashboard/orders/${orderId}/album`
+      : `/dashboard/orders/${orderId}/preview`,
+  };
 }
 
 export async function deleteDraftOrder(orderId: string) {
