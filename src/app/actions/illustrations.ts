@@ -76,6 +76,7 @@ export async function requestIllustrationGeneration(
     where: { id: illustrationId },
     select: {
       orderId: true,
+      pageType: true,
       order: {
         select: {
           artStyleId: true,
@@ -103,6 +104,7 @@ export async function requestIllustrationGeneration(
   const inputImages = await illustrationQueueInputImages({
     characterIds,
     artStyleId: illustration.order.artStyleId,
+    pageType: illustration.pageType,
   });
 
   await enqueueAndKickGptImageJob({

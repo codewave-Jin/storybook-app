@@ -1,3 +1,5 @@
+import { skipsStyleTransfer } from "@/lib/art-styles";
+
 /**
  * 숲속 생일파티 동화책(선택 가능한 활성 템플릿) — 표지 1장 + 펼침 8장
  *
@@ -89,10 +91,13 @@ export function buildFaceIdentityImageRoles(
     if (character.hasIdentity) {
       const identityIndex = index;
       lines.push(
-        `${identityIndex}번: ${character.label}의 얼굴 원본입니다. 얼굴형, 눈·코·입, 볼살, 턱선은 ${identityIndex}번과 같아야 합니다.`,
+        `${identityIndex}번: ${character.label}의 얼굴 원본입니다. 얼굴형, 눈·코·입, 볼살, 턱선만 ${identityIndex}번에서 가져오세요.`,
       );
       lines.push(
-        `${styledIndex}번과 ${identityIndex}번의 얼굴이 다르면 얼굴은 ${identityIndex}번, 그림체만 ${styledIndex}번입니다.`,
+        `${identityIndex}번의 선, 채색, 질감, 렌더링, 그림체는 절대 가져오지 마세요.`,
+      );
+      lines.push(
+        `${styledIndex}번과 ${identityIndex}번의 얼굴이 다르면 얼굴 구조는 ${identityIndex}번, 그림체는 ${styledIndex}번입니다.`,
       );
       index += 1;
     }
@@ -468,41 +473,67 @@ export function buildStyledIllustrationPrompt(options: {
     : ["[변경할 것] 포즈와 배경만 장면에 맞게 표현. 얼굴은 바꾸지 마세요."];
 
   const named = labels.join(", ");
-  const identityIntro =
-    cast === "none" || labels.length === 0
-      ? [
-          "입력 이미지가 있으면 그림체 레퍼런스로만 쓰세요. 사람을 그리지 마세요.",
-          `다음 장면을 그려주세요: ${scene}`,
-        ]
-      : labels.length > 1
+  const isCover = options.pageType === "COVER";
+  const keepOriginalStyle = skipsStyleTransfer(options.artStyleKey);
+  const extraOptionalNote =
+    cast === "extraOptional"
+      ? "추가 등장인물(엄마/아빠)은 이 주문에 없습니다. 다른 사람을 넣지 마세요."
+      : "";
+
+  let identityIntro: string[];
+  if (cast === "none" || labels.length === 0) {
+    identityIntro = [
+      "입력 이미지가 있으면 그림체 레퍼런스로만 쓰세요. 사람을 그리지 마세요.",
+      `다음 장면을 그려주세요: ${scene}`,
+    ];
+  } else if (keepOriginalStyle) {
+    identityIntro = (
+      labels.length > 1
         ? [
-            `앞쪽 이미지는 등장인물 레퍼런스입니다. 등장 순서는 ${named}입니다.`,
-            "각 인물마다 변환본 다음에 얼굴 원본이 올 수 있고, 그림체 레퍼런스는 맨 마지막입니다.",
+            `앞쪽 이미지는 등장인물입니다. 등장 순서는 ${named}입니다.`,
             "사람을 다른 사람으로 바꾸거나 얼굴을 섞지 마세요.",
             "표지와 본문의 얼굴은 같은 사람이어야 합니다. 이목구비를 바꾸지 마세요.",
             `각 인물의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
           ]
         : [
-            "앞쪽 이미지는 이 장면의 주인공 레퍼런스입니다. 다른 아이로 바꾸지 마세요.",
-            "변환본 다음에 얼굴 원본이 올 수 있고, 그림체 레퍼런스는 맨 마지막입니다.",
+            "앞쪽 이미지는 이 장면의 주인공입니다. 다른 아이로 바꾸지 마세요.",
             "표지와 본문의 얼굴은 같은 아이여야 합니다. 이목구비를 바꾸지 마세요.",
-            cast === "extraOptional"
-              ? "추가 등장인물(엄마/아빠)은 이 주문에 없습니다. 다른 사람을 넣지 마세요."
-              : "",
+            extraOptionalNote,
             `이 아이의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
-          ].filter(Boolean);
-
-  const sizeLine =
-    options.pageType === "COVER"
-      ? "이미지는 정사각형 표지(1024x1024)입니다. 주인공 얼굴이 가운데에서 분명히 보이게 그리세요."
-      : cast === "none" || labels.length === 0
-        ? "이미지는 가로로 긴 두 페이지 펼침(2048x1024)입니다. 한 장면이 왼쪽·오른쪽 페이지에 걸쳐 보이게 구성하세요."
+          ]
+    ).filter(Boolean);
+  } else {
+    identityIntro = (
+      labels.length > 1
+        ? [
+            `앞쪽 이미지는 그림체를 입힌 등장인물입니다. 등장 순서는 ${named}입니다.`,
+            "사람을 다른 사람으로 바꾸거나 얼굴을 섞지 마세요.",
+            "표지와 본문의 얼굴은 같은 사람이어야 합니다. 이목구비를 바꾸지 마세요.",
+            "얼굴·헤어·의상·그림체는 이 초상화를 따르세요.",
+            "그림체 레퍼런스가 맨 마지막에 있으면 장면 전체(배경 포함)의 선·채색·질감만 맞추고, 그 속 인물은 가져오지 마세요.",
+            `각 인물의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
+          ]
         : [
-            "이미지는 가로로 긴 두 페이지 펼침(2048x1024)입니다. 한 장면이 왼쪽·오른쪽 페이지에 걸쳐 보이게 구성하세요.",
-            "주인공 얼굴은 표지와 같은 얼굴이어야 합니다.",
-            "멀리 있는 작은 실루엣으로 그리지 말고, 얼굴이 분명히 알아볼 수 있을 만큼 크게 그리세요.",
-            "중요한 얼굴은 가운데 접히는 선에 두지 마세요. 접힌 선 왼쪽이나 오른쪽에 얼굴을 두되, 작게 만들지 마세요.",
-          ].join(" ");
+            "앞쪽 이미지는 그림체를 입힌 주인공입니다. 다른 아이로 바꾸지 마세요.",
+            "표지와 본문의 얼굴은 같은 아이여야 합니다. 이목구비를 바꾸지 마세요.",
+            extraOptionalNote,
+            "얼굴·헤어·의상·그림체는 이 초상화를 따르세요.",
+            "그림체 레퍼런스가 맨 마지막에 있으면 장면 전체(배경 포함)의 선·채색·질감만 맞추고, 그 속 인물은 가져오지 마세요.",
+            `이 아이의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
+          ]
+    ).filter(Boolean);
+  }
+
+  const sizeLine = isCover
+    ? "이미지는 정사각형 표지(1024x1024)입니다. 주인공 얼굴이 가운데에서 분명히 보이게 그리세요."
+    : cast === "none" || labels.length === 0
+      ? "이미지는 가로로 긴 두 페이지 펼침(2048x1024)입니다. 한 장면이 왼쪽·오른쪽 페이지에 걸쳐 보이게 구성하세요."
+      : [
+          "이미지는 가로로 긴 두 페이지 펼침(2048x1024)입니다. 한 장면이 왼쪽·오른쪽 페이지에 걸쳐 보이게 구성하세요.",
+          "주인공 얼굴은 표지와 같은 얼굴이어야 합니다.",
+          "멀리 있는 작은 실루엣으로 그리지 말고, 얼굴이 분명히 알아볼 수 있을 만큼 크게 그리세요.",
+          "중요한 얼굴은 가운데 접히는 선에 두지 마세요. 접힌 선 왼쪽이나 오른쪽에 얼굴을 두되, 작게 만들지 마세요.",
+        ].join(" ");
 
   const styleHint = artStyleSceneHint(options.artStyleKey);
   const avoidDefaultWatercolor =
@@ -522,10 +553,15 @@ export function buildStyledIllustrationPrompt(options: {
           "- 레퍼런스와 조금만 달라도 오류입니다. 다시 창작하지 말 것",
           "- 나이를 더 어리거나 예쁘게 바꾸지 말 것",
           "- 일반적인 동화 아이 얼굴로 평균화하지 말 것",
-          "- 얼굴은 얼굴 원본, 헤어·의상은 변환본을 따르세요. 선·채색·질감은 그림체 레퍼런스가 있으면 그것을 따르세요.",
+          keepOriginalStyle
+            ? "- 얼굴·헤어·의상·그림체는 입력 캐릭터 그대로입니다. 다른 그림체로 다시 그리지 마세요."
+            : "- 얼굴·헤어·의상·그림체는 그림체를 입힌 초상화를 따르세요. 닮은꼴은 그대로 두고, 그림체만 그 초상화와 같게 하세요.",
           "",
           "[반드시 유지할 것 — 그 외]",
-          "- 헤어스타일, 의상, 그림체",
+          "- 헤어스타일, 의상",
+          keepOriginalStyle
+            ? "- 그림체는 입력 캐릭터 원본 그대로"
+            : "- 그림체는 그림체를 입힌 초상화. 장면 전체는 마지막 그림체 레퍼런스가 있으면 그것과 같게",
           "",
           ...keepAndChange,
           "",

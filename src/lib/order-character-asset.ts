@@ -70,6 +70,7 @@ export async function findReadyStyledCharacterAssets(
 export async function illustrationQueueInputImages(options: {
   characterIds: string[];
   artStyleId: string | null;
+  pageType?: string | null;
 }) {
   if (await artStyleSkipsStyleTransfer(options.artStyleId)) {
     return Math.max(options.characterIds.length, 1);
@@ -86,8 +87,8 @@ export async function illustrationQueueInputImages(options: {
     options.artStyleId,
   );
   if (styled.size === options.characterIds.length) {
-    // 변환본 + 얼굴 원본 + 그림체 레퍼런스
-    return characterCount * 2 + 1;
+    // Styled portrait + art-style reference. Cover and interior use the same set.
+    return characterCount + 1;
   }
   return characterCount + 1;
 }

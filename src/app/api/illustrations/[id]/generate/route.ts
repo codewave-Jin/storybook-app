@@ -106,6 +106,7 @@ export async function POST(
   const inputImages = await illustrationQueueInputImages({
     characterIds: parseIdList(illustration.selectedCharacterIds),
     artStyleId: illustration.order.artStyleId,
+    pageType: illustration.pageType,
   });
 
   await enqueueGptImageJob({

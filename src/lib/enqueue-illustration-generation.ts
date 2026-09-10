@@ -131,6 +131,7 @@ export function enqueueIllustrationGenerations(
       const inputImages = await illustrationQueueInputImages({
         characterIds,
         artStyleId: page.order.artStyleId,
+        pageType: page.pageType,
       });
 
       const result = await enqueueGptImageJob({

@@ -22,7 +22,7 @@ import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 import { findReadyStyledCharacterAssets } from "@/lib/order-character-asset";
 import { parseIdList } from "@/lib/orders";
-import { buildFaceIdentityImageRoles, buildSceneStyleReferenceRole, artStyleSceneHint } from "@/lib/storybook-prompts";
+import { buildSceneStyleReferenceRole, artStyleSceneHint } from "@/lib/storybook-prompts";
 
 // Prisma client must include Illustration.errorReason (regenerated after that column).
 function illustrationErrorReason(error: unknown): string {
@@ -243,41 +243,17 @@ export async function runIllustrationGeneration(options: {
       return {
         label: character.label,
         styledUrl: originalUrl,
-        identityUrl: null as string | null,
       };
     }
     const styledUrl =
       styledByCharacterId.get(character.id)?.styledImageUrl?.trim() ||
       originalUrl;
-    const identityUrl =
-      originalUrl && styledUrl && originalUrl !== styledUrl
-        ? originalUrl
-        : null;
-    return { label: character.label, styledUrl, identityUrl };
+    return { label: character.label, styledUrl };
   });
 
-  const characterImageUrls = characterRefs.flatMap((ref) => {
-    const urls: string[] = [];
-    if (ref.styledUrl) {
-      urls.push(ref.styledUrl);
-    }
-    if (ref.identityUrl) {
-      urls.push(ref.identityUrl);
-    }
-    return urls;
-  });
-
-  const identityRolePrompt = skipStyleTransfer
-    ? ""
-    : buildFaceIdentityImageRoles(
-        characterRefs.map((ref) => ({
-          label: ref.label,
-          hasIdentity: Boolean(ref.identityUrl),
-        })),
-      );
-  const generationPrompt = identityRolePrompt
-    ? `${identityRolePrompt}\n\n${prompt}`
-    : prompt;
+  const characterImageUrls = characterRefs
+    .map((ref) => ref.styledUrl)
+    .filter((url): url is string => Boolean(url));
 
   const firstCharacterPath = characterImageUrls[0] ?? null;
   if (!noPeople && !firstCharacterPath) {
@@ -360,7 +336,7 @@ export async function runIllustrationGeneration(options: {
           "",
         ].join("\n")
       : "",
-    generationPrompt,
+    prompt,
     styleRolePrompt ? `\n\n${styleRolePrompt}` : "",
   ]
     .filter(Boolean)
@@ -467,7 +443,6 @@ export async function runIllustrationGeneration(options: {
       referenceImageCount: characterImages.length,
       styledAsset: Boolean(styledAsset),
       skipStyleTransfer,
-      identityAnchored: Boolean(identityRolePrompt),
       inBookStyle: Boolean(skipStyleTransfer && noPeople && styleImageUrl),
       sceneStyleKey: sceneStyle?.key ?? null,
     });
