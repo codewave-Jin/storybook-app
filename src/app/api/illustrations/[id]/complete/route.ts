@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { markOrderPreviewGeneratedIfReady } from "@/lib/preview-generation";
 import { revalidateIllustrationWork } from "@/lib/revalidate-admin";
 import { persistGeneratedIllustrationImage } from "@/lib/uploads";
+import { archiveIllustrationVersion } from "@/lib/illustration-versions";
 
 type CompleteBody = {
   success?: unknown;
@@ -76,7 +77,13 @@ export async function POST(
 
   const illustration = await prisma.illustration.findUnique({
     where: { id: params.id },
-    select: { id: true, orderId: true },
+    select: {
+      id: true,
+      orderId: true,
+      imagePath: true,
+      sceneImagePath: true,
+      imageVersions: true,
+    },
   });
 
   if (!illustration) {
@@ -141,7 +148,17 @@ export async function POST(
       imagePath,
       progressPercent: 100,
       progressLabel: "완료",
-      ...(isExpressionEdit ? {} : { sceneImagePath: imagePath }),
+      ...(isExpressionEdit
+        ? {}
+        : {
+            sceneImagePath: imagePath,
+            imageVersions: archiveIllustrationVersion({
+              imagePath: illustration.imagePath,
+              sceneImagePath: illustration.sceneImagePath,
+              versions: illustration.imageVersions,
+              source: "generate",
+            }),
+          }),
       ...(seed !== undefined ? { seed } : {}),
     },
   });

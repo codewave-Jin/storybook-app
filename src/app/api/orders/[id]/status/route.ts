@@ -29,11 +29,19 @@ export async function GET(
         pageNumber: true,
         status: true,
         imagePath: true,
+        sceneImagePath: true,
       },
       orderBy: { pageNumber: "asc" },
     });
 
-    return NextResponse.json(illustrationStatusPayload(illustrations));
+    return NextResponse.json(
+      illustrationStatusPayload(
+        illustrations.map((item) => ({
+          ...item,
+          imagePath: item.sceneImagePath || item.imagePath,
+        })),
+      ),
+    );
   } catch (error) {
     console.error("order status poll failed", params.id, error);
     return NextResponse.json(

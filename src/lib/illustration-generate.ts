@@ -19,6 +19,7 @@ import {
 } from "@/lib/image-generation-config";
 import { enqueuePendingIllustrations } from "@/lib/enqueue-illustration-generation";
 import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
+import { archiveIllustrationVersion } from "@/lib/illustration-versions";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 import { findReadyStyledCharacterAssets } from "@/lib/order-character-asset";
 import { parseIdList } from "@/lib/orders";
@@ -58,7 +59,7 @@ async function resolveCoverLikenessImage(options: {
     },
     select: { imagePath: true, sceneImagePath: true },
   });
-  return cover?.imagePath?.trim() || cover?.sceneImagePath?.trim() || null;
+  return cover?.sceneImagePath?.trim() || cover?.imagePath?.trim() || null;
 }
 
 async function resolveInBookStyleReference(options: {
@@ -84,7 +85,7 @@ async function resolveInBookStyleReference(options: {
   );
   const cover =
     withImage.find((page) => page.pageType === "COVER") ?? withImage[0];
-  const fromBook = cover?.imagePath?.trim() || cover?.sceneImagePath?.trim();
+  const fromBook = cover?.sceneImagePath?.trim() || cover?.imagePath?.trim();
   if (fromBook) {
     return fromBook;
   }
@@ -384,6 +385,9 @@ export async function runIllustrationGeneration(options: {
     if (!mockPath) {
       return { error: "그림 스타일 레퍼런스 이미지가 없습니다." };
     }
+    const mockScenePath = keepImage
+      ? illustration.sceneImagePath ?? mockPath
+      : mockPath;
     await prisma.illustration.update({
       where: { id: illustrationId },
       data: {
@@ -393,9 +397,7 @@ export async function runIllustrationGeneration(options: {
         progressPercent: 100,
         progressLabel: "로컬 목업",
         imagePath: keepImage ? illustration.imagePath ?? mockPath : mockPath,
-        sceneImagePath: keepImage
-          ? illustration.sceneImagePath ?? mockPath
-          : mockPath,
+        sceneImagePath: mockScenePath,
       },
     });
     revalidateIllustrationWork(illustration.orderId);
@@ -514,12 +516,26 @@ export async function runIllustrationGeneration(options: {
       imagePath,
     });
 
+    const latest = await prisma.illustration.findUnique({
+      where: { id: illustrationId },
+      select: {
+        imagePath: true,
+        sceneImagePath: true,
+        imageVersions: true,
+      },
+    });
     await prisma.illustration.update({
       where: { id: illustrationId },
       data: {
         status: "COMPLETED",
         imagePath,
         sceneImagePath: imagePath,
+        imageVersions: archiveIllustrationVersion({
+          imagePath: latest?.imagePath,
+          sceneImagePath: latest?.sceneImagePath,
+          versions: latest?.imageVersions,
+          source: "generate",
+        }),
         progressPercent: 100,
         progressLabel: "완료",
         errorReason: null,

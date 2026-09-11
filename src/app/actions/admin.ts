@@ -10,6 +10,7 @@ import {
 import { loadOrderPrintComment } from "@/lib/order-print-comment";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { collectIllustrationAssetPaths } from "@/lib/illustration-versions";
 import { deleteIllustrationFile } from "@/lib/uploads";
 
 const PRODUCTION_STATUSES: ProductionStatus[] = [
@@ -257,6 +258,7 @@ export async function deleteOrder(orderId: string) {
           imagePath: true,
           sceneImagePath: true,
           upscaledImagePath: true,
+          imageVersions: true,
         },
       },
     },
@@ -267,9 +269,9 @@ export async function deleteOrder(orderId: string) {
   }
 
   for (const illustration of order.illustrations) {
-    await deleteIllustrationFile(illustration.imagePath);
-    await deleteIllustrationFile(illustration.sceneImagePath);
-    await deleteIllustrationFile(illustration.upscaledImagePath);
+    for (const path of collectIllustrationAssetPaths(illustration)) {
+      await deleteIllustrationFile(path);
+    }
   }
 
   await prisma.$transaction([

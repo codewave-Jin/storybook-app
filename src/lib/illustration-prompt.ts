@@ -158,7 +158,7 @@ export function buildIllustrationEditPrompt(
   parts.push(
     input.pageType === "COVER"
       ? "사이즈는 1024*1024"
-      : "사이즈는 2048*1024, 가로로 긴 두 페이지 펼침",
+      : "사이즈는 2048*1024, 가로로 긴 한 장의 연속 장면. 가운데 접힌 선이나 페이지 구분선을 그리지 마.",
   );
 
   return parts.join(" ");

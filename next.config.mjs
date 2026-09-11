@@ -20,7 +20,14 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ["bcryptjs", "archiver", "openai"],
+    serverComponentsExternalPackages: [
+      "bcryptjs",
+      "archiver",
+      "openai",
+      "satori",
+      "sharp",
+      "@resvg/resvg-js",
+    ],
     serverActions: {
       bodySizeLimit: "20mb",
     },

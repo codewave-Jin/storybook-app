@@ -9,6 +9,8 @@ import { GenerationProgress } from "@/components/GenerationProgress";
 import { OrderPreviewPayButton } from "@/components/OrderPreviewPayButton";
 import { PreviewWatermark } from "@/components/PreviewWatermark";
 import type { OrderOptionLine } from "@/lib/storybook-order-summary";
+import { StoryTextEditor } from "@/components/StoryTextEditor";
+import { StoryTextOverlay } from "@/components/StoryTextOverlay";
 import type { PreviewBookPage } from "@/lib/preview-pages";
 
 type OrderStatusPayload = {
@@ -54,6 +56,8 @@ function mergeLivePages(
       ...page,
       status: isIllustrationStatus(live.status) ? live.status : page.status,
       imagePath: live.imageUrl ?? live.imagePath ?? page.imagePath,
+      storyLines: page.storyLines,
+      storyText: page.storyText,
     };
   });
 }
@@ -114,6 +118,15 @@ export function OrderPreviewBook({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.closest("textarea, input, select, [contenteditable='true']") ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
       if (event.key === "ArrowRight") {
         setIndex((current) => Math.min(current + 1, lastIndex));
       }
@@ -342,7 +355,7 @@ function BookLeaf({
   const showImage = page.status === "COMPLETED" && page.imagePath;
 
   return (
-    <figure className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100">
+    <figure className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100">
       <div
         className="no-image-save relative aspect-[2/1] bg-stone-100"
         onContextMenu={(event) => event.preventDefault()}
@@ -371,6 +384,14 @@ function BookLeaf({
           {page.label}
         </span>
       </div>
+      {page.id && page.storyText ? (
+        <StoryTextEditor
+          illustrationId={page.id}
+          initialText={page.storyText}
+        />
+      ) : page.storyLines.length > 0 ? (
+        <StoryTextOverlay lines={page.storyLines} />
+      ) : null}
     </figure>
   );
 }

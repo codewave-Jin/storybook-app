@@ -125,6 +125,7 @@ export async function GET(request: Request) {
         progressLabel: true,
         status: true,
         imagePath: true,
+        sceneImagePath: true,
       },
     });
     const status = illustration?.status;
@@ -150,7 +151,8 @@ export async function GET(request: Request) {
       status: status ?? "IDLE",
       queueStatus: queued ? "QUEUED" : status === "PROCESSING" ? "RUNNING" : null,
       queueAhead: 0,
-      imageUrl: illustration?.imagePath ?? null,
+      imageUrl:
+        illustration?.sceneImagePath || illustration?.imagePath || null,
       active: status === "PROCESSING" || status === "IDLE",
     });
   } catch (error) {

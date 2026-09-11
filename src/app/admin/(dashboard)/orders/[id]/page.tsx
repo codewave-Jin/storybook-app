@@ -146,7 +146,13 @@ export default async function AdminOrderDetailPage({
           href={`/api/admin/orders/${order.id}/download-zip`}
           className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 px-5 text-sm font-medium text-stone-700 hover:bg-stone-50"
         >
-          동화책 이미지 받기
+          삽화 받기
+        </a>
+        <a
+          href={`/api/admin/orders/${order.id}/download-story-text`}
+          className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 px-5 text-sm font-medium text-stone-700 hover:bg-stone-50"
+        >
+          본문 글 받기
         </a>
         {order.includePhotoAlbum ? (
           <a

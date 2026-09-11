@@ -271,7 +271,13 @@ function OrderDetailModal({
                   href={`/api/admin/orders/${detail.id}/download-zip`}
                   className="inline-flex h-10 items-center rounded-lg border border-stone-300 px-4 text-sm font-medium text-stone-600 hover:bg-stone-50"
                 >
-                  동화책 이미지
+                  삽화 받기
+                </a>
+                <a
+                  href={`/api/admin/orders/${detail.id}/download-story-text`}
+                  className="inline-flex h-10 items-center rounded-lg border border-stone-300 px-4 text-sm font-medium text-stone-600 hover:bg-stone-50"
+                >
+                  본문 글 받기
                 </a>
                 <a
                   href={`/api/admin/orders/${detail.id}/download-album-zip`}

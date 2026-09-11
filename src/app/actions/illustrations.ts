@@ -11,8 +11,15 @@ import {
   revalidateIllustrationWork,
 } from "@/lib/revalidate-admin";
 import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
-import { toAbsolutePublicPath } from "@/lib/uploads";
+import {
+  saveAdminIllustrationFile,
+  toAbsolutePublicPath,
+} from "@/lib/uploads";
 import { illustrationQueueInputImages } from "@/lib/order-character-asset";
+import {
+  archiveIllustrationVersion,
+  parseIllustrationVersions,
+} from "@/lib/illustration-versions";
 
 export async function addIllustrationPage(orderId: string) {
   await requireAdmin();
@@ -228,15 +235,19 @@ export async function requestIllustrationExpressionEdit(
   return { success: true };
 }
 
-export async function restoreIllustrationSceneOriginal(
+export async function restoreIllustrationVersion(
   _prevState: IllustrationActionState,
   formData: FormData,
 ): Promise<IllustrationActionState> {
   await requireAdmin();
 
   const illustrationId = String(formData.get("illustrationId") ?? "");
+  const versionPath = String(formData.get("versionPath") ?? "").trim();
   if (!illustrationId) {
     return { error: "페이지를 찾을 수 없습니다." };
+  }
+  if (!versionPath) {
+    return { error: "되돌릴 이미지를 선택해 주세요." };
   }
 
   const illustration = await prisma.illustration.findUnique({
@@ -251,23 +262,84 @@ export async function restoreIllustrationSceneOriginal(
     return { error: "이미 생성 중입니다." };
   }
 
-  if (!illustration.sceneImagePath) {
-    return { error: "되돌릴 원본 장면이 없습니다." };
-  }
-
-  if (illustration.imagePath === illustration.sceneImagePath) {
-    return { success: true };
+  const versions = parseIllustrationVersions(illustration.imageVersions);
+  if (!versions.some((item) => item.path === versionPath)) {
+    return { error: "이전 버전을 찾을 수 없습니다." };
   }
 
   await prisma.illustration.update({
     where: { id: illustrationId },
     data: {
-      imagePath: illustration.sceneImagePath,
+      imagePath: versionPath,
+      sceneImagePath: versionPath,
+      imageVersions: archiveIllustrationVersion({
+        imagePath: illustration.imagePath,
+        sceneImagePath: illustration.sceneImagePath,
+        versions: illustration.imageVersions,
+        source: "generate",
+      }),
       status: "COMPLETED",
       progressPercent: 100,
       progressLabel: "완료",
+      errorReason: null,
     },
   });
+
+  revalidateIllustrationWork(illustration.orderId);
+  return { success: true };
+}
+
+export async function uploadIllustrationReplacement(
+  _prevState: IllustrationActionState,
+  formData: FormData,
+): Promise<IllustrationActionState> {
+  await requireAdmin();
+
+  const illustrationId = String(formData.get("illustrationId") ?? "");
+  const file = formData.get("file");
+  if (!illustrationId) {
+    return { error: "페이지를 찾을 수 없습니다." };
+  }
+  if (!(file instanceof File) || file.size < 1) {
+    return { error: "올릴 이미지 파일을 선택해 주세요." };
+  }
+
+  const illustration = await prisma.illustration.findUnique({
+    where: { id: illustrationId },
+  });
+
+  if (!illustration) {
+    return { error: "페이지를 찾을 수 없습니다." };
+  }
+
+  if (illustration.status === "PROCESSING") {
+    return { error: "생성 중에는 파일을 올릴 수 없습니다." };
+  }
+
+  try {
+    const imagePath = await saveAdminIllustrationFile(file);
+    await prisma.illustration.update({
+      where: { id: illustrationId },
+      data: {
+        imagePath,
+        sceneImagePath: imagePath,
+        imageVersions: archiveIllustrationVersion({
+          imagePath: illustration.imagePath,
+          sceneImagePath: illustration.sceneImagePath,
+          versions: illustration.imageVersions,
+        }),
+        status: "COMPLETED",
+        progressPercent: 100,
+        progressLabel: "완료",
+        errorReason: null,
+      },
+    });
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "파일 업로드에 실패했습니다.",
+    };
+  }
 
   revalidateIllustrationWork(illustration.orderId);
   return { success: true };

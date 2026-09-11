@@ -22,6 +22,7 @@ import {
   parseCustomFields,
 } from "@/lib/templates";
 import { validateCustomInputValues } from "@/lib/custom-input-guard";
+import { collectIllustrationAssetPaths } from "@/lib/illustration-versions";
 import { deleteIllustrationFile } from "@/lib/uploads";
 import {
   buildPreviewBookPages,
@@ -350,6 +351,7 @@ export async function deleteDraftOrder(orderId: string) {
           imagePath: true,
           sceneImagePath: true,
           upscaledImagePath: true,
+          imageVersions: true,
         },
       },
     },
@@ -364,9 +366,9 @@ export async function deleteDraftOrder(orderId: string) {
   }
 
   for (const illustration of order.illustrations) {
-    await deleteIllustrationFile(illustration.imagePath);
-    await deleteIllustrationFile(illustration.sceneImagePath);
-    await deleteIllustrationFile(illustration.upscaledImagePath);
+    for (const path of collectIllustrationAssetPaths(illustration)) {
+      await deleteIllustrationFile(path);
+    }
   }
 
   await prisma.$transaction([

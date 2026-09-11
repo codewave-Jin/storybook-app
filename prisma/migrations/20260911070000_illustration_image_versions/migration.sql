@@ -1,0 +1,1 @@
+ALTER TABLE "Illustration" ADD COLUMN IF NOT EXISTS "imageVersions" JSONB NOT NULL DEFAULT '[]';

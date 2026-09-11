@@ -16,6 +16,7 @@ import {
   FOREST_BIRTHDAY_WORLD_HINT,
   resolveBirthdayPage,
 } from "@/lib/storybook-prompts";
+import { resolveStoryCopyText } from "@/lib/storybook-copy";
 import { isBirthdayStorybookTitle } from "@/lib/templates";
 import {
   ensureOrderStyledCharacterAsset,
@@ -410,6 +411,15 @@ export async function ensureIllustrationsAndGenerate(options: {
           orderId,
           pageNumber,
           prompt: scene.prompt,
+          storyText: isBirthdayStorybookTitle(order.template.title)
+            ? resolveStoryCopyText({
+                pageNumber,
+                pageType: scene.pageType,
+                ageKey: order.heroAgeRange,
+                hasExtra: characterIds.length > 1,
+                variables,
+              }) || null
+            : null,
           selectedCharacterIds: birthdayCastCharacterIds(
             characterIds,
             scene.cast,
@@ -461,6 +471,19 @@ export async function ensureIllustrationsAndGenerate(options: {
               characterIds,
               scene.cast,
             ),
+            ...(page.storyText
+              ? {}
+              : {
+                  storyText: isBirthdayStorybookTitle(order.template.title)
+                    ? resolveStoryCopyText({
+                        pageNumber: page.pageNumber,
+                        pageType: scene.pageType,
+                        ageKey: order.heroAgeRange,
+                        hasExtra: characterIds.length > 1,
+                        variables,
+                      }) || null
+                    : null,
+                }),
           },
         });
       }),

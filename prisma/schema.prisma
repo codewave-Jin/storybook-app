@@ -320,9 +320,13 @@ model Illustration {
   order                StorybookOrder      @relation(fields: [orderId], references: [id])
   pageNumber           Int
   prompt               String
+  /// User-editable story lines shown under the spread. Null = use age default.
+  storyText            String?
   selectedCharacterIds Json                @default("[]")
   imagePath            String?
   sceneImagePath       String?
+  /// Previous generated or uploaded art, newest last.
+  imageVersions        Json                @default("[]")
   upscaledImagePath    String?
   seed                 BigInt?
   status               IllustrationStatus  @default(IDLE)

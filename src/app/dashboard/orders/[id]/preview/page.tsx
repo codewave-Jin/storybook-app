@@ -2,8 +2,15 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { OrderPreviewBook } from "@/components/OrderPreviewBook";
 import { prisma, withPrismaRetry } from "@/lib/prisma";
-import { parseIdList } from "@/lib/orders";
+import { buildOrderPromptVariables } from "@/lib/illustration-prompt";
+import { parseIdList, parseStringRecord } from "@/lib/orders";
+import {
+  resolveFinalStoryText,
+  resolveStoryCopyText,
+  storyCopyLines,
+} from "@/lib/storybook-copy";
 import { storybookOrderOptionLines } from "@/lib/storybook-order-summary";
+import { isBirthdayStorybookTitle } from "@/lib/templates";
 import {
   startOrderPaidGeneration,
   startOrderPreviewGeneration,
@@ -117,6 +124,37 @@ export default async function OrderPreviewPage({
       select: { id: true, label: true },
     }),
   );
+  const characterLabels = characterIds
+    .map((id) => characters.find((character) => character.id === id)?.label)
+    .filter((label): label is string => Boolean(label));
+  const storyVariables = buildOrderPromptVariables({
+    characterLabels,
+    customInputValues: parseStringRecord(order.customInputValues),
+  });
+  const showBirthdayStory = isBirthdayStorybookTitle(order.template.title);
+  const savedStoryByNumber = new Map(
+    order.illustrations.map((item) => [item.pageNumber, item.storyText]),
+  );
+  const pagesWithStory = pages.map((page) => {
+    const fallback = showBirthdayStory
+      ? resolveStoryCopyText({
+          pageNumber: page.pageNumber,
+          pageType: page.kind === "cover" ? "COVER" : "PAGE",
+          ageKey: order.heroAgeRange,
+          hasExtra: characterLabels.length > 1,
+          variables: storyVariables,
+        })
+      : "";
+    const storyText = resolveFinalStoryText(
+      savedStoryByNumber.get(page.pageNumber),
+      fallback,
+    );
+    return {
+      ...page,
+      storyText,
+      storyLines: storyCopyLines(storyText),
+    };
+  });
   const optionLines = storybookOrderOptionLines({
     selectedCharacterIds: order.selectedCharacterIds,
     customInputValues: order.customInputValues,
@@ -138,7 +176,7 @@ export default async function OrderPreviewPage({
       <OrderPreviewBook
         title={order.template.title}
         backHref="/dashboard"
-        pages={pages}
+        pages={pagesWithStory}
         paid={paid}
         ready={!paid && bookComplete}
         bookComplete={bookComplete}

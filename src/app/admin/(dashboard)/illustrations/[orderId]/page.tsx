@@ -5,7 +5,7 @@ import {
   markOrderIllustrationsComplete,
 } from "@/app/actions/illustrations";
 import { CharacterThumbnails } from "@/components/admin/CharacterZoomGrid";
-import { LiveGenerationLog } from "@/components/admin/LiveGenerationLog";
+import { AdminAllStoryCopyButton } from "@/components/admin/AdminStoryTextPanel";
 import { IllustrationPageEditor } from "@/components/admin/IllustrationPageEditor";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { PendingSubmitButton } from "@/components/PendingSubmitButton";
@@ -16,6 +16,11 @@ import {
   PRODUCTION_STATUS_LABEL,
 } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import {
+  buildOrderStoryPages,
+  storyTextExportFromPages,
+} from "@/lib/order-story-text";
+import { parseIllustrationVersions } from "@/lib/illustration-versions";
 import { parseCustomFields } from "@/lib/templates";
 
 export default async function AdminIllustrationWorkPage({
@@ -59,6 +64,15 @@ export default async function AdminIllustrationWorkPage({
 
   const customFields = parseCustomFields(order.template.customFields);
   const customValues = parseStringRecord(order.customInputValues);
+  const characterLabels = selectedCharacters.map((character) => character.label);
+  const storyPages = buildOrderStoryPages({
+    templateTitle: order.template.title,
+    heroAgeRange: order.heroAgeRange,
+    customInputValues: order.customInputValues,
+    characterLabels,
+    illustrations: order.illustrations,
+  });
+  const storyById = new Map(storyPages.map((page) => [page.id, page.text]));
   const waitingForGeneration = order.illustrations.some(
     (item) => item.status === "PROCESSING",
   );
@@ -132,13 +146,36 @@ export default async function AdminIllustrationWorkPage({
       <section className="mt-8 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold sm:text-xl">페이지별 삽화</h2>
-          <form action={addIllustrationPage.bind(null, order.id)}>
-            <PendingSubmitButton
-              label="새 페이지 추가"
-              pendingLabel="추가 중..."
-              className="h-10 w-full rounded-xl bg-sky-400 px-4 text-sm font-medium text-white disabled:opacity-60 sm:w-auto"
-            />
-          </form>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            {storyTextExportFromPages(storyPages) ? (
+              <>
+                <AdminAllStoryCopyButton
+                  pages={storyPages
+                    .filter((page) => page.pageType !== "COVER")
+                    .map((page) => ({ label: page.label, text: page.text }))}
+                />
+                <a
+                  href={`/api/admin/orders/${order.id}/download-story-text`}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium hover:bg-stone-50"
+                >
+                  본문 글 받기
+                </a>
+              </>
+            ) : null}
+            <a
+              href={`/api/admin/orders/${order.id}/download-zip`}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium hover:bg-stone-50"
+            >
+              삽화 받기
+            </a>
+            <form action={addIllustrationPage.bind(null, order.id)}>
+              <PendingSubmitButton
+                label="새 페이지 추가"
+                pendingLabel="추가 중..."
+                className="h-10 w-full rounded-xl bg-sky-400 px-4 text-sm font-medium text-white disabled:opacity-60 sm:w-auto"
+              />
+            </form>
+          </div>
         </div>
 
         {order.illustrations.length === 0 ? (
@@ -153,12 +190,16 @@ export default async function AdminIllustrationWorkPage({
             <IllustrationPageEditor
               key={illustration.id}
               characters={selectedCharacters}
+              storyText={storyById.get(illustration.id) ?? ""}
               illustration={{
                 id: illustration.id,
                 pageNumber: illustration.pageNumber,
                 prompt: illustration.prompt,
                 imagePath: illustration.imagePath,
                 sceneImagePath: illustration.sceneImagePath,
+                imageVersions: parseIllustrationVersions(
+                  illustration.imageVersions,
+                ),
                 status: illustration.status,
                 selectedCharacterIds: parseIdList(
                   illustration.selectedCharacterIds,
@@ -170,10 +211,6 @@ export default async function AdminIllustrationWorkPage({
           ))
         )}
       </section>
-
-      <div className="mt-6">
-        <LiveGenerationLog orderId={order.id} />
-      </div>
 
       <div className="mt-10 border-t border-stone-200 pt-6">
         <form action={markOrderIllustrationsComplete.bind(null, order.id)}>
