@@ -14,6 +14,11 @@ import {
 } from "@/lib/image-generation-config";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 import { buildStyleCharacterPrompt } from "@/lib/storybook-prompts";
+import {
+  castRoleLabel,
+  parseCastRoles,
+  parseSupportingCast,
+} from "@/lib/templates";
 
 export const CHARACTER_ASSET_BUCKET = "character-assets";
 
@@ -106,11 +111,47 @@ async function loadImage(pathOrUrl: string): Promise<ImageInput> {
   };
 }
 
+async function extraCastPromptLabel(
+  characterId: string,
+  userId: string,
+  characterLabel: string,
+): Promise<string> {
+  const orders = await prisma.storybookOrder.findMany({
+    where: { userId },
+    select: {
+      supportingCast: true,
+      template: { select: { title: true, castRoles: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+  });
+  for (const order of orders) {
+    const member = parseSupportingCast(order.supportingCast).find(
+      (item) => item.characterId === characterId,
+    );
+    if (!member) {
+      continue;
+    }
+    const roleLabel = castRoleLabel(
+      parseCastRoles(order.template.castRoles, order.template.title),
+      member.relationKey,
+    );
+    if (roleLabel && !characterLabel.includes(roleLabel)) {
+      return `${characterLabel} (${roleLabel})`;
+    }
+    if (roleLabel) {
+      return characterLabel;
+    }
+  }
+  return characterLabel;
+}
+
 async function generateStyledPortrait(opts: {
   openai: OpenAI;
   portrait: ImageInput;
   style: ImageInput;
   artStyleKey?: string | null;
+  label?: string | null;
 }): Promise<string> {
   console.log(
     `[styleCharacter] responses.create model=${RESPONSES_MODEL} tool=${IMAGE_GEN_TOOL_MODEL} size=${IMAGE_GEN_SIZE} quality=${STYLE_TRANSFER_QUALITY} output_format=${ILLUSTRATION_OUTPUT_FORMAT} artStyle=${opts.artStyleKey ?? "unknown"}`,
@@ -134,7 +175,7 @@ async function generateStyledPortrait(opts: {
       {
         role: "user",
         content: [
-          { type: "input_text", text: buildStyleCharacterPrompt(opts.artStyleKey) },
+          { type: "input_text", text: buildStyleCharacterPrompt(opts.artStyleKey, { label: opts.label }) },
           {
             type: "input_image",
             image_url: toImageDataUrl(opts.portrait.bytes, opts.portrait.mime),
@@ -278,6 +319,11 @@ export async function styleCharacter(
       portrait,
       style,
       artStyleKey: asset.artStyle.key,
+      label: await extraCastPromptLabel(
+        asset.characterId,
+        asset.character.userId,
+        asset.character.label,
+      ),
     });
     const styledImageUrl = await uploadStyledImage({
       userId: asset.character.userId,

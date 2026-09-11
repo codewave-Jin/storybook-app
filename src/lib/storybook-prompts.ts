@@ -27,23 +27,41 @@ export const FOREST_BIRTHDAY_PAGE_COUNT = 9;
 
 export type BirthdayCast = "hero" | "extraOptional" | "none";
 
+function isMomOrDadCastLabel(label: string) {
+  return /엄마|아빠|아버지|어머니|부모|할머니|할아버지/.test(label);
+}
+
+/** 엄마/아빠 역할: 어른 몸 OK, 얼굴은 입력 캐릭터 그대로. */
+function extraCastFaceRule(hasMomOrDad: boolean) {
+  return hasMomOrDad
+    ? "엄마/아빠로 들어간 사람은 어른 몸·어른 크기로 그려도 됩니다. 얼굴만 그 사람의 입력 캐릭터 이미지와 같게 하세요. 주인공 얼굴로 섞거나, 평범한 동화 어른 얼굴로 바꾸지 마세요."
+    : "";
+}
+
 export function buildStyleCharacterPrompt(
   artStyleKey?: string | null,
+  options?: { label?: string | null },
 ): string {
   const medium =
     artStyleSceneHint(artStyleKey) ||
     "두 번째 이미지의 선, 채색, 질감만 가져오세요.";
+  const label = options?.label?.trim() || "";
+  const adultCast = isMomOrDadCastLabel(label);
 
   return [
     "첫 번째 이미지는 유지해야 할 캐릭터입니다.",
     "두 번째 이미지는 그림체 샘플입니다.",
-    "첫 번째 사람을 두 번째 그림체로 다시 그리세요. 다른 아이로 바꾸면 실패입니다.",
+    "첫 번째 사람을 두 번째 그림체로 다시 그리세요. 다른 사람으로 바꾸면 실패입니다.",
+    label ? `이 사람은 ${label}입니다.` : "",
+    adultCast
+      ? `${label} 역할은 엄마/아빠입니다. 몸과 키는 어른이어도 됩니다. 얼굴은 첫 번째 이미지와 같은 사람이어야 합니다. 아이 얼굴로 바꾸지 말고, 더 나이 든 다른 어른 얼굴로 다시 그리지도 마세요.`
+      : "나이를 바꾸지 마세요. 어른을 아이로, 아이를 어른으로 만들지 마세요.",
     "",
     "[얼굴 — 첫 번째 이미지에서만 복사]",
     "- 얼굴형, 눈의 크기·간격·모양, 눈썹, 코, 입, 볼살, 턱선, 피부톤",
     "- 조금만 달라도 오류입니다. 다시 창작하지 말 것",
     "- 나이를 바꾸거나 예쁘게 다듬지 말 것",
-    "- 일반적인 동화 아이 얼굴로 평균화하지 말 것",
+    "- 일반적인 동화 얼굴로 평균화하지 말 것",
     "- 두 번째 이미지 속 인물의 얼굴, 헤어, 의상, 몸, 포즈, 배경, 동물을 절대 가져오지 말 것",
     "",
     "[그림체 — 두 번째 이미지에서만]",
@@ -64,52 +82,41 @@ export function buildStyleCharacterPrompt(
     "- 표정은 중립이거나 아주 옅은 미소. 이목구비 위치는 그대로",
     "",
     "배경은 밝은 단색으로 해주세요.",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** @deprecated 그림체 key를 넣어 buildStyleCharacterPrompt를 쓰세요. */
 export const STYLE_CHARACTER_PROMPT = buildStyleCharacterPrompt();
 
-/** 그림체 변환본 + 얼굴 원본을 같이 넣을 때, 이미지 번호 역할을 고정한다. */
+/** 삽화에 넣는 초상화(그림체 변환본, 기본이면 원본)마다 번호를 고정한다. */
 export function buildFaceIdentityImageRoles(
-  characters: Array<{ label: string; hasIdentity: boolean }>,
+  characters: Array<{ label: string }>,
 ): string {
   const named = characters
-    .map((character) => ({
-      label: character.label.trim() || "주인공",
-      hasIdentity: character.hasIdentity,
-    }))
-    .filter((character) => character.label);
-  if (named.length === 0 || named.every((character) => !character.hasIdentity)) {
+    .map((character) => character.label.trim() || "주인공")
+    .filter(Boolean);
+  if (named.length === 0) {
     return "";
   }
 
   const lines = ["입력 이미지 역할:"];
-  let index = 1;
-  for (const character of named) {
-    const styledIndex = index;
+  named.forEach((label, offset) => {
+    const index = offset + 1;
+    const adult = isMomOrDadCastLabel(label);
     lines.push(
-      `${styledIndex}번: ${character.label}의 변환본입니다. 헤어스타일, 머리색, 의상, 몸 비율은 ${styledIndex}번을 따르세요.`,
+      adult
+        ? `${index}번: ${label}의 초상화입니다. 얼굴은 ${index}번과 같게 유지하세요. 몸과 키는 어른이어도 됩니다.`
+        : `${index}번: ${label}의 초상화입니다. 얼굴·헤어·의상은 ${index}번을 따르세요.`,
     );
-    index += 1;
-    if (character.hasIdentity) {
-      const identityIndex = index;
-      lines.push(
-        `${identityIndex}번: ${character.label}의 얼굴 원본입니다. 얼굴형, 눈·코·입, 볼살, 턱선만 ${identityIndex}번에서 가져오세요.`,
-      );
-      lines.push(
-        `${identityIndex}번의 선, 채색, 질감, 렌더링, 그림체는 절대 가져오지 마세요.`,
-      );
-      lines.push(
-        `${styledIndex}번과 ${identityIndex}번의 얼굴이 다르면 얼굴 구조는 ${identityIndex}번, 그림체는 ${styledIndex}번입니다.`,
-      );
-      index += 1;
-    }
-  }
+  });
   lines.push(
-    "얼굴을 다른 사람으로 바꾸거나 일반적인 동화 아이로 평균화하지 마세요.",
+    "각 초상화의 얼굴을 다른 사람으로 바꾸거나 일반적인 동화 얼굴로 평균화하지 마세요.",
+    named.length > 1 ? "등장인물이 여럿이면 얼굴을 섞지 마세요." : "",
+    extraCastFaceRule(named.some((label) => isMomOrDadCastLabel(label))),
   );
-  return lines.join("\n");
+  return lines.filter(Boolean).join("\n");
 }
 
 /** 변환된 초상화만으로는 장면이 수채화 동화로 미끄러지지 않게, 그림체 이름을 고정한다. */
@@ -449,7 +456,11 @@ export function birthdayCharacterLabels(
     return [];
   }
   const hero = variables.character_1?.trim() ?? "";
-  const extra = variables.character_2?.trim() ?? "";
+  const extra =
+    variables["cast.mom"]?.trim() ||
+    variables["cast.dad"]?.trim() ||
+    variables.character_2?.trim() ||
+    "";
   if (cast === "hero") {
     return hero ? [hero] : [];
   }
@@ -481,25 +492,38 @@ export function shouldAttachCoverLikenessLock(options: {
   );
 }
 
-export function buildCoverLikenessLockPrompt(characterCount: number) {
-  const last = characterCount + 1;
+export function buildCoverLikenessLockPrompt(options: {
+  lastImageIndex: number;
+  hasExtraCast?: boolean;
+}) {
+  const last = options.lastImageIndex;
   return [
-    `마지막 ${last}번 이미지는 이미 맞게 그린 같은 아이의 표지입니다.`,
+    `마지막 ${last}번 이미지는 이미 맞게 그린 주인공 표지입니다.`,
     "주인공 얼굴만 이 표지와 초상화에 맞추세요. 표지의 구도, 배경, 소품은 베끼지 마세요.",
-    characterCount > 1
-      ? "표지는 주인공 얼굴 확인용입니다. 다른 등장인물 얼굴은 각 초상화를 따르세요."
+    options.hasExtraCast
+      ? "표지는 주인공 확인용입니다. 추가 등장인물은 어른으로 그려도 됩니다. 얼굴은 그 사람의 입력 초상화를 따르세요."
       : "",
   ]
     .filter(Boolean)
     .join(" ");
 }
 
-export function buildPeoplePageIdentityCloser(pageNumber?: number | null) {
+export function buildPeoplePageIdentityCloser(
+  pageNumber?: number | null,
+  characterLabels?: string[],
+) {
+  const names = (characterLabels ?? [])
+    .map((label) => label.trim())
+    .filter(Boolean);
+  const who = names.length > 1 ? names.join(", ") : names[0] || "주인공";
   const wide = (pageNumber ?? 0) >= 6;
   return [
-    "다시 확인: 주인공은 입력 초상화의 그 아이입니다. 비슷한 동화 아이로 바꾸면 실패입니다.",
+    `다시 확인: ${who}는 입력 초상화의 그 사람입니다. 비슷한 동화 인물로 바꾸면 실패입니다.`,
+    extraCastFaceRule(names.some((name) => isMomOrDadCastLabel(name))),
     wide
-      ? "장면이 넓어도 주인공을 앞에 크게 두고, 이목구비가 읽힐 만큼 얼굴을 보여 주세요."
+      ? names.length > 1
+        ? "장면이 넓어도 등장인물을 앞에 크게 두고, 이목구비가 읽힐 만큼 얼굴을 보여 주세요."
+        : "장면이 넓어도 주인공을 앞에 크게 두고, 이목구비가 읽힐 만큼 얼굴을 보여 주세요."
       : "",
   ]
     .filter(Boolean)
@@ -550,13 +574,14 @@ export function buildStyledIllustrationPrompt(options: {
         ? [
             `앞쪽 이미지는 등장인물입니다. 등장 순서는 ${named}입니다.`,
             "사람을 다른 사람으로 바꾸거나 얼굴을 섞지 마세요.",
-            "각 인물의 얼굴은 해당 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            extraCastFaceRule(labels.some((name) => isMomOrDadCastLabel(name))),
+            "각 인물의 얼굴은 해당 초상화와 똑같이 닮아야 합니다. 비슷한 다른 사람이 아니라 같은 사람입니다.",
             `얼굴·헤어·의상·그림체는 초상화 그대로 유지하고 다음 장면을 그려주세요: ${scene}`,
           ]
         : [
-            "앞쪽 이미지는 이 장면의 주인공입니다. 다른 아이로 바꾸지 마세요.",
+            "앞쪽 이미지는 이 장면의 주인공입니다. 다른 사람으로 바꾸지 마세요.",
             extraOptionalNote,
-            "얼굴은 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            "얼굴은 초상화와 똑같이 닮아야 합니다. 비슷한 다른 사람이 아니라 같은 사람입니다.",
             `얼굴·헤어·의상·그림체는 초상화 그대로 유지하고 다음 장면을 그려주세요: ${scene}`,
           ]
     ).filter(Boolean);
@@ -566,14 +591,15 @@ export function buildStyledIllustrationPrompt(options: {
         ? [
             `앞쪽 이미지는 그림체를 입힌 등장인물입니다. 등장 순서는 ${named}입니다.`,
             "사람을 다른 사람으로 바꾸거나 얼굴을 섞지 마세요.",
-            "각 인물의 얼굴은 해당 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            extraCastFaceRule(labels.some((name) => isMomOrDadCastLabel(name))),
+            "각 인물의 얼굴은 해당 초상화와 똑같이 닮아야 합니다. 비슷한 다른 사람이 아니라 같은 사람입니다.",
             "얼굴·헤어·의상·그림체는 이 초상화를 따르세요. 의상은 바꾸지 마세요.",
             `얼굴 닮은꼴과 의상을 유지한 채 포즈와 배경만 바꿔 다음 장면을 그려주세요: ${scene}`,
           ]
         : [
-            "앞쪽 이미지는 그림체를 입힌 주인공입니다. 다른 아이로 바꾸지 마세요.",
+            "앞쪽 이미지는 그림체를 입힌 주인공입니다. 다른 사람으로 바꾸지 마세요.",
             extraOptionalNote,
-            "얼굴은 이 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            "얼굴은 이 초상화와 똑같이 닮아야 합니다. 비슷한 다른 사람이 아니라 같은 사람입니다.",
             "얼굴·헤어·의상·그림체는 이 초상화를 따르세요. 의상은 바꾸지 마세요.",
             `얼굴 닮은꼴과 의상을 유지한 채 포즈와 배경만 바꿔 다음 장면을 그려주세요: ${scene}`,
           ]
@@ -588,7 +614,9 @@ export function buildStyledIllustrationPrompt(options: {
       ? wideSceneLine
       : [
           wideSceneLine,
-          "주인공 얼굴은 입력 초상화와 같은 얼굴이어야 합니다. 장면이 넓어도 이목구비가 분명히 읽혀야 합니다.",
+          labels.length > 1
+            ? `${named}의 얼굴은 각 입력 초상화와 같은 얼굴이어야 합니다. 장면이 넓어도 이목구비가 분명히 읽혀야 합니다.`
+            : "주인공 얼굴은 입력 초상화와 같은 얼굴이어야 합니다. 장면이 넓어도 이목구비가 분명히 읽혀야 합니다.",
           "멀리 있는 작은 실루엣으로 그리지 말고, 얼굴이 분명히 알아볼 수 있을 만큼 크게 그리세요.",
           "중요한 얼굴은 화면 정중앙에 두지 마세요. 살짝 왼쪽이나 오른쪽에 두되, 작게 만들지 마세요.",
         ].join(" ");
@@ -607,10 +635,11 @@ export function buildStyledIllustrationPrompt(options: {
       ? []
       : [
           "[반드시 유지할 것 — 얼굴]",
-          "- 가장 중요: 초상화와 같은 사람. 비슷한 동화 아이로 바꾸면 실패입니다",
+          "- 가장 중요: 초상화와 같은 사람. 비슷한 동화 인물로 바꾸면 실패입니다",
           "- 얼굴형, 눈의 크기·간격·모양, 눈썹, 코, 입, 볼살, 턱선, 피부톤을 초상화에서 그대로 복사",
           "- 조금만 달라도 오류입니다. 다시 창작하거나 예쁘게 다듬지 말 것",
-          "- 나이를 더 어리거나 달리 보이지 말 것",
+          "- 얼굴을 다른 나이의 사람으로 다시 그리지 말 것",
+          extraCastFaceRule(labels.some((name) => isMomOrDadCastLabel(name))),
           keepOriginalStyle
             ? "- 얼굴·헤어·의상·그림체는 입력 캐릭터 그대로입니다. 다른 그림체로 다시 그리지 마세요."
             : "- 얼굴·헤어·의상·그림체는 그림체를 입힌 초상화를 따르세요. 닮은꼴과 옷은 그대로 두고, 장면의 그림체도 그 초상화와 같게 하세요.",
@@ -631,6 +660,6 @@ export function buildStyledIllustrationPrompt(options: {
     "얼굴에 사진 질감이나 광택 렌더링을 넣지 마세요.",
     ...(cast === "none" || labels.length === 0
       ? []
-      : ["", buildPeoplePageIdentityCloser(options.pageNumber)]),
+      : ["", buildPeoplePageIdentityCloser(options.pageNumber, labels)]),
   ].join("\n");
 }

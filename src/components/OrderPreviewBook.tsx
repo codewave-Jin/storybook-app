@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { IllustrationStatus } from "@prisma/client";
+import { retryFailedIllustrations } from "@/app/actions/retry-generation";
 import { AppImage } from "@/components/AppImage";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
@@ -92,6 +93,11 @@ export function OrderPreviewBook({
   const lastIndex = Math.max(livePages.length - 1, 0);
   const safeIndex = Math.min(index, lastIndex);
   const waitingForGeneration = livePages.some(isPendingPage);
+  const failedIds = livePages
+    .map((page) => (page.status === "FAILED" && page.id ? page.id : null))
+    .filter((id): id is string => Boolean(id));
+  const [retryingAll, startRetryAll] = useTransition();
+  const [retryAllError, setRetryAllError] = useState<string | null>(null);
 
   useEffect(() => {
     setLivePages((current) =>
@@ -221,7 +227,7 @@ export function OrderPreviewBook({
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-48 pt-4 sm:px-4 sm:pt-6">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-64 pt-4 sm:px-4 sm:pt-6">
         {optionLines.length > 0 ? (
           <section
             aria-label="선택한 옵션"
@@ -299,6 +305,52 @@ export function OrderPreviewBook({
               다음
             </button>
           </div>
+          {failedIds.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                disabled={retryingAll}
+                onClick={() => {
+                  setRetryAllError(null);
+                  const ids = failedIds;
+                  startRetryAll(async () => {
+                    setLivePages((current) =>
+                      current.map((page) =>
+                        page.id && ids.includes(page.id)
+                          ? { ...page, status: "PROCESSING" }
+                          : page,
+                      ),
+                    );
+                    const result = await retryFailedIllustrations(ids);
+                    if (result.error) {
+                      setRetryAllError(result.error);
+                      setLivePages((current) =>
+                        current.map((page) =>
+                          page.id && ids.includes(page.id)
+                            ? { ...page, status: "FAILED" }
+                            : page,
+                        ),
+                      );
+                    }
+                  });
+                }}
+                className="flex h-12 items-center justify-center rounded-xl bg-sky-400 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
+              >
+                {retryingAll
+                  ? "다시 만드는 중..."
+                  : failedIds.length === 1
+                    ? "실패한 장면 다시 만들기"
+                    : `실패한 장면 ${failedIds.length}장 다시 만들기`}
+              </button>
+              {retryAllError ? (
+                <p className="text-center text-xs text-red-600">{retryAllError}</p>
+              ) : (
+                <p className="text-center text-xs text-stone-500">
+                  서버가 바쁠 때 실패할 수 있어요. 잠시 후 다시 눌러 주세요.
+                </p>
+              )}
+            </div>
+          ) : null}
           {paid ? (
             liveComplete && includePhotoAlbum && safeIndex === lastIndex ? (
               <div className="flex flex-col gap-2">
@@ -370,16 +422,22 @@ function BookLeaf({
             sizes="(max-width: 640px) 100vw, 32rem"
           />
         ) : page.status === "FAILED" ? (
-          <FailedLeaf />
+          <FailedLeaf
+            illustrationId={page.id}
+            onRetrying={() => onLiveChange({ status: "PROCESSING" })}
+            onRetryFailed={() => onLiveChange({ status: "FAILED" })}
+          />
         ) : (
           <GeneratingLeaf page={page} onLiveChange={onLiveChange} />
         )}
-        <PreviewWatermark />
-        <div
-          className="absolute inset-0 z-[1]"
-          onContextMenu={(event) => event.preventDefault()}
-          onDragStart={(event) => event.preventDefault()}
-        />
+        {page.status === "FAILED" ? null : <PreviewWatermark />}
+        {page.status === "FAILED" ? null : (
+          <div
+            className="absolute inset-0 z-[1]"
+            onContextMenu={(event) => event.preventDefault()}
+            onDragStart={(event) => event.preventDefault()}
+          />
+        )}
         <span className="absolute left-3 top-3 z-10 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-stone-700 shadow-sm">
           {page.label}
         </span>
@@ -472,16 +530,22 @@ function CoverSpread({
                 sizes="(max-width: 640px) 50vw, 16rem"
               />
             ) : page.status === "FAILED" ? (
-              <FailedLeaf />
+              <FailedLeaf
+                illustrationId={page.id}
+                onRetrying={() => onLiveChange({ status: "PROCESSING" })}
+                onRetryFailed={() => onLiveChange({ status: "FAILED" })}
+              />
             ) : (
               <GeneratingLeaf page={page} onLiveChange={onLiveChange} />
             )}
-            <PreviewWatermark />
-            <div
-              className="absolute inset-0 z-[1]"
-              onContextMenu={(event) => event.preventDefault()}
-              onDragStart={(event) => event.preventDefault()}
-            />
+            {page.status === "FAILED" ? null : <PreviewWatermark />}
+            {page.status === "FAILED" ? null : (
+              <div
+                className="absolute inset-0 z-[1]"
+                onContextMenu={(event) => event.preventDefault()}
+                onDragStart={(event) => event.preventDefault()}
+              />
+            )}
             <span className="absolute right-3 top-3 z-10 rounded-full bg-[#F6E7C1] px-2.5 py-1 text-[11px] font-semibold text-[#8A5A12] shadow-sm">
               표지
             </span>
@@ -496,11 +560,47 @@ function CoverSpread({
   );
 }
 
-function FailedLeaf() {
+function FailedLeaf({
+  illustrationId,
+  onRetrying,
+  onRetryFailed,
+}: {
+  illustrationId: string | null;
+  onRetrying: () => void;
+  onRetryFailed: () => void;
+}) {
+  const [pending, startRetry] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center">
-      <p className="text-sm font-medium text-red-600">생성 실패</p>
-      <p className="text-xs text-stone-500">잠시 후 다시 시도해 주세요</p>
+    <div className="absolute inset-0 z-20 flex h-full flex-col items-center justify-center gap-2 px-2 text-center pointer-events-auto">
+      <div>
+        <p className="text-sm font-medium text-red-600">생성 실패</p>
+        <p className="mt-1 text-[11px] leading-snug text-stone-500">
+          서버가 바쁠 때 가끔 실패해요. 다시 만들어 주세요.
+        </p>
+      </div>
+      {illustrationId ? (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            setError(null);
+            onRetrying();
+            startRetry(async () => {
+              const result = await retryFailedIllustrations([illustrationId]);
+              if (result.error) {
+                setError(result.error);
+                onRetryFailed();
+              }
+            });
+          }}
+          className="rounded-xl bg-sky-400 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500 disabled:opacity-60 sm:px-4 sm:py-2 sm:text-sm"
+        >
+          {pending ? "다시 만드는 중..." : "다시 만들기"}
+        </button>
+      ) : null}
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );
 }

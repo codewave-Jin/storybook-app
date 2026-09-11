@@ -12,10 +12,16 @@ import {
 } from "@/lib/revalidate-admin";
 import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
 import {
+  saveAdminCharacterFile,
   saveAdminIllustrationFile,
   toAbsolutePublicPath,
 } from "@/lib/uploads";
 import { illustrationQueueInputImages } from "@/lib/order-character-asset";
+import {
+  parseRegenInputChoice,
+  parseRegenUploads,
+} from "@/lib/character-regen-input";
+import { parseIdList } from "@/lib/orders";
 import {
   archiveIllustrationVersion,
   parseIllustrationVersions,
@@ -409,5 +415,214 @@ export async function copyOriginalToUpscaled(illustrationId: string) {
   });
 
   revalidateIllustrationWork(illustration.orderId);
+  return { success: true };
+}
+
+export async function uploadOrderCharacterInput(
+  _prevState: IllustrationActionState,
+  formData: FormData,
+): Promise<IllustrationActionState> {
+  await requireAdmin();
+
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const characterId = String(formData.get("characterId") ?? "").trim();
+  const file = formData.get("file");
+
+  if (!orderId || !characterId) {
+    return { error: "캐릭터를 찾을 수 없습니다." };
+  }
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "이미지를 선택해 주세요." };
+  }
+
+  const order = await prisma.storybookOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      artStyleId: true,
+      selectedCharacterIds: true,
+    },
+  });
+  if (!order?.artStyleId) {
+    return { error: "주문 그림체를 찾을 수 없습니다." };
+  }
+
+  const characterIds = parseIdList(order.selectedCharacterIds);
+  if (!characterIds.includes(characterId)) {
+    return { error: "이 주문의 캐릭터가 아닙니다." };
+  }
+
+  let imagePath: string;
+  try {
+    imagePath = await saveAdminCharacterFile(file);
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.",
+    };
+  }
+
+  const existing = await prisma.characterAsset.findFirst({
+    where: {
+      characterId,
+      artStyleId: order.artStyleId,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (existing) {
+    const uploads = parseRegenUploads(existing.regenUploads);
+    if (!uploads.includes(imagePath)) {
+      uploads.push(imagePath);
+    }
+    await prisma.characterAsset.update({
+      where: { id: existing.id },
+      data: {
+        regenInputUrl: imagePath,
+        regenInputChoice: "upload",
+        regenUploads: uploads,
+        status: "READY",
+      },
+    });
+  } else {
+    const character = await prisma.character.findUnique({
+      where: { id: characterId },
+      select: { generatedImagePath: true },
+    });
+    await prisma.characterAsset.create({
+      data: {
+        characterId,
+        artStyleId: order.artStyleId,
+        rawPortraitUrl: character?.generatedImagePath ?? imagePath,
+        regenInputUrl: imagePath,
+        regenInputChoice: "upload",
+        regenUploads: [imagePath],
+        status: "READY",
+      },
+    });
+  }
+
+  revalidateIllustrationWork(orderId);
+  return { success: true };
+}
+
+async function loadOrderCharacterForInput(orderId: string, characterId: string) {
+  const order = await prisma.storybookOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      artStyleId: true,
+      selectedCharacterIds: true,
+    },
+  });
+  if (!order) {
+    return { error: "주문을 찾을 수 없습니다." as const };
+  }
+  const artStyleId = order.artStyleId?.trim() || "";
+  if (!artStyleId) {
+    return { error: "주문 그림체를 찾을 수 없습니다." as const };
+  }
+
+  const characterIds = parseIdList(order.selectedCharacterIds);
+  if (!characterIds.includes(characterId)) {
+    return { error: "이 주문의 캐릭터가 아닙니다." as const };
+  }
+
+  return { order: { ...order, artStyleId } };
+}
+
+export async function selectOrderCharacterInput(
+  _prevState: IllustrationActionState,
+  formData: FormData,
+): Promise<IllustrationActionState> {
+  await requireAdmin();
+
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const characterId = String(formData.get("characterId") ?? "").trim();
+  const choice = parseRegenInputChoice(String(formData.get("choice") ?? ""));
+  const inputUrl = String(formData.get("inputUrl") ?? "").trim();
+
+  if (!orderId || !characterId) {
+    return { error: "캐릭터를 찾을 수 없습니다." };
+  }
+  if (!choice) {
+    return { error: "사용할 캐릭터를 선택해 주세요." };
+  }
+
+  const loaded = await loadOrderCharacterForInput(orderId, characterId);
+  if ("error" in loaded) {
+    return { error: loaded.error };
+  }
+  const { order } = loaded;
+
+  const character = await prisma.character.findUnique({
+    where: { id: characterId },
+    select: { generatedImagePath: true, originalPhotoPath: true },
+  });
+  if (!character) {
+    return { error: "캐릭터를 찾을 수 없습니다." };
+  }
+
+  const existing = await prisma.characterAsset.findFirst({
+    where: {
+      characterId,
+      artStyleId: order.artStyleId,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const original =
+    character.generatedImagePath?.trim() ||
+    existing?.rawPortraitUrl?.trim() ||
+    character.originalPhotoPath?.trim() ||
+    null;
+  const styled = existing?.styledImageUrl?.trim() || null;
+  const uploads = parseRegenUploads(existing?.regenUploads);
+  if (
+    existing?.regenInputUrl?.trim() &&
+    !uploads.includes(existing.regenInputUrl.trim())
+  ) {
+    uploads.push(existing.regenInputUrl.trim());
+  }
+
+  if (choice === "original" && !original) {
+    return { error: "입력 캐릭터가 없습니다." };
+  }
+  if (choice === "styled" && !styled) {
+    return { error: "그림체 변환 이미지가 없습니다." };
+  }
+  if (choice === "upload") {
+    if (!inputUrl || !uploads.includes(inputUrl)) {
+      return { error: "올린 캐릭터를 찾을 수 없습니다." };
+    }
+  }
+
+  const regenInputUrl = choice === "upload" ? inputUrl : existing?.regenInputUrl;
+
+  if (existing) {
+    await prisma.characterAsset.update({
+      where: { id: existing.id },
+      data: {
+        regenInputChoice: choice,
+        regenInputUrl,
+        regenUploads: uploads,
+        status: "READY",
+      },
+    });
+  } else {
+    await prisma.characterAsset.create({
+      data: {
+        characterId,
+        artStyleId: order.artStyleId,
+        rawPortraitUrl: original,
+        regenInputChoice: choice,
+        regenInputUrl: choice === "upload" ? inputUrl : null,
+        regenUploads: uploads,
+        status: "READY",
+      },
+    });
+  }
+
+  revalidateIllustrationWork(orderId);
   return { success: true };
 }

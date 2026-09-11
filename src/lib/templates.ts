@@ -70,8 +70,8 @@ export type HeroAgeRangeKey = "AGE_1_2" | "AGE_3_4" | "AGE_5_7";
 
 export const HERO_AGE_RANGES = [
   { key: "AGE_1_2", label: "1~2세", disabled: false },
-  { key: "AGE_3_4", label: "3~4세", disabled: true },
-  { key: "AGE_5_7", label: "5~7세", disabled: true },
+  { key: "AGE_3_4", label: "2~3세", disabled: false },
+  { key: "AGE_5_7", label: "5~7세", disabled: false },
 ] as const;
 
 export type CastRole = {

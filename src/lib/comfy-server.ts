@@ -16,7 +16,8 @@ function comfyServerBaseUrl() {
     throw new Error("COMFY_SERVER_URL이 설정되지 않았습니다.");
   }
 
-  return url;
+  // Node fetch on Windows resolves `localhost` to ::1 first. FastAPI binds IPv4.
+  return url.replace("://localhost", "://127.0.0.1");
 }
 
 export function comfyServerUrl(pathname: string) {

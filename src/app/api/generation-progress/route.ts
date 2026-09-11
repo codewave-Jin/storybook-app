@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getAdminOrNull } from "@/lib/admin";
 import { unauthorizedIfInvalidInternalKey } from "@/lib/internal-auth";
-import { stickerQueueProgress } from "@/lib/gpt-image-progress";
+import { stickerQueueProgress, illustrationQueueProgress } from "@/lib/gpt-image-progress";
 import { prisma } from "@/lib/prisma";
 
 type ProgressKind = "character" | "illustration" | "sticker";
@@ -126,31 +126,36 @@ export async function GET(request: Request) {
         status: true,
         imagePath: true,
         sceneImagePath: true,
+        orderId: true,
       },
     });
     const status = illustration?.status;
     const completed = status === "COMPLETED";
     const failed = status === "FAILED";
-    const queued =
-      status === "IDLE" ||
-      (status === "PROCESSING" &&
-        Boolean(illustration?.progressLabel?.startsWith("대기")));
+    const queue = await illustrationQueueProgress({
+      illustrationId: id,
+      orderId: illustration?.orderId ?? "",
+      status: status ?? "IDLE",
+      progressLabel: illustration?.progressLabel ?? null,
+    });
+    const queued = queue.queueStatus === "QUEUED";
+    const serverPercent = illustration?.progressPercent ?? 0;
     return NextResponse.json({
       percent: completed
         ? 100
         : failed
           ? 0
           : queued
-            ? Math.min(illustration?.progressPercent ?? 8, 12)
-            : (illustration?.progressPercent ?? 0),
+            ? Math.min(Math.max(serverPercent, 8), 12)
+            : Math.max(serverPercent, 12),
       label: failed
         ? "실패"
         : completed
           ? "완료"
-          : (illustration?.progressLabel ?? "생성 중"),
+          : queue.label || illustration?.progressLabel || "생성 중",
       status: status ?? "IDLE",
-      queueStatus: queued ? "QUEUED" : status === "PROCESSING" ? "RUNNING" : null,
-      queueAhead: 0,
+      queueStatus: queue.queueStatus,
+      queueAhead: queue.queueAhead,
       imageUrl:
         illustration?.sceneImagePath || illustration?.imagePath || null,
       active: status === "PROCESSING" || status === "IDLE",

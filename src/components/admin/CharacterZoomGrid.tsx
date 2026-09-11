@@ -10,6 +10,12 @@ export type WorkCharacter = {
   label: string;
   gender: "MALE" | "FEMALE";
   imageSrc: string;
+  originalSrc?: string | null;
+  styledSrc?: string | null;
+  regenOverrideSrc?: string | null;
+  regenSrc?: string;
+  regenUploads?: string[];
+  regenInputChoice?: string | null;
 };
 
 export function CharacterZoomGrid({

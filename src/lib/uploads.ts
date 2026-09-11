@@ -123,6 +123,28 @@ export async function saveCharacterPhoto(file: File): Promise<string> {
 
 const ADMIN_ILLUSTRATION_MAX_BYTES = 20 * 1024 * 1024;
 
+export async function saveAdminCharacterFile(file: File): Promise<string> {
+  if (!ALLOWED_TYPES.has(file.type)) {
+    throw new Error("JPG, PNG, WEBP 이미지만 올릴 수 있습니다.");
+  }
+
+  if (file.size > ADMIN_ILLUSTRATION_MAX_BYTES) {
+    throw new Error("이미지 크기는 20MB 이하여야 합니다.");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (!looksLikeImage(buffer)) {
+    throw new Error("이미지 파일이 아닙니다.");
+  }
+
+  return saveBuffer(
+    buffer,
+    "characters",
+    extensionFromMime(file.type),
+    file.type,
+  );
+}
+
 export async function saveAdminIllustrationFile(file: File): Promise<string> {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("JPG, PNG, WEBP 이미지만 올릴 수 있습니다.");

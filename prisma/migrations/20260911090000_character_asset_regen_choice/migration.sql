@@ -1,0 +1,2 @@
+ALTER TABLE "CharacterAsset" ADD COLUMN IF NOT EXISTS "regenInputChoice" TEXT;
+ALTER TABLE "CharacterAsset" ADD COLUMN IF NOT EXISTS "regenUploads" JSONB NOT NULL DEFAULT '[]';

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { estimatedGenerationPercent } from "@/lib/generation-progress-estimate";
 
 export type GenerationKind = "character" | "illustration" | "sticker";
 
@@ -15,10 +16,7 @@ export type GenerationProgressSnapshot = {
 };
 
 function estimatedPercent(elapsedSec: number, kind: GenerationKind) {
-  // Illustrations (OpenAI) often take 1–3+ minutes; climb slowly to 90%.
-  // Characters are usually faster via Comfy.
-  const rate = kind === "sticker" ? 0.5 : kind === "illustration" ? 0.35 : 2.2;
-  return Math.min(90, Math.round(8 + elapsedSec * rate));
+  return estimatedGenerationPercent(elapsedSec, kind);
 }
 
 export function GenerationProgress({
@@ -40,6 +38,8 @@ export function GenerationProgress({
   );
   const [label, setLabel] = useState("생성 중");
   const onSnapshotRef = useRef(onSnapshot);
+  const queuedRef = useRef(false);
+  const finishedRef = useRef(false);
   onSnapshotRef.current = onSnapshot;
 
   useEffect(() => {
@@ -77,6 +77,8 @@ export function GenerationProgress({
             finished &&
             (serverPercent >= 100 || payload.label === "완료");
           const failed = finished && payload.label === "실패";
+          queuedRef.current = queued && !finished;
+          finishedRef.current = completed || failed;
           const nextPercent = completed
             ? 100
             : queued
@@ -121,14 +123,25 @@ export function GenerationProgress({
     }
 
     void poll();
-    const intervalMs = kind === "character" ? 2000 : 3000;
     const interval = window.setInterval(() => {
       void poll();
-    }, intervalMs);
+    }, 2000);
+    const tick = window.setInterval(() => {
+      if (finishedRef.current || queuedRef.current) {
+        return;
+      }
+      const elapsed = (Date.now() - baseline) / 1000;
+      const fallback = estimatedPercent(elapsed, kind);
+      setPercent((current) => {
+        if (current >= 100) return current;
+        return Math.min(90, Math.max(current, fallback));
+      });
+    }, 400);
 
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.clearInterval(tick);
     };
   }, [kind, id, origin]);
 

@@ -4,6 +4,10 @@ import { auth } from "@/auth";
 import { MyPageShell } from "@/components/mypage/MyPageShell";
 import { ReviewForm } from "@/components/mypage/ReviewForm";
 import { prisma } from "@/lib/prisma";
+import {
+  STICKER_REVIEWABLE_WHERE,
+  STORYBOOK_REVIEWABLE_WHERE,
+} from "@/lib/reviews";
 import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 
 export default async function WriteReviewPage({
@@ -43,8 +47,7 @@ export default async function WriteReviewPage({
           where: {
             id: orderId,
             userId,
-            paymentStatus: "PAID",
-            productionStatus: "COMPLETED",
+            ...STORYBOOK_REVIEWABLE_WHERE,
             review: null,
           },
           include: { template: { select: { title: true } } },
@@ -53,8 +56,7 @@ export default async function WriteReviewPage({
           where: {
             id: orderId,
             userId,
-            paymentStatus: "PAID",
-            productionStatus: "COMPLETED",
+            ...STICKER_REVIEWABLE_WHERE,
             review: null,
           },
           include: {

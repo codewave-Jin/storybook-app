@@ -6,6 +6,8 @@ import { shouldAttachCoverLikenessLock } from "@/lib/storybook-prompts";
 import { styleCharacter } from "@/lib/styleCharacter";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
+export { illustrationCharacterInputUrl } from "@/lib/character-regen-input";
+
 export const STYLE_TRANSFER_PROGRESS_LABEL = "캐릭터에 그림체를 입히는 중";
 
 const STYLING_WAIT_MS = 8 * 60 * 1000;
@@ -14,6 +16,14 @@ const STALE_STYLING_MS = 10 * 60 * 1000;
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export type IllustrationCharacterSheet = {
+  id: string;
+  characterId: string;
+  styledImageUrl: string | null;
+  regenInputUrl: string | null;
+  regenInputChoice: string | null;
+};
 
 export async function findReadyStyledCharacterAsset(options: {
   characterId: string;
@@ -35,10 +45,7 @@ export async function findReadyStyledCharacterAssets(
   artStyleId: string,
 ) {
   if (characterIds.length === 0) {
-    return new Map<
-      string,
-      { id: string; characterId: string; styledImageUrl: string | null }
-    >();
+    return new Map<string, IllustrationCharacterSheet>();
   }
 
   const assets = await prisma.characterAsset.findMany({
@@ -46,20 +53,19 @@ export async function findReadyStyledCharacterAssets(
       characterId: { in: characterIds },
       artStyleId,
       status: "READY",
-      styledImageUrl: { not: null },
+      OR: [{ styledImageUrl: { not: null } }, { regenInputUrl: { not: null } }],
     },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       characterId: true,
       styledImageUrl: true,
+      regenInputUrl: true,
+      regenInputChoice: true,
     },
   });
 
-  const byCharacterId = new Map<
-    string,
-    { id: string; characterId: string; styledImageUrl: string | null }
-  >();
+  const byCharacterId = new Map<string, IllustrationCharacterSheet>();
   for (const asset of assets) {
     if (!byCharacterId.has(asset.characterId)) {
       byCharacterId.set(asset.characterId, asset);

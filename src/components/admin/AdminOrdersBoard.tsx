@@ -283,7 +283,7 @@ function OrderDetailModal({
                   href={`/api/admin/orders/${detail.id}/download-album-zip`}
                   className="inline-flex h-10 items-center rounded-lg border border-stone-300 px-4 text-sm font-medium text-stone-600 hover:bg-stone-50"
                 >
-                  사진첩 이미지
+                  사진첩 인쇄본
                 </a>
                 <Link
                   href={`/admin/orders/${detail.id}`}

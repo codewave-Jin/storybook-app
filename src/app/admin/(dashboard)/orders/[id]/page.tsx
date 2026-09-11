@@ -159,7 +159,7 @@ export default async function AdminOrderDetailPage({
             href={`/api/admin/orders/${order.id}/download-album-zip`}
             className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 px-5 text-sm font-medium text-stone-700 hover:bg-stone-50"
           >
-            사진첩 이미지 받기
+            사진첩 인쇄본 받기
           </a>
         ) : null}
         <DeleteOrderButton orderId={order.id} redirectTo="/admin/orders" />

@@ -106,6 +106,12 @@ model CharacterAsset {
   rawPortraitUrl String?
   /// GPT style-converted character sheet
   styledImageUrl String?
+  /// Admin-uploaded sheet used on regenerate instead of styled/original
+  regenInputUrl  String?
+  /// original | styled | upload
+  regenInputChoice String?
+  /// Extra character sheets uploaded from the admin work page
+  regenUploads     Json     @default("[]")
   /// PENDING | COMFY_GENERATING | STYLING | READY | FAILED
   status         String    @default("PENDING")
   retryCount     Int       @default(0)
@@ -212,7 +218,7 @@ model StorybookOrder {
   template             StorybookTemplate @relation(fields: [templateId], references: [id])
   selectedCharacterIds Json
   customInputValues    Json
-  /// AGE_1_2 | AGE_3_4 | AGE_5_7
+  /// AGE_1_2 (1~2세) | AGE_3_4 (2~3세) | AGE_5_7 (5~7세)
   heroAgeRange         String?
   /// Extra cast: [{ characterId, relationKey }]
   supportingCast       Json             @default("[]")

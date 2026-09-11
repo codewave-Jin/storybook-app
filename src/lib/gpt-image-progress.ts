@@ -65,12 +65,20 @@ export async function illustrationQueueProgress(options: {
     }
   }
 
-  if (options.status === "IDLE" || options.status === "PROCESSING") {
+  if (options.status === "IDLE") {
     const queueAhead = await countActiveGptImageJobs();
     return {
       queueStatus: "QUEUED",
       queueAhead,
       label: queuedProgressLabel(queueAhead),
+    };
+  }
+
+  if (options.status === "PROCESSING") {
+    return {
+      queueStatus: "RUNNING",
+      queueAhead: 0,
+      label: options.progressLabel ?? "이미지 생성 중",
     };
   }
 

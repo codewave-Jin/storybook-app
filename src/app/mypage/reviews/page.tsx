@@ -3,10 +3,15 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { MyPageShell } from "@/components/mypage/MyPageShell";
 import { ReviewBoard } from "@/components/mypage/ReviewBoard";
-import { formatDateTime } from "@/lib/orders";
+import { formatDate, formatDateTime } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { signReviewImageUrls } from "@/lib/review-images";
-import { isReviewEditable, reviewProductTitle } from "@/lib/reviews";
+import {
+  STICKER_REVIEWABLE_WHERE,
+  STORYBOOK_REVIEWABLE_WHERE,
+  isReviewEditable,
+  reviewProductTitle,
+} from "@/lib/reviews";
 import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 
 export default async function MyReviewsPage() {
@@ -25,8 +30,7 @@ export default async function MyReviewsPage() {
     prisma.storybookOrder.findMany({
       where: {
         userId,
-        paymentStatus: "PAID",
-        productionStatus: "COMPLETED",
+        ...STORYBOOK_REVIEWABLE_WHERE,
         review: null,
       },
       orderBy: { createdAt: "desc" },
@@ -37,13 +41,18 @@ export default async function MyReviewsPage() {
           take: 1,
           select: { imagePath: true },
         },
+        statusLogs: {
+          where: { toStatus: "DELIVERED" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { createdAt: true },
+        },
       },
     }),
     prisma.stickerOrder.findMany({
       where: {
         userId,
-        paymentStatus: "PAID",
-        productionStatus: "COMPLETED",
+        ...STICKER_REVIEWABLE_WHERE,
         review: null,
       },
       orderBy: { createdAt: "desc" },
@@ -88,7 +97,9 @@ export default async function MyReviewsPage() {
       kind: "storybook" as const,
       title: order.template.title,
       thumbnail: order.illustrations[0]?.imagePath ?? null,
-      completedAt: formatDateTime(order.createdAt),
+      completedAt: formatDate(
+        order.statusLogs[0]?.createdAt ?? order.createdAt,
+      ),
     })),
     ...stickerOrders.map((order) => ({
       id: order.id,

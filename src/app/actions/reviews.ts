@@ -13,6 +13,8 @@ import {
   REVIEW_MAX_CONTENT,
   REVIEW_MAX_IMAGES,
   REVIEW_MIN_CONTENT,
+  STICKER_REVIEWABLE_WHERE,
+  STORYBOOK_REVIEWABLE_WHERE,
   isReviewEditable,
 } from "@/lib/reviews";
 import { STICKER_REVIEW_PRODUCT_ID } from "@/lib/templates";
@@ -123,8 +125,7 @@ export async function createReview(
           where: {
             id: orderId,
             userId,
-            paymentStatus: "PAID",
-            productionStatus: "COMPLETED",
+            ...STORYBOOK_REVIEWABLE_WHERE,
           },
           select: { id: true, templateId: true, review: { select: { id: true } } },
         });
@@ -153,8 +154,7 @@ export async function createReview(
         where: {
           id: orderId,
           userId,
-          paymentStatus: "PAID",
-          productionStatus: "COMPLETED",
+          ...STICKER_REVIEWABLE_WHERE,
         },
         select: { id: true, review: { select: { id: true } } },
       });
@@ -193,6 +193,9 @@ export async function createReview(
     if (message === "REVIEW_EXISTS") {
       return { error: "이미 이 주문에 대한 리뷰가 있습니다." };
     }
+    if (message.includes("배송이 완료된 본인 주문")) {
+      return { error: "배송이 완료된 본인 주문만 리뷰할 수 있습니다." };
+    }
     if (message.includes("Supabase 설정")) {
       return { error: message };
     }
@@ -203,6 +206,7 @@ export async function createReview(
     ) {
       return { error: message };
     }
+    console.error("[reviews] createReview failed", error);
     return { error: "리뷰 등록에 실패했습니다. 주문이 완료되었는지 확인해 주세요." };
   }
 

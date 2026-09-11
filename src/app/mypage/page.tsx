@@ -12,6 +12,11 @@ import {
 } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import {
+  canWriteStickerReview,
+  canWriteStorybookReview,
+  reviewWriteHref,
+} from "@/lib/reviews";
+import {
   collectOrderCharacterIds,
   storybookOrderOptionLines,
 } from "@/lib/storybook-order-summary";
@@ -40,6 +45,7 @@ export default async function MyPage() {
         template: {
           select: { title: true, customFields: true, castRoles: true },
         },
+        review: { select: { id: true } },
       },
     }),
     prisma.stickerOrder.findMany({
@@ -50,6 +56,7 @@ export default async function MyPage() {
         border: { select: { label: true } },
         template: { select: { label: true } },
         character: { select: { label: true } },
+        review: { select: { id: true } },
       },
     }),
   ]);
@@ -93,6 +100,7 @@ export default async function MyPage() {
         templateCastRoles: order.template.castRoles,
         characterLabelsById,
       }),
+      reviewId: order.review?.id ?? null,
     })),
     ...stickerOrders.map((order) => ({
       id: order.id,
@@ -105,6 +113,7 @@ export default async function MyPage() {
       paymentStatus: order.paymentStatus,
       productionStatus: order.productionStatus,
       createdAt: order.createdAt,
+      reviewId: order.review?.id ?? null,
     })),
   ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
@@ -133,6 +142,11 @@ export default async function MyPage() {
               order.productionStatus,
               "fulfillmentStatus" in order ? order.fulfillmentStatus : undefined,
             );
+
+            const canWriteReview =
+              order.kind === "storybook"
+                ? canWriteStorybookReview(order)
+                : canWriteStickerReview(order);
 
             return (
               <li
@@ -171,7 +185,16 @@ export default async function MyPage() {
                     <p className="mt-2 text-sm text-stone-600">{hint}</p>
                   ) : null}
                 </Link>
-                {order.paymentStatus !== "PAID" ? (
+                {canWriteReview ? (
+                  <div className="shrink-0 pr-3 pt-3">
+                    <Link
+                      href={reviewWriteHref(order.kind, order.id)}
+                      className="inline-flex h-10 items-center rounded-full bg-[#E07A5F] px-4 text-sm font-semibold text-white hover:bg-[#d56c51]"
+                    >
+                      리뷰 쓰기
+                    </Link>
+                  </div>
+                ) : order.paymentStatus !== "PAID" ? (
                   <div className="shrink-0 pr-3 pt-3">
                     <DeleteDraftOrderButton
                       kind={order.kind}

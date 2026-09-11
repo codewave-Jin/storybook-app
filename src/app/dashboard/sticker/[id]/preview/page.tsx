@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
+import { RetryStickerPreviewButton } from "@/components/RetryStickerPreviewButton";
 import { StickerPreviewPayButton } from "@/components/StickerPreviewPayButton";
 import { StickerPreviewViews } from "@/components/StickerPreviewViews";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
@@ -82,7 +83,8 @@ export default async function StickerPreviewPage({
               스티커 생성에 실패했어요
             </p>
             <p className="mt-2 text-sm text-stone-500">
-              {order.errorReason ?? "잠시 후 다시 시도해 주세요."}
+              {order.errorReason ??
+                "서버가 바쁠 때 가끔 실패해요. 다시 만들어 주세요."}
             </p>
           </div>
         ) : (
@@ -141,9 +143,7 @@ export default async function StickerPreviewPage({
           ) : completed ? (
             <StickerPreviewPayButton orderId={order.id} />
           ) : failed ? (
-            <p className="text-center text-sm text-stone-500">
-              생성이 끝나면 미리보기를 확인할 수 있어요.
-            </p>
+            <RetryStickerPreviewButton orderId={order.id} />
           ) : (
             <p className="text-center text-sm text-stone-500">
               미리보기를 만들고 있어요.

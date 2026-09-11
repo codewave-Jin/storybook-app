@@ -22,6 +22,11 @@ import {
 } from "@/lib/order-story-text";
 import { parseIllustrationVersions } from "@/lib/illustration-versions";
 import { parseCustomFields } from "@/lib/templates";
+import {
+  illustrationCharacterInputUrl,
+  parseRegenInputChoice,
+  parseRegenUploads,
+} from "@/lib/character-regen-input";
 
 export default async function AdminIllustrationWorkPage({
   params,
@@ -52,15 +57,79 @@ export default async function AdminIllustrationWorkPage({
   const characterMap = new Map(
     characters.map((character) => [character.id, character]),
   );
+  const assets = order.artStyleId
+    ? await prisma.characterAsset.findMany({
+        where: {
+          characterId: { in: characterIds },
+          artStyleId: order.artStyleId,
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          characterId: true,
+          rawPortraitUrl: true,
+          styledImageUrl: true,
+          regenInputUrl: true,
+          regenInputChoice: true,
+          regenUploads: true,
+          status: true,
+        },
+      })
+    : [];
+  const assetByCharacterId = new Map<
+    string,
+    {
+      rawPortraitUrl: string | null;
+      styledImageUrl: string | null;
+      regenInputUrl: string | null;
+      regenInputChoice: string | null;
+      regenUploads: unknown;
+    }
+  >();
+  for (const asset of assets) {
+    if (!assetByCharacterId.has(asset.characterId)) {
+      assetByCharacterId.set(asset.characterId, asset);
+    }
+  }
   const selectedCharacters = characterIds
     .map((id) => characterMap.get(id))
     .filter((character) => character !== undefined)
-    .map((character) => ({
-      id: character.id,
-      label: character.label,
-      gender: character.gender,
-      imageSrc: character.generatedImagePath ?? character.originalPhotoPath,
-    }));
+    .map((character) => {
+      const asset = assetByCharacterId.get(character.id);
+      const originalSrc =
+        character.generatedImagePath?.trim() ||
+        asset?.rawPortraitUrl?.trim() ||
+        character.originalPhotoPath;
+      const styledSrc = asset?.styledImageUrl?.trim() || null;
+      const regenOverrideSrc = asset?.regenInputUrl?.trim() || null;
+      const regenUploads = parseRegenUploads(asset?.regenUploads);
+      if (regenOverrideSrc && !regenUploads.includes(regenOverrideSrc)) {
+        const isBuiltIn =
+          regenOverrideSrc === originalSrc || regenOverrideSrc === styledSrc;
+        if (!isBuiltIn) {
+          regenUploads.push(regenOverrideSrc);
+        }
+      }
+      const regenSrc = illustrationCharacterInputUrl(
+        {
+          styledImageUrl: styledSrc,
+          regenInputUrl: regenOverrideSrc,
+          regenInputChoice: parseRegenInputChoice(asset?.regenInputChoice),
+        },
+        originalSrc,
+      );
+      return {
+        id: character.id,
+        label: character.label,
+        gender: character.gender,
+        imageSrc: regenSrc || originalSrc || "",
+        originalSrc,
+        styledSrc,
+        regenOverrideSrc,
+        regenUploads,
+        regenInputChoice: parseRegenInputChoice(asset?.regenInputChoice),
+        regenSrc: regenSrc ?? undefined,
+      };
+    });
 
   const customFields = parseCustomFields(order.template.customFields);
   const customValues = parseStringRecord(order.customInputValues);
@@ -189,6 +258,7 @@ export default async function AdminIllustrationWorkPage({
           order.illustrations.map((illustration) => (
             <IllustrationPageEditor
               key={illustration.id}
+              orderId={order.id}
               characters={selectedCharacters}
               storyText={storyById.get(illustration.id) ?? ""}
               illustration={{

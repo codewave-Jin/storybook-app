@@ -11,10 +11,8 @@ import {
   type IllustrationActionState,
 } from "@/app/actions/illustrations";
 import type { IllustrationVersion } from "@/lib/illustration-versions";
-import {
-  CharacterThumbnails,
-  type WorkCharacter,
-} from "@/components/admin/CharacterZoomGrid";
+import { type WorkCharacter } from "@/components/admin/CharacterZoomGrid";
+import { AdminCharacterInputs } from "@/components/admin/AdminCharacterInputs";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { AdminStoryTextPanel } from "@/components/admin/AdminStoryTextPanel";
 
@@ -48,6 +46,7 @@ export function IllustrationPageEditor({
   illustration,
   characters,
   storyText = "",
+  orderId,
 }: {
   illustration: {
     id: string;
@@ -63,6 +62,7 @@ export function IllustrationPageEditor({
   };
   characters: WorkCharacter[];
   storyText?: string;
+  orderId: string;
 }) {
   const [state, formAction] = useFormState<IllustrationActionState, FormData>(
     requestIllustrationGeneration,
@@ -267,6 +267,16 @@ export function IllustrationPageEditor({
             />
           ) : null}
 
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-medium text-stone-600">
+              재생성에 들어갈 캐릭터
+            </p>
+            <AdminCharacterInputs
+              orderId={orderId}
+              characters={selectedCharacters}
+            />
+          </div>
+
           <form
             id={generateFormId}
             action={formAction}
@@ -290,13 +300,6 @@ export function IllustrationPageEditor({
             {illustration.selectedCharacterIds.map((id) => (
               <input key={id} type="hidden" name="characterIds" value={id} />
             ))}
-
-            <div>
-              <p className="mb-2 text-sm font-medium text-stone-600">
-                이 페이지 캐릭터
-              </p>
-              <CharacterThumbnails characters={selectedCharacters} />
-            </div>
 
             <div>
               <p className="mb-2 text-sm font-medium text-stone-600">

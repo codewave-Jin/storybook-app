@@ -241,6 +241,7 @@ export async function updateOrderFulfillment(
 
   revalidateOrderPaths(orderId);
   revalidatePath("/mypage");
+  revalidatePath("/mypage/reviews");
   revalidatePath("/dashboard");
 
   const order = await loadAdminOrderDetail(orderId);

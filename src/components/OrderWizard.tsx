@@ -490,9 +490,18 @@ export function OrderWizard({
                           캐릭터
                         </p>
                         {extraCastCandidates.length === 0 ? (
-                          <p className="mt-2 text-sm text-stone-500">
-                            추가할 수 있는 다른 캐릭터가 없어요.
-                          </p>
+                          <div className="mt-2 rounded-xl bg-stone-50 px-3 py-3">
+                            <p className="text-sm text-stone-600">
+                              주인공으로 고른 캐릭터 외에, 완료된 캐릭터가 하나
+                              더 있어야 엄마/아빠를 넣을 수 있어요.
+                            </p>
+                            <Link
+                              href="/dashboard/characters/new"
+                              className="mt-2 inline-flex text-sm font-medium text-sky-700 underline-offset-4 hover:underline"
+                            >
+                              캐릭터 만들러 가기
+                            </Link>
+                          </div>
                         ) : (
                           <div className="mt-2">
                             <CharacterPickGrid
@@ -544,21 +553,34 @@ export function OrderWizard({
                         </button>
                       </div>
                     </div>
-                  ) : extraCastCandidates.length > 0 &&
-                    supportingCast.length < MAX_SUPPORTING_CAST ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddingCast(true);
-                        setDraftRelationKey(
-                          castRoles.length === 1 ? castRoles[0].key : null,
-                        );
-                        setDraftCharacterId(null);
-                      }}
-                      className="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white text-sm font-medium text-stone-700 hover:border-sky-400 hover:bg-sky-50"
-                    >
-                      등장인물 추가
-                    </button>
+                  ) : supportingCast.length < MAX_SUPPORTING_CAST ? (
+                    extraCastCandidates.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddingCast(true);
+                          setDraftRelationKey(
+                            castRoles.length === 1 ? castRoles[0].key : null,
+                          );
+                          setDraftCharacterId(null);
+                        }}
+                        className="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white text-sm font-medium text-stone-700 hover:border-sky-400 hover:bg-sky-50"
+                      >
+                        등장인물 추가
+                      </button>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-4 text-center">
+                        <p className="text-sm text-stone-600">
+                          엄마/아빠를 넣으려면 캐릭터가 하나 더 필요해요.
+                        </p>
+                        <Link
+                          href="/dashboard/characters/new"
+                          className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-sky-400 px-4 text-sm font-medium text-white hover:bg-sky-500"
+                        >
+                          캐릭터 만들러 가기
+                        </Link>
+                      </div>
+                    )
                   ) : null}
                 </div>
               ) : null}

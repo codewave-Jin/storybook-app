@@ -19,13 +19,23 @@ import {
 } from "@/lib/image-generation-config";
 import { enqueuePendingIllustrations } from "@/lib/enqueue-illustration-generation";
 import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
+import { estimatedGenerationPercent } from "@/lib/generation-progress-estimate";
 import { archiveIllustrationVersion } from "@/lib/illustration-versions";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
-import { findReadyStyledCharacterAssets } from "@/lib/order-character-asset";
+import {
+  findReadyStyledCharacterAssets,
+  illustrationCharacterInputUrl,
+} from "@/lib/order-character-asset";
 import { parseIdList } from "@/lib/orders";
+import {
+  castRoleLabel,
+  parseCastRoles,
+  parseSupportingCast,
+} from "@/lib/templates";
 import {
   artStyleSceneHint,
   buildCoverLikenessLockPrompt,
+  buildFaceIdentityImageRoles,
   shouldAttachCoverLikenessLock,
 } from "@/lib/storybook-prompts";
 
@@ -128,6 +138,10 @@ export async function runIllustrationGeneration(options: {
           templateId: true,
           artStyleId: true,
           selectedCharacterIds: true,
+          supportingCast: true,
+          template: {
+            select: { title: true, castRoles: true },
+          },
           characterAsset: {
             select: {
               id: true,
@@ -182,7 +196,7 @@ export async function runIllustrationGeneration(options: {
   );
 
   const styledByCharacterId =
-    illustration.order.artStyleId && !noPeople && !skipStyleTransfer
+    illustration.order.artStyleId && !noPeople
       ? await findReadyStyledCharacterAssets(
           characterIds,
           illustration.order.artStyleId,
@@ -211,11 +225,10 @@ export async function runIllustrationGeneration(options: {
     )
     .slice(0, 3)
     .filter((character) => {
-      if (skipStyleTransfer) {
-        return Boolean(character.generatedImagePath);
-      }
-      const styledUrl = styledByCharacterId.get(character.id)?.styledImageUrl;
-      return Boolean(styledUrl || character.generatedImagePath);
+      const asset = styledByCharacterId.get(character.id);
+      return Boolean(
+        illustrationCharacterInputUrl(asset, character.generatedImagePath),
+      );
     });
 
   if (!noPeople && selectedCharacters.length < 1) {
@@ -241,39 +254,54 @@ export async function runIllustrationGeneration(options: {
   }
 
   if (!noPeople && illustration.order.artStyleId && !skipStyleTransfer) {
-    const missingStyled = selectedCharacters.filter(
-      (character) => !styledByCharacterId.get(character.id)?.styledImageUrl,
-    );
+    const missingStyled = selectedCharacters.filter((character) => {
+      const asset = styledByCharacterId.get(character.id);
+      return !asset?.regenInputUrl?.trim() && !asset?.styledImageUrl?.trim();
+    });
     if (missingStyled.length > 0) {
       return { error: "캐릭터 그림체 변환이 아직 끝나지 않았습니다." };
     }
   }
 
   const styledAsset =
-    skipStyleTransfer
-      ? !noPeople && selectedCharacters.length > 0
-      : !noPeople &&
-        selectedCharacters.length > 0 &&
-        selectedCharacters.every((character) =>
-          Boolean(styledByCharacterId.get(character.id)?.styledImageUrl),
-        );
+    !noPeople &&
+    selectedCharacters.length > 0 &&
+    (skipStyleTransfer ||
+      selectedCharacters.every((character) =>
+        Boolean(
+          illustrationCharacterInputUrl(
+            styledByCharacterId.get(character.id),
+            character.generatedImagePath,
+          ),
+        ),
+      ));
 
+  const supportingCast = parseSupportingCast(illustration.order.supportingCast);
+  const castRoles = parseCastRoles(
+    illustration.order.template.castRoles,
+    illustration.order.template.title,
+  );
   const characterRefs = selectedCharacters.map((character) => {
     const originalUrl = character.generatedImagePath?.trim() || null;
-    if (skipStyleTransfer) {
-      return {
-        label: character.label,
-        styledUrl: originalUrl,
-      };
-    }
-    const styledUrl =
-      styledByCharacterId.get(character.id)?.styledImageUrl?.trim() ||
-      originalUrl;
-    return { label: character.label, styledUrl };
+    const asset = styledByCharacterId.get(character.id);
+    const role = supportingCast.find(
+      (member) => member.characterId === character.id,
+    );
+    const roleLabel = role
+      ? castRoleLabel(castRoles, role.relationKey)
+      : "";
+    const label =
+      roleLabel && !character.label.includes(roleLabel)
+        ? `${character.label} (${roleLabel})`
+        : character.label;
+    return {
+      label,
+      sheetUrl: illustrationCharacterInputUrl(asset, originalUrl),
+    };
   });
 
   const characterImageUrls = characterRefs
-    .map((ref) => ref.styledUrl)
+    .map((ref) => ref.sheetUrl)
     .filter((url): url is string => Boolean(url));
 
   const firstCharacterPath = characterImageUrls[0] ?? null;
@@ -350,7 +378,13 @@ export async function runIllustrationGeneration(options: {
       ]
         .filter(Boolean)
         .join("\n");
+  const faceRolePrompt = noPeople
+    ? ""
+    : buildFaceIdentityImageRoles(
+        characterRefs.map((ref) => ({ label: ref.label })),
+      );
   const apiPrompt = [
+    faceRolePrompt,
     noPeople && styleImageUrl
       ? [
           "입력 이미지는 이 책의 그림체 레퍼런스입니다.",
@@ -361,7 +395,10 @@ export async function runIllustrationGeneration(options: {
       : "",
     prompt,
     coverLikenessUrl
-      ? `\n\n${buildCoverLikenessLockPrompt(characterImageUrls.length)}`
+      ? `\n\n${buildCoverLikenessLockPrompt({
+          lastImageIndex: characterImageUrls.length + 1,
+          hasExtraCast: selectedCharacters.length > 1,
+        })}`
       : "",
     styleRolePrompt ? `\n\n${styleRolePrompt}` : "",
   ]
@@ -442,12 +479,17 @@ export async function runIllustrationGeneration(options: {
 
   logIllustration("illustration.claimed", "PROCESSING 상태로 전환");
 
+  const generationStartedAt = Date.now();
   const heartbeat = setInterval(() => {
+    const percent = estimatedGenerationPercent(
+      (Date.now() - generationStartedAt) / 1000,
+      "illustration",
+    );
     void prisma.illustration
       .update({
         where: { id: illustrationId },
         data: {
-          // Touch updatedAt so status polling does not re-enqueue a live job.
+          progressPercent: percent,
           progressLabel: "이미지 생성 중",
         },
       })
@@ -458,7 +500,7 @@ export async function runIllustrationGeneration(options: {
           error,
         );
       });
-  }, 20_000);
+  }, 5_000);
 
   try {
     const characterImages = await Promise.all(
