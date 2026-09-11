@@ -165,6 +165,7 @@ function sceneFromTemplate(
         sceneDescription,
         characterLabels,
         pageType: fromCode.pageType,
+        pageNumber,
         cast: fromCode.cast,
         worldHint: substitutePromptTemplate(
           FOREST_BIRTHDAY_WORLD_HINT,
@@ -200,6 +201,7 @@ function sceneFromTemplate(
       expressionHint: pageTemplate.expressionHint,
       characterLabels,
       pageType: pageTemplate.pageType,
+      pageNumber,
       cast,
       artStyleKey: options?.artStyleKey,
     }),
@@ -429,7 +431,6 @@ export async function ensureIllustrationsAndGenerate(options: {
 
   const needPromptFill = pages.filter(
     (page) =>
-      !page.prompt.trim() &&
       page.status !== "COMPLETED" &&
       page.status !== "PROCESSING",
   );

@@ -1,7 +1,8 @@
-import { artStyleSkipsStyleTransfer, skipsStyleTransfer } from "@/lib/art-styles";
+import { skipsStyleTransfer } from "@/lib/art-styles";
 import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { shouldAttachCoverLikenessLock } from "@/lib/storybook-prompts";
 import { styleCharacter } from "@/lib/styleCharacter";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
@@ -71,26 +72,16 @@ export async function illustrationQueueInputImages(options: {
   characterIds: string[];
   artStyleId: string | null;
   pageType?: string | null;
+  pageNumber?: number | null;
 }) {
-  if (await artStyleSkipsStyleTransfer(options.artStyleId)) {
-    return Math.max(options.characterIds.length, 1);
-  }
   if (options.characterIds.length === 0) {
     return 1;
   }
-  const characterCount = options.characterIds.length;
-  if (!options.artStyleId) {
-    return characterCount + 1;
-  }
-  const styled = await findReadyStyledCharacterAssets(
-    options.characterIds,
-    options.artStyleId,
-  );
-  if (styled.size === options.characterIds.length) {
-    // Styled portrait + art-style reference. Cover and interior use the same set.
-    return characterCount + 1;
-  }
-  return characterCount + 1;
+  const coverLock = shouldAttachCoverLikenessLock({
+    pageNumber: options.pageNumber,
+    hasPeople: true,
+  });
+  return options.characterIds.length + (coverLock ? 1 : 0);
 }
 
 async function waitForAssetReady(assetId: string) {

@@ -22,7 +22,11 @@ import { persistGeneratedIllustrationBuffer } from "@/lib/uploads";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 import { findReadyStyledCharacterAssets } from "@/lib/order-character-asset";
 import { parseIdList } from "@/lib/orders";
-import { buildSceneStyleReferenceRole, artStyleSceneHint } from "@/lib/storybook-prompts";
+import {
+  artStyleSceneHint,
+  buildCoverLikenessLockPrompt,
+  shouldAttachCoverLikenessLock,
+} from "@/lib/storybook-prompts";
 
 // Prisma client must include Illustration.errorReason (regenerated after that column).
 function illustrationErrorReason(error: unknown): string {
@@ -40,6 +44,22 @@ export type IllustrationGenerateResult = {
   success?: boolean;
   regenerated?: boolean;
 };
+
+async function resolveCoverLikenessImage(options: {
+  orderId: string;
+  excludeIllustrationId: string;
+}): Promise<string | null> {
+  const cover = await prisma.illustration.findFirst({
+    where: {
+      orderId: options.orderId,
+      id: { not: options.excludeIllustrationId },
+      pageType: "COVER",
+      status: "COMPLETED",
+    },
+    select: { imagePath: true, sceneImagePath: true },
+  });
+  return cover?.imagePath?.trim() || cover?.sceneImagePath?.trim() || null;
+}
 
 async function resolveInBookStyleReference(options: {
   orderId: string;
@@ -281,54 +301,56 @@ export async function runIllustrationGeneration(options: {
 
   let styleImageUrl: string | null = null;
   let sceneStyle: { key: string; label: string } | null = null;
-  if (skipStyleTransfer) {
-    if (noPeople) {
-      styleImageUrl = await resolveInBookStyleReference({
-        orderId,
-        excludeIllustrationId: illustrationId,
-        selectedCharacterIds: illustration.order.selectedCharacterIds,
-      });
-      if (!styleImageUrl) {
-        logIllustration("illustration.failed", "같은 책 그림체 레퍼런스 없음", {
-          reason: "no_in_book_style",
-        });
-        return { error: "같은 책의 그림체 레퍼런스가 없습니다." };
-      }
-    }
-  } else {
+  if (!skipStyleTransfer) {
     const artStyle = await resolveArtStyleForOrder({
       artStyleId: illustration.order.artStyleId,
       templateId: illustration.order.templateId,
     });
-    if (!artStyle?.referenceImageUrl) {
-      logIllustration("illustration.failed", "그림체 레퍼런스 없음", {
-        reason: "no_art_style",
-      });
-      return { error: "그림 스타일 레퍼런스 이미지가 없습니다." };
+    if (artStyle) {
+      sceneStyle = { key: artStyle.key, label: artStyle.label };
     }
-    styleImageUrl = artStyle.referenceImageUrl;
-    sceneStyle = { key: artStyle.key, label: artStyle.label };
+  }
+  if (noPeople) {
+    styleImageUrl = await resolveInBookStyleReference({
+      orderId,
+      excludeIllustrationId: illustrationId,
+      selectedCharacterIds: illustration.order.selectedCharacterIds,
+    });
+    if (!styleImageUrl) {
+      logIllustration("illustration.failed", "같은 책 그림체 레퍼런스 없음", {
+        reason: "no_in_book_style",
+      });
+      return { error: "같은 책의 그림체 레퍼런스가 없습니다." };
+    }
   }
 
-  const styleRolePrompt =
-    sceneStyle && styleImageUrl
-      ? [
-          buildSceneStyleReferenceRole({
-            imageIndex: characterImageUrls.length + 1,
-            styleLabel: sceneStyle.label,
-            styleKey: sceneStyle.key,
-          }),
-          sceneStyle.key !== "watercolor"
-            ? "일반적인 수채화 그림책 스타일로 바꾸지 마세요."
+  const coverLikenessUrl =
+    shouldAttachCoverLikenessLock({
+      pageNumber,
+      hasPeople: !noPeople,
+    })
+      ? await resolveCoverLikenessImage({
+          orderId,
+          excludeIllustrationId: illustrationId,
+        })
+      : null;
+
+  const styleRolePrompt = noPeople
+    ? ""
+    : [
+        sceneStyle
+          ? artStyleSceneHint(sceneStyle.key)
+          : skipStyleTransfer
+            ? artStyleSceneHint("basic")
             : "",
-        ]
-          .filter(Boolean)
-          .join("\n")
-      : skipStyleTransfer
-        ? artStyleSceneHint("basic")
-        : "";
+        sceneStyle && sceneStyle.key !== "watercolor"
+          ? "일반적인 수채화 그림책 스타일로 바꾸지 마세요."
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
   const apiPrompt = [
-    skipStyleTransfer && noPeople && styleImageUrl
+    noPeople && styleImageUrl
       ? [
           "입력 이미지는 이 책의 그림체 레퍼런스입니다.",
           "선, 채색, 질감, 색감을 이 이미지와 같게 유지하세요.",
@@ -337,6 +359,9 @@ export async function runIllustrationGeneration(options: {
         ].join("\n")
       : "",
     prompt,
+    coverLikenessUrl
+      ? `\n\n${buildCoverLikenessLockPrompt(characterImageUrls.length)}`
+      : "",
     styleRolePrompt ? `\n\n${styleRolePrompt}` : "",
   ]
     .filter(Boolean)
@@ -437,12 +462,16 @@ export async function runIllustrationGeneration(options: {
     const characterImages = await Promise.all(
       characterImageUrls.map((imageUrl) => loadImageAsset(imageUrl)),
     );
+    if (coverLikenessUrl) {
+      characterImages.push(await loadImageAsset(coverLikenessUrl));
+    }
 
     logIllustration("illustration.assets_loaded", "캐릭터·그림체 이미지 로드 완료", {
       characterCount: selectedCharacters.length,
       referenceImageCount: characterImages.length,
       styledAsset: Boolean(styledAsset),
       skipStyleTransfer,
+      coverLikenessLock: Boolean(coverLikenessUrl),
       inBookStyle: Boolean(skipStyleTransfer && noPeople && styleImageUrl),
       sceneStyleKey: sceneStyle?.key ?? null,
     });

@@ -52,8 +52,12 @@ export function buildStyleCharacterPrompt(
     medium,
     "",
     "[그 외 유지]",
-    "- 첫 번째 이미지의 헤어스타일, 머리색, 의상",
+    "- 첫 번째 이미지의 헤어스타일, 머리색",
     "- 정면 상반신 구도",
+    "",
+    "[바꿔도 되는 것]",
+    "- 의상. 첫 번째 이미지 옷을 그대로 입히지 않아도 됩니다. 그림체에 맞는 옷으로 바꿔도 됩니다",
+    "- 두 번째 이미지 속 인물의 옷은 가져오지 말 것",
     "",
     "[바꿀 것]",
     "- 광택·하이라이트·사진 같은 피부 음영은 제거할 것",
@@ -302,9 +306,10 @@ export const BIRTHDAY_PAGES: BirthdayPage[] = [
       "신나는 공놀이예요.",
     ].join("\n"),
     illustration: [
-      "숲속의 넓은 잔디에서 {{character_1}}와 {{answer.favorite_animal}}이(가) 함께 공을 굴리며 논다.",
+      "숲속 잔디에서 {{character_1}}와 {{answer.favorite_animal}}이(가) 함께 공을 굴리며 논다.",
       "공의 색깔은 좋아하는 색깔 {{answer.favorite_color}}이다.",
-      "가로로 긴 화면을 활용해 공이 한쪽에서 다른 쪽으로 데굴데굴 굴러가는 움직임과 숲의 공간감이 느껴지게 한다.",
+      "{{character_1}}를 앞쪽에 크게 그린다. 얼굴이 이목구비가 읽힐 만큼 보여야 한다.",
+      "멀리 뛰는 작은 실루엣이나 전경만 넓은 풍경으로 그리지 마세요.",
       "밝고 활동적인 장면이다.",
       "엄마, 아빠, 다른 사람은 넣지 마세요.",
     ].join(" "),
@@ -362,12 +367,12 @@ export const BIRTHDAY_PAGES: BirthdayPage[] = [
       "생일 축하해!",
     ].join("\n"),
     illustration: [
-      "이 책에서 가장 풍성하고 중요한 생일파티 장면.",
       "{{character_1}}가 숲속 파티 테이블 앞에서 생일 케이크 촛불을 후우 불어 끄는 순간이다.",
+      "{{character_1}}를 앞쪽에 크게 그린다. 촛불을 부는 표정이어도 이목구비는 초상화와 같게 둔다.",
       "좋아하는 동물 {{answer.favorite_animal}}이(가) 옆에서 즐겁게 축하한다.",
       "입력 이미지에 두 번째 사람이 있으면 그 사람이 박수를 치며 함께 축하한다.",
       "두 번째 사람이 없으면 주인공과 동물만 그리고 다른 사람은 넣지 마세요.",
-      "풍선, 리본, 숲속 장식과 따뜻한 촛불 빛으로 앞 장면보다 행복하고 풍성하게.",
+      "풍선, 리본, 장식은 뒤에 두고, 주인공 얼굴을 장면의 초점으로 둔다.",
     ].join(" "),
   },
   {
@@ -390,11 +395,12 @@ export const BIRTHDAY_PAGES: BirthdayPage[] = [
     ].join("\n"),
     illustration: [
       "생일파티가 끝나가는 따뜻한 마지막 장면.",
-      "{{character_1}}와 좋아하는 동물 {{answer.favorite_animal}}이(가) 함께 있다.",
+      "{{character_1}}가 앞에 크게 있다. 얼굴이 초상화와 분명히 닮아야 한다.",
+      "좋아하는 동물 {{answer.favorite_animal}}이(가) 곁에 있다.",
       "입력 이미지에 두 번째 사람이 있으면 그 사람도 곁에 자연스럽게 있다.",
       "두 번째 사람이 없으면 다른 사람은 넣지 마세요.",
-      "주인공을 너무 크게 클로즈업하지 말고, 파티 전체 풍경이 보이게.",
-      "앞에서 나온 케이크, 선물상자, 좋아하는 색깔 {{answer.favorite_color}} 공, 풍선이 주변에 자연스럽게 남아 있다.",
+      "파티 전체를 멀리 잡은 풍경으로 그리지 마세요. 주인공 얼굴이 이목구비가 읽힐 만큼 보여야 한다.",
+      "앞에서 나온 케이크, 선물상자, 좋아하는 색깔 {{answer.favorite_color}} 공, 풍선은 뒤에 자연스럽게 남긴다.",
       "해가 조금씩 저물어가는 따뜻한 숲. 행복하고 포근하게 마무리한다.",
     ].join(" "),
   },
@@ -449,11 +455,50 @@ export function forestBirthdayPagesForSeed() {
   }));
 }
 
+/** 표지·1페이지는 얼굴이 커서 닮고, 3페이지부터는 장면이 넓어져 얼굴을 다시 창작한다. */
+export const COVER_LIKENESS_LOCK_FROM_PAGE = 3;
+
+export function shouldAttachCoverLikenessLock(options: {
+  pageNumber?: number | null;
+  hasPeople: boolean;
+}) {
+  return (
+    options.hasPeople &&
+    (options.pageNumber ?? 0) >= COVER_LIKENESS_LOCK_FROM_PAGE
+  );
+}
+
+export function buildCoverLikenessLockPrompt(characterCount: number) {
+  const last = characterCount + 1;
+  return [
+    `마지막 ${last}번 이미지는 이미 맞게 그린 같은 아이의 표지입니다.`,
+    "주인공 얼굴만 이 표지와 초상화에 맞추세요. 표지의 구도, 배경, 소품은 베끼지 마세요.",
+    characterCount > 1
+      ? "표지는 주인공 얼굴 확인용입니다. 다른 등장인물 얼굴은 각 초상화를 따르세요."
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function buildPeoplePageIdentityCloser(pageNumber?: number | null) {
+  const wide = (pageNumber ?? 0) >= 6;
+  return [
+    "다시 확인: 주인공은 입력 초상화의 그 아이입니다. 비슷한 동화 아이로 바꾸면 실패입니다.",
+    wide
+      ? "장면이 넓어도 주인공을 앞에 크게 두고, 이목구비가 읽힐 만큼 얼굴을 보여 주세요."
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function buildStyledIllustrationPrompt(options: {
   sceneDescription: string;
   expressionHint?: string | null;
   characterLabels?: string[];
   pageType?: "COVER" | "PAGE";
+  pageNumber?: number;
   cast?: BirthdayCast;
   worldHint?: string | null;
   artStyleKey?: string | null;
@@ -468,9 +513,9 @@ export function buildStyledIllustrationPrompt(options: {
   const keepAndChange = expression
     ? [
         `[변경할 것] 포즈, 배경, 그리고 표정: ${expression}`,
-        "표정은 눈과 입의 모양만 바꾸고, 얼굴형·이목구비 비율·볼살은 레퍼런스와 같게 두세요.",
+        "표정은 눈과 입의 모양만 바꾸고, 얼굴형·이목구비 비율·볼살은 초상화와 같게 두세요.",
       ]
-    : ["[변경할 것] 포즈와 배경만 장면에 맞게 표현. 얼굴은 바꾸지 마세요."];
+    : ["[변경할 것] 포즈와 배경만 장면에 맞게 표현. 얼굴과 의상은 바꾸지 마세요."];
 
   const named = labels.join(", ");
   const isCover = options.pageType === "COVER";
@@ -492,14 +537,14 @@ export function buildStyledIllustrationPrompt(options: {
         ? [
             `앞쪽 이미지는 등장인물입니다. 등장 순서는 ${named}입니다.`,
             "사람을 다른 사람으로 바꾸거나 얼굴을 섞지 마세요.",
-            "표지와 본문의 얼굴은 같은 사람이어야 합니다. 이목구비를 바꾸지 마세요.",
-            `각 인물의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
+            "각 인물의 얼굴은 해당 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            `얼굴·헤어·의상·그림체는 초상화 그대로 유지하고 다음 장면을 그려주세요: ${scene}`,
           ]
         : [
             "앞쪽 이미지는 이 장면의 주인공입니다. 다른 아이로 바꾸지 마세요.",
-            "표지와 본문의 얼굴은 같은 아이여야 합니다. 이목구비를 바꾸지 마세요.",
             extraOptionalNote,
-            `이 아이의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
+            "얼굴은 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            `얼굴·헤어·의상·그림체는 초상화 그대로 유지하고 다음 장면을 그려주세요: ${scene}`,
           ]
     ).filter(Boolean);
   } else {
@@ -508,29 +553,27 @@ export function buildStyledIllustrationPrompt(options: {
         ? [
             `앞쪽 이미지는 그림체를 입힌 등장인물입니다. 등장 순서는 ${named}입니다.`,
             "사람을 다른 사람으로 바꾸거나 얼굴을 섞지 마세요.",
-            "표지와 본문의 얼굴은 같은 사람이어야 합니다. 이목구비를 바꾸지 마세요.",
-            "얼굴·헤어·의상·그림체는 이 초상화를 따르세요.",
-            "그림체 레퍼런스가 맨 마지막에 있으면 장면 전체(배경 포함)의 선·채색·질감만 맞추고, 그 속 인물은 가져오지 마세요.",
-            `각 인물의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
+            "각 인물의 얼굴은 해당 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            "얼굴·헤어·의상·그림체는 이 초상화를 따르세요. 의상은 바꾸지 마세요.",
+            `얼굴 닮은꼴과 의상을 유지한 채 포즈와 배경만 바꿔 다음 장면을 그려주세요: ${scene}`,
           ]
         : [
             "앞쪽 이미지는 그림체를 입힌 주인공입니다. 다른 아이로 바꾸지 마세요.",
-            "표지와 본문의 얼굴은 같은 아이여야 합니다. 이목구비를 바꾸지 마세요.",
             extraOptionalNote,
-            "얼굴·헤어·의상·그림체는 이 초상화를 따르세요.",
-            "그림체 레퍼런스가 맨 마지막에 있으면 장면 전체(배경 포함)의 선·채색·질감만 맞추고, 그 속 인물은 가져오지 마세요.",
-            `이 아이의 얼굴과 그림체를 유지하면서 다음 장면을 그려주세요: ${scene}`,
+            "얼굴은 이 초상화와 똑같이 닮아야 합니다. 비슷한 아이가 아니라 같은 사람입니다.",
+            "얼굴·헤어·의상·그림체는 이 초상화를 따르세요. 의상은 바꾸지 마세요.",
+            `얼굴 닮은꼴과 의상을 유지한 채 포즈와 배경만 바꿔 다음 장면을 그려주세요: ${scene}`,
           ]
     ).filter(Boolean);
   }
 
   const sizeLine = isCover
-    ? "이미지는 정사각형 표지(1024x1024)입니다. 주인공 얼굴이 가운데에서 분명히 보이게 그리세요."
+    ? "이미지는 정사각형 표지(1024x1024)입니다. 주인공 얼굴은 초상화와 똑같이 닮게, 가운데에서 분명히 보이게 그리세요."
     : cast === "none" || labels.length === 0
       ? "이미지는 가로로 긴 두 페이지 펼침(2048x1024)입니다. 한 장면이 왼쪽·오른쪽 페이지에 걸쳐 보이게 구성하세요."
       : [
           "이미지는 가로로 긴 두 페이지 펼침(2048x1024)입니다. 한 장면이 왼쪽·오른쪽 페이지에 걸쳐 보이게 구성하세요.",
-          "주인공 얼굴은 표지와 같은 얼굴이어야 합니다.",
+          "주인공 얼굴은 입력 초상화와 같은 얼굴이어야 합니다. 장면이 넓어도 이목구비가 분명히 읽혀야 합니다.",
           "멀리 있는 작은 실루엣으로 그리지 말고, 얼굴이 분명히 알아볼 수 있을 만큼 크게 그리세요.",
           "중요한 얼굴은 가운데 접히는 선에 두지 마세요. 접힌 선 왼쪽이나 오른쪽에 얼굴을 두되, 작게 만들지 마세요.",
         ].join(" ");
@@ -549,19 +592,19 @@ export function buildStyledIllustrationPrompt(options: {
       ? []
       : [
           "[반드시 유지할 것 — 얼굴]",
-          "- 같은 사람: 얼굴형, 눈의 크기·간격·모양, 코와 입의 위치와 비율, 볼살, 턱선",
-          "- 레퍼런스와 조금만 달라도 오류입니다. 다시 창작하지 말 것",
-          "- 나이를 더 어리거나 예쁘게 바꾸지 말 것",
-          "- 일반적인 동화 아이 얼굴로 평균화하지 말 것",
+          "- 가장 중요: 초상화와 같은 사람. 비슷한 동화 아이로 바꾸면 실패입니다",
+          "- 얼굴형, 눈의 크기·간격·모양, 눈썹, 코, 입, 볼살, 턱선, 피부톤을 초상화에서 그대로 복사",
+          "- 조금만 달라도 오류입니다. 다시 창작하거나 예쁘게 다듬지 말 것",
+          "- 나이를 더 어리거나 달리 보이지 말 것",
           keepOriginalStyle
             ? "- 얼굴·헤어·의상·그림체는 입력 캐릭터 그대로입니다. 다른 그림체로 다시 그리지 마세요."
-            : "- 얼굴·헤어·의상·그림체는 그림체를 입힌 초상화를 따르세요. 닮은꼴은 그대로 두고, 그림체만 그 초상화와 같게 하세요.",
+            : "- 얼굴·헤어·의상·그림체는 그림체를 입힌 초상화를 따르세요. 닮은꼴과 옷은 그대로 두고, 장면의 그림체도 그 초상화와 같게 하세요.",
           "",
           "[반드시 유지할 것 — 그 외]",
-          "- 헤어스타일, 의상",
+          "- 헤어스타일, 머리색, 의상",
           keepOriginalStyle
             ? "- 그림체는 입력 캐릭터 원본 그대로"
-            : "- 그림체는 그림체를 입힌 초상화. 장면 전체는 마지막 그림체 레퍼런스가 있으면 그것과 같게",
+            : "- 그림체는 그림체를 입힌 초상화 그대로. 배경도 같은 그림체로",
           "",
           ...keepAndChange,
           "",
@@ -571,5 +614,8 @@ export function buildStyledIllustrationPrompt(options: {
     ...(styleHint ? [styleHint, ""] : []),
     ...(avoidDefaultWatercolor ? [avoidDefaultWatercolor, ""] : []),
     "얼굴에 사진 질감이나 광택 렌더링을 넣지 마세요.",
+    ...(cast === "none" || labels.length === 0
+      ? []
+      : ["", buildPeoplePageIdentityCloser(options.pageNumber)]),
   ].join("\n");
 }

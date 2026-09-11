@@ -107,6 +107,7 @@ export async function POST(
     characterIds: parseIdList(illustration.selectedCharacterIds),
     artStyleId: illustration.order.artStyleId,
     pageType: illustration.pageType,
+    pageNumber: illustration.pageNumber,
   });
 
   await enqueueGptImageJob({
