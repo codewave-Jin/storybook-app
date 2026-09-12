@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import path from "path";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 import {
   DEFAULT_STICKER_LAYOUT,
   STICKER_CANVAS_SIZE,
@@ -202,17 +202,15 @@ export async function compositeLayoutSticker(options: {
     .png()
     .toBuffer();
 
-  return sharp(base)
-    .composite(
-      [
-        characterLayer,
-        { input: textOverlay, left: 0, top: 0 },
-        borderLayer,
-        { input: mask, blend: "dest-in" },
-      ].filter((layer): layer is { input: Buffer; left?: number; top?: number; blend?: "dest-in" } =>
-        Boolean(layer),
-      ),
-    )
-    .png()
-    .toBuffer();
+  const overlays: OverlayOptions[] = [];
+  if (characterLayer) {
+    overlays.push(characterLayer);
+  }
+  overlays.push({ input: textOverlay, left: 0, top: 0 });
+  if (borderLayer) {
+    overlays.push(borderLayer);
+  }
+  overlays.push({ input: mask, blend: "dest-in" });
+
+  return sharp(base).composite(overlays).png().toBuffer();
 }
