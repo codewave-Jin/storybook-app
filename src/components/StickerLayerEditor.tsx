@@ -188,7 +188,6 @@ export function StickerLayerEditor({
           phrase={phrase}
           layout={layout}
           selectedLayer={selectedLayer}
-          onSelectLayer={setSelectedLayer}
         />
       </div>
 

@@ -25,14 +25,12 @@ export function StickerLayoutPreview({
   phrase,
   layout = DEFAULT_STICKER_LAYOUT,
   selectedLayer,
-  onSelectLayer,
 }: {
   borderSrc?: string | null;
   characterSrc?: string | null;
   phrase: string;
   layout?: StickerLayoutState;
   selectedLayer?: StickerLayerKey | null;
-  onSelectLayer?: (layer: StickerLayerKey) => void;
 }) {
   const { title, body } = parseStickerPhrase(phrase);
   const lines = stickerPhraseLines(body);
