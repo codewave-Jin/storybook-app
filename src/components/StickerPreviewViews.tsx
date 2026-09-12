@@ -64,18 +64,21 @@ export function StickerPreviewViews({
   quantity,
   overlayPhrase,
   showWatermark,
+  variant = "full",
 }: {
   src: string;
   phrase: string;
   quantity: number;
   overlayPhrase: boolean;
   showWatermark: boolean;
+  variant?: "full" | "a4";
 }) {
   const { cols, rows } = a4Grid(quantity);
   const cells = Array.from({ length: quantity }, (_, index) => index);
 
   return (
     <div className="space-y-5">
+      {variant === "full" ? (
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
         <p className="text-sm font-semibold text-stone-800">스티커 모양</p>
         <p className="mt-1 text-xs text-stone-500">
@@ -93,6 +96,7 @@ export function StickerPreviewViews({
           />
         </div>
       </section>
+      ) : null}
 
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
         <p className="text-sm font-semibold text-stone-800">A4 배치</p>

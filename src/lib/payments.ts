@@ -6,8 +6,11 @@ export const PAYMENTS_ENABLED = true;
 
 export const STORYBOOK_PRICE_KRW = 45_000;
 export const PHOTO_ALBUM_PRICE_KRW = 5_000;
+export const STICKER_SHEET_PRICE_KRW = 5_000;
 export const ORDER_QUANTITY_MIN = 1;
 export const ORDER_QUANTITY_MAX = 20;
+export const STICKER_SHEET_MIN = 1;
+export const STICKER_SHEET_MAX = 10;
 export const QUANTITY_DISCOUNT_PER_EXTRA = 0.1;
 export const QUANTITY_DISCOUNT_MAX = 0.3;
 
@@ -23,6 +26,25 @@ export function clampOrderQuantity(value: number) {
     ORDER_QUANTITY_MAX,
     Math.max(ORDER_QUANTITY_MIN, Math.round(value)),
   );
+}
+
+export function clampStickerSheetCount(value: number) {
+  if (!Number.isFinite(value)) {
+    return STICKER_SHEET_MIN;
+  }
+  return Math.min(
+    STICKER_SHEET_MAX,
+    Math.max(STICKER_SHEET_MIN, Math.round(value)),
+  );
+}
+
+export function quoteStickerOrder(sheetCount: number) {
+  const sheets = clampStickerSheetCount(sheetCount);
+  return {
+    sheetCount: sheets,
+    unitPrice: STICKER_SHEET_PRICE_KRW,
+    total: STICKER_SHEET_PRICE_KRW * sheets,
+  };
 }
 
 /** 1권 0%, 한 권 늘 때마다 10%p, 최대 30%. */

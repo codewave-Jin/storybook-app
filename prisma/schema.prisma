@@ -472,6 +472,17 @@ model StickerOrder {
   sizeOptionId     String
   sizeOption       StickerSizeOption @relation(fields: [sizeOptionId], references: [id])
   quantity         Int
+  sheetCount       Int               @default(1)
+  checkoutEmail    String?
+  checkoutPhone    String?
+  shippingName     String?
+  shippingPostalCode String?
+  shippingAddress  String?
+  shippingAddressDetail String?
+  zonecode         String?
+  roadAddress      String?
+  detailAddress    String?
+  sido             String?
   previewImagePath String?
   finalImagePath   String?
   /// Sharp composite of border + ComfyUI original character, used as the GPT input.

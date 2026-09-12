@@ -73,7 +73,7 @@ export default async function StickerPreviewPage({
           <StickerPreviewViews
             src={stickerSrc}
             phrase={order.phrase}
-            quantity={order.quantity}
+            quantity={order.sizeOption.quantityPerA4}
             overlayPhrase={false}
             showWatermark={!paid}
           />
@@ -120,7 +120,8 @@ export default async function StickerPreviewPage({
             · {order.sizeOption.label}
           </p>
           <p className="mt-1 text-sm text-stone-500">
-            A4 한 장에 {order.quantity}개
+            A4 한 장에 {order.sizeOption.quantityPerA4}개
+            {order.sheetCount > 1 ? ` · ${order.sheetCount}장` : ""}
           </p>
         </div>
 
@@ -141,7 +142,18 @@ export default async function StickerPreviewPage({
               </Link>
             </div>
           ) : completed ? (
-            <StickerPreviewPayButton orderId={order.id} />
+            <StickerPreviewPayButton
+              orderId={order.id}
+              defaultEmail={session.user.email ?? undefined}
+              defaultName={session.user.name ?? undefined}
+              optionLines={[
+                { label: "캐릭터", value: order.character.label },
+                ...(order.border
+                  ? [{ label: "테두리", value: order.border.label }]
+                  : []),
+                { label: "사이즈", value: order.sizeOption.label },
+              ]}
+            />
           ) : failed ? (
             <RetryStickerPreviewButton orderId={order.id} />
           ) : (

@@ -5,10 +5,41 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
 import { logGenerationEvent } from "@/lib/generation-events";
+import { parseCheckoutForm, parseStickerSheetCount, validateCheckoutInput } from "@/lib/checkout";
 import { isStickerSizeSelectable } from "@/lib/templates";
 import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { prisma } from "@/lib/prisma";
+import {
+  MAX_STICKER_BODY_LENGTH,
+  MAX_STICKER_TITLE_LENGTH,
+  parseStickerPhrase,
+} from "@/lib/sticker-phrase";
 import { deleteStickerFile } from "@/lib/uploads";
+
+function stickerCheckoutWrite(formData: FormData) {
+  const checkout = parseCheckoutForm(formData);
+  const checkoutError = validateCheckoutInput(checkout);
+  if (checkoutError) {
+    return { error: checkoutError } as const;
+  }
+  const sheetCount = parseStickerSheetCount(formData);
+  return {
+    sheetCount,
+    data: {
+      sheetCount,
+      checkoutEmail: checkout.checkoutEmail,
+      checkoutPhone: checkout.checkoutPhone,
+      shippingName: checkout.shippingName,
+      shippingPostalCode: checkout.zonecode,
+      shippingAddress: checkout.roadAddress,
+      shippingAddressDetail: checkout.detailAddress,
+      zonecode: checkout.zonecode,
+      roadAddress: checkout.roadAddress,
+      detailAddress: checkout.detailAddress,
+      sido: checkout.sido,
+    },
+  } as const;
+}
 
 export type CreateStickerOrderState = {
   error?: string;
@@ -31,10 +62,15 @@ export async function createStickerOrder(
   const userId = session.user.id;
   const characterId = String(formData.get("characterId") ?? "");
   const borderId = String(formData.get("borderId") ?? "").trim();
-  const costumeId = String(formData.get("costumeId") ?? "").trim();
-  const customCostumeHint = String(formData.get("customCostumeHint") ?? "").trim();
   const phrase = String(formData.get("phrase") ?? "").trim();
   const sizeOptionId = String(formData.get("sizeOptionId") ?? "");
+  const previewImagePath = String(formData.get("previewImagePath") ?? "").trim();
+  const checkout = stickerCheckoutWrite(formData);
+  if ("error" in checkout) {
+    return { error: checkout.error };
+  }
+  const { sheetCount, data: checkoutData } = checkout;
+  const parts = parseStickerPhrase(phrase);
 
   if (!characterId) {
     return { error: "캐릭터를 선택해 주세요." };
@@ -42,34 +78,26 @@ export async function createStickerOrder(
   if (!borderId) {
     return { error: "테두리를 선택해 주세요." };
   }
-  if (!costumeId && !customCostumeHint) {
-    return { error: "옷을 선택하거나 입력해 주세요." };
+  if (!parts.title && !parts.body) {
+    return { error: "문구를 입력해 주세요." };
   }
-  if (customCostumeHint.length > 20) {
-    return { error: "코스튬은 20자 이하로 입력해 주세요." };
+  if (parts.title.length > MAX_STICKER_TITLE_LENGTH) {
+    return { error: `제목은 ${MAX_STICKER_TITLE_LENGTH}자 이하로 입력해 주세요.` };
   }
-  if (!phrase) {
-    return { error: "문구를 선택하거나 입력해 주세요." };
-  }
-  if (phrase.length > 25) {
-    return { error: "문구는 25자 이하로 입력해 주세요." };
+  if (parts.body.length > MAX_STICKER_BODY_LENGTH) {
+    return { error: `문구는 ${MAX_STICKER_BODY_LENGTH}자 이하로 입력해 주세요.` };
   }
   if (!sizeOptionId) {
     return { error: "사이즈를 선택해 주세요." };
   }
 
-  const [character, border, costume, sizeOption] = await Promise.all([
+  const [character, border, sizeOption] = await Promise.all([
     prisma.character.findFirst({
       where: { id: characterId, userId },
     }),
     prisma.stickerBorder.findFirst({
       where: { id: borderId, isActive: true },
     }),
-    costumeId
-      ? prisma.stickerCostume.findFirst({
-          where: { id: costumeId, isActive: true },
-        })
-      : Promise.resolve(null),
     prisma.stickerSizeOption.findUnique({ where: { id: sizeOptionId } }),
   ]);
 
@@ -82,9 +110,6 @@ export async function createStickerOrder(
   if (!border) {
     return { error: "선택한 테두리를 확인할 수 없습니다." };
   }
-  if (!customCostumeHint && !costume) {
-    return { error: "선택한 옷을 확인할 수 없습니다." };
-  }
   if (!sizeOption) {
     return { error: "선택한 사이즈를 찾을 수 없습니다." };
   }
@@ -92,24 +117,32 @@ export async function createStickerOrder(
     return { error: "아직 준비 중인 사이즈입니다." };
   }
 
+  const readyPreview =
+    previewImagePath.startsWith("/uploads/stickers/") ||
+    /^https?:\/\//i.test(previewImagePath);
   const order = await prisma.stickerOrder.create({
     data: {
       userId,
       characterId: character.id,
       templateId: null,
       borderId: border.id,
-      costumeId: customCostumeHint ? null : costume?.id,
-      customCostumeHint,
+      costumeId: null,
+      customCostumeHint: "",
       phrase,
       sizeOptionId: sizeOption.id,
-      quantity: sizeOption.quantityPerA4,
-      paymentStatus: "PENDING",
+      quantity: sizeOption.quantityPerA4 * sheetCount,
+      paymentStatus: "PAID",
+      ...checkoutData,
       productionStatus: "WAITING",
-      previewStatus: "IDLE",
+      previewStatus: readyPreview ? "COMPLETED" : "IDLE",
+      previewImagePath: readyPreview ? previewImagePath : null,
+      compositeImagePath: readyPreview ? previewImagePath : null,
     },
   });
 
-  enqueueStickerGeneration(order.id);
+  if (!readyPreview) {
+    enqueueStickerGeneration(order.id);
+  }
   logGenerationEvent({
     kind: "STICKER",
     entityId: order.id,
@@ -117,6 +150,7 @@ export async function createStickerOrder(
     userId,
     step: "sticker.order_created",
     message: "스티커 주문 생성 및 생성 트리거",
+    detail: { readyPreview, sheetCount },
   });
 
   redirect(`/dashboard/sticker/${order.id}/preview`);
@@ -142,7 +176,11 @@ export async function payForStickerOrder(
 
   const order = await prisma.stickerOrder.findFirst({
     where: { id: orderId, userId: session.user.id },
-    select: { id: true, paymentStatus: true },
+    select: {
+      id: true,
+      paymentStatus: true,
+      sizeOption: { select: { quantityPerA4: true } },
+    },
   });
 
   if (!order) {
@@ -154,9 +192,18 @@ export async function payForStickerOrder(
     return { success: true };
   }
 
+  const checkout = stickerCheckoutWrite(formData);
+  if ("error" in checkout) {
+    return { error: checkout.error };
+  }
+
   await prisma.stickerOrder.update({
     where: { id: orderId },
-    data: { paymentStatus: "PAID" },
+    data: {
+      paymentStatus: "PAID",
+      quantity: order.sizeOption.quantityPerA4 * checkout.sheetCount,
+      ...checkout.data,
+    },
   });
 
   revalidatePath(`/dashboard/sticker/${orderId}/preview`);

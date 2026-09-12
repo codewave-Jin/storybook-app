@@ -10,6 +10,12 @@ import {
   saveCharacterPhoto,
   toAbsolutePublicPath,
 } from "@/lib/uploads";
+import {
+  getCharacterOutfitSpec,
+  isCharacterOutfitKey,
+  isCharacterOutfitReady,
+  isDefaultCharacterOutfit,
+} from "@/lib/character-outfit";
 
 export const maxDuration = 60;
 
@@ -23,6 +29,7 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const label = String(formData.get("label") ?? "").trim();
   const gender = String(formData.get("gender") ?? "");
+  const outfit = String(formData.get("outfit") ?? "").trim();
   const photo = formData.get("photo");
 
   if (!label) {
@@ -38,6 +45,24 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  if (!isCharacterOutfitKey(outfit)) {
+    return NextResponse.json(
+      { error: "옷을 선택해 주세요." },
+      { status: 400 },
+    );
+  }
+
+  if (!isCharacterOutfitReady(outfit, gender)) {
+    return NextResponse.json(
+      { error: "이 옷과 성별 조합은 아직 준비 중입니다." },
+      { status: 400 },
+    );
+  }
+
+  const outfitSpec = isDefaultCharacterOutfit(outfit)
+    ? undefined
+    : getCharacterOutfitSpec(outfit, gender);
 
   if (!(photo instanceof File) || photo.size === 0) {
     return NextResponse.json(
@@ -143,7 +168,7 @@ export async function POST(request: Request) {
     userId,
     step: "character.requested",
     message: "캐릭터 생성 요청 (Comfy 호출)",
-    detail: { label, gender },
+    detail: { label, gender, outfit },
   });
 
   const imagePath = toAbsolutePublicPath(originalPhotoPath);
@@ -153,6 +178,14 @@ export async function POST(request: Request) {
       character_id: characterId,
       image_path: imagePath,
       gender: gender.toLowerCase(),
+      outfit,
+      ...(outfitSpec
+        ? {
+            prompt_string: outfitSpec.prompt,
+            seed_primary: outfitSpec.seedPrimary,
+            seed_secondary: outfitSpec.seedSecondary,
+          }
+        : {}),
     });
 
     if (!response.ok) {

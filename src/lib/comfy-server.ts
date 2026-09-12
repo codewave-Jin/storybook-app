@@ -44,13 +44,18 @@ export async function getFromComfy(pathname: string) {
   });
 }
 
-export async function postToComfy(pathname: string, body: unknown) {
+export async function postToComfy(
+  pathname: string,
+  body: unknown,
+  options?: { timeoutMs?: number },
+) {
   if (isComfyMockEnabled()) {
     throw new Error("Comfy mock is enabled; remote workflow calls are disabled.");
   }
 
   const url = comfyServerUrl(pathname);
   const headers = comfyServerHeaders();
+  const timeoutMs = options?.timeoutMs ?? 20000;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -59,7 +64,7 @@ export async function postToComfy(pathname: string, body: unknown) {
         method: "POST",
         headers,
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       return response;
     } catch (error) {

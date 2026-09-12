@@ -2,11 +2,22 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useFormState } from "react-dom";
 import { createStickerOrder, type CreateStickerOrderState } from "@/app/actions/stickers";
 import { AppImage } from "@/components/AppImage";
 import { GenerationProgress } from "@/components/GenerationProgress";
+import { StickerCheckoutDialog } from "@/components/StickerCheckoutDialog";
+import { StickerLayerEditor } from "@/components/StickerLayerEditor";
+import { StickerPreviewViews } from "@/components/StickerPreviewViews";
 import { GENDER_LABEL } from "@/lib/orders";
+import {
+  cloneStickerLayout,
+  type StickerLayoutState,
+} from "@/lib/sticker-layout-constants";
+import {
+  STICKER_PHRASE_OPTIONS,
+  serializeStickerPhrase,
+} from "@/lib/sticker-phrase";
 import {
   STICKER_BORDER_CATEGORY_LABEL,
   STICKER_BORDER_CATEGORY_ORDER,
@@ -27,20 +38,9 @@ export type StickerBorderOption = {
   id: string;
   label: string;
   thumbnailPath: string | null;
+  imageUrl: string;
   category: StickerBorderCategoryKey;
   sortOrder: number;
-};
-
-export type StickerCostumeOption = {
-  id: string;
-  label: string;
-  referenceImageUrl: string | null;
-  sortOrder: number;
-};
-
-export type StickerPhraseOption = {
-  id: string;
-  text: string;
 };
 
 export type StickerSizeOption = {
@@ -52,39 +52,21 @@ export type StickerSizeOption = {
   available: boolean;
 };
 
-const STEP_COUNT = 6;
-const STEP_LABELS = ["캐릭터", "테두리", "옷", "문구", "사이즈", "제작 요청"] as const;
-const CUSTOM_PHRASE = "__custom__";
-const CUSTOM_COSTUME = "__custom__";
-const MAX_PHRASE_LENGTH = 25;
-const MAX_COSTUME_LENGTH = 20;
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-base font-medium text-white hover:bg-[#d56c51] disabled:opacity-60 sm:w-auto sm:px-8"
-    >
-      {pending ? "제작 요청 중..." : "제작하기"}
-    </button>
-  );
-}
+const STEP_COUNT = 5;
+const STEP_LABELS = ["캐릭터", "테두리", "문구", "미리보기", "결제"] as const;
 
 export function StickerWizard({
   characters,
   borders,
-  costumes,
-  phrases,
   sizes,
+  defaultEmail,
+  defaultName,
 }: {
   characters: StickerCharacterOption[];
   borders: StickerBorderOption[];
-  costumes: StickerCostumeOption[];
-  phrases: StickerPhraseOption[];
   sizes: StickerSizeOption[];
+  defaultEmail?: string;
+  defaultName?: string;
 }) {
   const [step, setStep] = useState(1);
   const [characterId, setCharacterId] = useState<string | null>(null);
@@ -92,11 +74,19 @@ export function StickerWizard({
   const [categoryTab, setCategoryTab] = useState<StickerBorderCategoryKey | null>(
     null,
   );
-  const [costumeKey, setCostumeKey] = useState<string | null>(null);
-  const [customCostume, setCustomCostume] = useState("");
   const [phraseKey, setPhraseKey] = useState<string | null>(null);
-  const [customPhrase, setCustomPhrase] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [cutoutPath, setCutoutPath] = useState<string | null>(null);
+  const [borderPreviewUrl, setBorderPreviewUrl] = useState<string | null>(null);
+  const [layout, setLayout] = useState<StickerLayoutState>(cloneStickerLayout);
+  const [layoutDirty, setLayoutDirty] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [baking, setBaking] = useState(false);
   const [sizeOptionId, setSizeOptionId] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [state, formAction] = useFormState<CreateStickerOrderState, FormData>(
     createStickerOrder,
     undefined,
@@ -104,6 +94,11 @@ export function StickerWizard({
 
   const selectedCharacter = characters.find((item) => item.id === characterId);
   const selectedBorder = borders.find((item) => item.id === borderId);
+  const selectedSize = sizes.find((item) => item.id === sizeOptionId);
+  const selectedPhrase = STICKER_PHRASE_OPTIONS.find((item) => item.key === phraseKey);
+  const phrase = selectedPhrase
+    ? serializeStickerPhrase({ title, body })
+    : "";
   const categoryTabs = useMemo(() => {
     const present = new Set(borders.map((border) => border.category));
     return STICKER_BORDER_CATEGORY_ORDER.filter((category) =>
@@ -118,41 +113,115 @@ export function StickerWizard({
         .sort((left, right) => left.sortOrder - right.sortOrder),
     [borders, activeCategory],
   );
-  const visibleCostumes = useMemo(
-    () => [...costumes].sort((left, right) => left.sortOrder - right.sortOrder),
-    [costumes],
-  );
-  const selectedCostume = visibleCostumes.find((item) => item.id === costumeKey);
-  const costumeLabel =
-    costumeKey === CUSTOM_COSTUME
-      ? customCostume.trim()
-      : selectedCostume?.label ?? "";
-  const selectedSize = sizes.find((item) => item.id === sizeOptionId);
-  const phrase =
-    phraseKey === CUSTOM_PHRASE
-      ? customPhrase.trim()
-      : phrases.find((item) => item.id === phraseKey)?.text ?? "";
 
   const canNext = useMemo(() => {
     if (step === 1) return Boolean(characterId);
     if (step === 2) return Boolean(borderId);
     if (step === 3) {
-      if (costumeKey === CUSTOM_COSTUME) {
-        return (
-          customCostume.trim().length > 0 &&
-          customCostume.trim().length <= MAX_COSTUME_LENGTH
-        );
-      }
-      return Boolean(costumeKey);
+      return Boolean(selectedPhrase?.enabled);
     }
-    if (step === 4) return phrase.length > 0 && phrase.length <= MAX_PHRASE_LENGTH;
+    if (step === 4) {
+      return Boolean(cutoutPath) && !previewing && !baking;
+    }
     if (step === 5) {
       return Boolean(
-        sizeOptionId && sizes.find((item) => item.id === sizeOptionId)?.available,
+        sizeOptionId &&
+          sizes.find((item) => item.id === sizeOptionId)?.available,
       );
     }
     return true;
-  }, [step, characterId, borderId, costumeKey, customCostume, phrase, sizeOptionId, sizes]);
+  }, [
+    step,
+    characterId,
+    borderId,
+    selectedPhrase,
+    cutoutPath,
+    previewing,
+    baking,
+    sizeOptionId,
+    sizes,
+  ]);
+
+  async function composePreview() {
+    if (!characterId || !borderId || !phrase) {
+      return false;
+    }
+    setPreviewing(true);
+    setPreviewError(null);
+    setPreviewPath(null);
+    setCutoutPath(null);
+    try {
+      const response = await fetch("/api/stickers/compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterId,
+          borderId,
+          phrase,
+          bake: false,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        cutoutImagePath?: string;
+        borderImageUrl?: string;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.cutoutImagePath) {
+        throw new Error(payload?.error ?? "미리보기를 만들지 못했습니다.");
+      }
+      setCutoutPath(payload.cutoutImagePath);
+      setBorderPreviewUrl(payload.borderImageUrl ?? selectedBorder?.imageUrl ?? null);
+      setLayout(cloneStickerLayout());
+      setLayoutDirty(false);
+      return true;
+    } catch (error) {
+      setPreviewError(
+        error instanceof Error ? error.message : "미리보기를 만들지 못했습니다.",
+      );
+      return false;
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  async function bakePreview() {
+    if (!characterId || !borderId || !phrase || !cutoutPath) {
+      return false;
+    }
+    setBaking(true);
+    setPreviewError(null);
+    try {
+      const response = await fetch("/api/stickers/compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterId,
+          borderId,
+          phrase,
+          cutoutImagePath: cutoutPath,
+          layout,
+          bake: true,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        previewImagePath?: string;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.previewImagePath) {
+        throw new Error(payload?.error ?? "배치를 적용하지 못했습니다.");
+      }
+      setPreviewPath(payload.previewImagePath);
+      setLayoutDirty(false);
+      return true;
+    } catch (error) {
+      setPreviewError(
+        error instanceof Error ? error.message : "배치를 적용하지 못했습니다.",
+      );
+      return false;
+    } finally {
+      setBaking(false);
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -160,7 +229,7 @@ export function StickerWizard({
         <p className="text-sm font-medium text-stone-500">
           {step}/{STEP_COUNT} · {STEP_LABELS[step - 1]}
         </p>
-        <div className="mt-3 grid grid-cols-6 gap-1.5 sm:gap-2">
+        <div className="mt-3 grid grid-cols-5 gap-1.5 sm:gap-2">
           {STEP_LABELS.map((label, index) => {
             const number = index + 1;
             const active = number === step;
@@ -192,7 +261,7 @@ export function StickerWizard({
         <section>
           <h2 className="text-lg font-semibold">캐릭터를 한 명 선택해 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            생성이 완료된 캐릭터만 스티커로 만들 수 있어요.
+            옷이 입혀진 캐릭터를 그대로 스티커에 올려요.
           </p>
           {characters.length === 0 ? (
             <EmptyCharacters />
@@ -300,7 +369,7 @@ export function StickerWizard({
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
                 {visibleBorders.map((border) => {
                   const selected = border.id === borderId;
-                  const thumb = border.thumbnailPath;
+                  const thumb = border.thumbnailPath || border.imageUrl;
                   return (
                     <button
                       key={border.id}
@@ -343,143 +412,119 @@ export function StickerWizard({
 
       {step === 3 ? (
         <section>
-          <h2 className="text-lg font-semibold">옷을 골라 주세요</h2>
+          <h2 className="text-lg font-semibold">문구를 선택해 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            스티커에 입힐 모습을 고르거나, 원하는 코스튬을 짧게 적어 주세요.
+            지금은 생일만 만들 수 있어요.
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {visibleCostumes.map((costume) => {
-                const selected = costumeKey === costume.id;
-                return (
-                  <button
-                    key={costume.id}
-                    type="button"
-                    onClick={() => {
-                      setCostumeKey(costume.id);
-                      setCustomCostume("");
-                    }}
-                    className={cn(
-                      "overflow-hidden rounded-2xl border bg-white text-left shadow-sm hover:border-stone-300",
-                      selected
-                        ? "border-sky-400 ring-2 ring-sky-300"
-                        : "border-stone-200",
-                    )}
-                  >
-                    {costume.referenceImageUrl ? (
-                      <div className="relative aspect-square bg-[#F6E7C1]/40">
-                        <AppImage
-                          src={costume.referenceImageUrl}
-                          alt={costume.label}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 100vw, 33vw"
-                        />
-                      </div>
-                    ) : null}
-                    <p className="p-5 font-semibold">{costume.label}</p>
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => setCostumeKey(CUSTOM_COSTUME)}
-                className={cn(
-                  "rounded-2xl border bg-white p-5 text-left shadow-sm hover:border-stone-300",
-                  costumeKey === CUSTOM_COSTUME
-                    ? "border-[#E07A5F] ring-2 ring-[#E07A5F]/30"
-                    : "border-stone-200",
-                )}
-              >
-                <p className="font-semibold">직접 입력</p>
-                <p className="mt-1 text-sm text-stone-500">원하는 코스튬을 짧게 적어요</p>
-              </button>
-            </div>
-          {costumeKey === CUSTOM_COSTUME ? (
-            <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium text-stone-700">
-              코스튬
-              <input
-                type="text"
-                value={customCostume}
-                maxLength={MAX_COSTUME_LENGTH}
-                placeholder="간략한 코스튬을 적어주세요 예: 파란 공룡 코스튬"
-                onChange={(event) => setCustomCostume(event.target.value)}
-                className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-              />
-              <span className="text-xs font-normal text-stone-400">
-                {customCostume.length}/{MAX_COSTUME_LENGTH}
-              </span>
-            </label>
-          ) : null}
+            {STICKER_PHRASE_OPTIONS.map((item) => {
+              const selected = phraseKey === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  disabled={!item.enabled}
+                  onClick={() => {
+                    if (!item.enabled) {
+                      return;
+                    }
+                    setPhraseKey(item.key);
+                    setTitle(item.title);
+                    setBody(item.body);
+                    setPreviewPath(null);
+                    setCutoutPath(null);
+                    setLayout(cloneStickerLayout());
+                    setLayoutDirty(false);
+                  }}
+                  className={cn(
+                    "relative rounded-2xl border bg-white p-5 text-left shadow-sm",
+                    selected
+                      ? "border-sky-400 ring-2 ring-sky-300"
+                      : "border-stone-200",
+                    item.enabled
+                      ? "hover:border-stone-300"
+                      : "cursor-not-allowed opacity-55",
+                  )}
+                >
+                  {item.enabled ? null : (
+                    <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-medium text-stone-500 ring-1 ring-stone-200">
+                      준비 중
+                    </span>
+                  )}
+                  <p className="font-semibold">{item.label}</p>
+                </button>
+              );
+            })}
+          </div>
         </section>
       ) : null}
 
       {step === 4 ? (
         <section>
-          <h2 className="text-lg font-semibold">문구를 넣어 주세요</h2>
-          <p className="mt-1 text-sm text-stone-500">
-            자주 쓰는 말을 고르거나, 직접 적을 수 있어요.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {phrases.map((item) => {
-              const selected = phraseKey === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setPhraseKey(item.id)}
-                  className={cn(
-                    "h-11 rounded-full px-4 text-sm font-medium",
-                    selected
-                      ? "bg-sky-400 text-white"
-                      : "bg-white text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50",
-                  )}
-                >
-                  {item.text}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setPhraseKey(CUSTOM_PHRASE)}
-              className={cn(
-                "h-11 rounded-full px-4 text-sm font-medium",
-                phraseKey === CUSTOM_PHRASE
-                  ? "bg-[#E07A5F] text-white"
-                  : "bg-white text-stone-700 ring-1 ring-stone-200 hover:bg-[#FDE8E0]",
-              )}
-            >
-              직접 입력
-            </button>
-          </div>
-          {phraseKey === CUSTOM_PHRASE ? (
-            <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium text-stone-700">
-              문구
-              <input
-                type="text"
-                value={customPhrase}
-                maxLength={MAX_PHRASE_LENGTH}
-                placeholder="스티커에 넣을 말을 적어 주세요"
-                onChange={(event) => setCustomPhrase(event.target.value)}
-                className="h-12 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+          <h2 className="text-lg font-semibold">스티커 미리보기</h2>
+          {previewing ? (
+            <>
+              <p className="mt-1 text-sm text-stone-500">
+                배경을 지우고 테두리와 문구를 배치하고 있어요.
+              </p>
+              <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-stone-200">
+                <p className="text-lg font-semibold">배경을 지우고 배치하는 중</p>
+                <p className="mt-2 text-sm text-stone-500">
+                  잠시만 기다려 주세요. 끝나면 미리보기가 나타나요.
+                </p>
+              </div>
+            </>
+          ) : previewError && !cutoutPath ? (
+            <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-stone-200">
+              <p className="text-lg font-semibold">미리보기에 실패했어요</p>
+              <p className="mt-2 text-sm text-stone-500">{previewError}</p>
+              <button
+                type="button"
+                onClick={() => void composePreview()}
+                className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
+              >
+                다시 만들기
+              </button>
+            </div>
+          ) : cutoutPath ? (
+            <div className="mt-4">
+              <StickerLayerEditor
+                borderSrc={borderPreviewUrl ?? selectedBorder?.imageUrl}
+                characterSrc={cutoutPath}
+                title={title}
+                body={body}
+                phrase={phrase}
+                layout={layout}
+                onChange={(next) => {
+                  setLayout(next);
+                  setLayoutDirty(true);
+                }}
+                onPhraseChange={(next) => {
+                  setTitle(next.title);
+                  setBody(next.body);
+                  setLayoutDirty(true);
+                }}
               />
-              <span className="text-xs font-normal text-stone-400">
-                {customPhrase.length}/{MAX_PHRASE_LENGTH}
-              </span>
-            </label>
-          ) : null}
-          {phrase ? (
-            <p className="mt-4 rounded-xl bg-[#F6E7C1]/70 px-4 py-3 text-sm text-[#8A5A12]">
-              들어갈 문구: <span className="font-semibold">{phrase}</span>
-            </p>
+              {previewError ? (
+                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {previewError}
+                </p>
+              ) : null}
+              {baking ? (
+                <p className="mt-3 text-center text-sm text-stone-500">
+                  배치를 적용하는 중이에요.
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </section>
       ) : null}
 
       {step === 5 ? (
         <section>
-          <h2 className="text-lg font-semibold">사이즈를 선택해 주세요</h2>
+          <h2 className="text-lg font-semibold">결제</h2>
           <p className="mt-1 text-sm text-stone-500">
-            고른 크기에 맞춰 A4 한 장에 들어가는 개수가 정해져요.
+            사이즈를 고르면 A4 미리보기가 바뀌어요. 장수는 결제할 때 선택해요.
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {sizes.map((option) => {
@@ -521,45 +566,70 @@ export function StickerWizard({
               );
             })}
           </div>
-        </section>
-      ) : null}
+          {previewPath && selectedSize ? (
+            <div className="mt-5">
+              <StickerPreviewViews
+                src={previewPath}
+                phrase={phrase}
+                quantity={selectedSize.quantityPerA4}
+                overlayPhrase={false}
+                showWatermark
+                variant="a4"
+              />
+              <p className="mt-2 text-center text-sm text-stone-500">
+                {selectedSize.label} · A4 한 장에 {selectedSize.quantityPerA4}개
+              </p>
+            </div>
+          ) : null}
 
-      {step === 6 ? (
-        <section>
-          <h2 className="text-lg font-semibold">이대로 제작할까요?</h2>
-          <div className="mt-4 space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
-            <SummaryRow label="캐릭터" value={selectedCharacter?.label} />
-            <SummaryRow label="테두리" value={selectedBorder?.label} />
-            <SummaryRow label="옷" value={costumeLabel} />
-            <SummaryRow label="문구" value={phrase} />
-            <SummaryRow
-              label="사이즈"
-              value={
-                selectedSize
-                  ? `${selectedSize.label} · A4 한 장에 ${selectedSize.quantityPerA4}개`
-                  : undefined
-              }
-            />
-          </div>
-
-          <form action={formAction} className="mt-6">
-            <input type="hidden" name="characterId" value={characterId ?? ""} />
-            <input type="hidden" name="borderId" value={borderId ?? ""} />
-            <input type="hidden" name="costumeId" value={costumeKey === CUSTOM_COSTUME ? "" : (costumeKey ?? "")} />
-            <input type="hidden" name="customCostumeHint" value={costumeKey === CUSTOM_COSTUME ? customCostume.trim() : ""} />
-            <input type="hidden" name="phrase" value={phrase} />
-            <input type="hidden" name="sizeOptionId" value={sizeOptionId ?? ""} />
-            {state?.error ? (
+          <div className="mt-6">
+            {state?.error && !checkoutOpen ? (
               <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                 {state.error}
               </p>
             ) : null}
-            <SubmitButton />
-          </form>
+            <button
+              type="button"
+              disabled={!canNext}
+              onClick={() => setCheckoutOpen(true)}
+              className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-base font-medium text-white hover:bg-[#d56c51] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
+            >
+              결제하기
+            </button>
+          </div>
+          <StickerCheckoutDialog
+            open={checkoutOpen}
+            onClose={() => setCheckoutOpen(false)}
+            optionLines={[
+              ...(selectedCharacter
+                ? [{ label: "캐릭터", value: selectedCharacter.label }]
+                : []),
+              ...(selectedBorder
+                ? [{ label: "테두리", value: selectedBorder.label }]
+                : []),
+              ...(selectedSize
+                ? [{ label: "사이즈", value: selectedSize.label }]
+                : []),
+              ...(title ? [{ label: "문구", value: title }] : []),
+            ]}
+            defaultEmail={defaultEmail}
+            defaultName={defaultName}
+            error={state?.error}
+            formAction={formAction}
+            hiddenFields={
+              <>
+                <input type="hidden" name="characterId" value={characterId ?? ""} />
+                <input type="hidden" name="borderId" value={borderId ?? ""} />
+                <input type="hidden" name="phrase" value={phrase} />
+                <input type="hidden" name="sizeOptionId" value={sizeOptionId ?? ""} />
+                <input type="hidden" name="previewImagePath" value={previewPath ?? ""} />
+              </>
+            }
+          />
         </section>
       ) : null}
 
-      {step !== 6 ? (
+      {step !== 5 ? (
         <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
           {step > 1 ? (
             <button
@@ -579,31 +649,49 @@ export function StickerWizard({
           )}
           <button
             type="button"
-            onClick={() => setStep((current) => Math.min(current + 1, STEP_COUNT))}
+            onClick={() => {
+              if (step === 3) {
+                setStep(4);
+                if (!cutoutPath) {
+                  void composePreview();
+                }
+                return;
+              }
+              if (step === 4) {
+                void (async () => {
+                  if (!previewPath || layoutDirty) {
+                    const baked = await bakePreview();
+                    if (!baked) {
+                      return;
+                    }
+                  }
+                  if (!sizeOptionId) {
+                    const firstAvailable = sizes.find((item) => item.available);
+                    if (firstAvailable) {
+                      setSizeOptionId(firstAvailable.id);
+                    }
+                  }
+                  setStep(5);
+                })();
+                return;
+              }
+              setStep((current) => Math.min(current + 1, STEP_COUNT));
+            }}
             disabled={!canNext}
             className="flex h-12 items-center justify-center rounded-xl bg-sky-400 px-8 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            다음
+            {step === 3 ? "만들고 미리보기" : baking ? "배치 적용 중" : "다음"}
           </button>
         </div>
       ) : (
         <button
           type="button"
-          onClick={() => setStep(5)}
+          onClick={() => setStep(4)}
           className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-stone-300 px-6 text-sm font-medium hover:bg-white sm:w-auto"
         >
           이전
         </button>
       )}
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value?: string }) {
-  return (
-    <div>
-      <p className="text-sm text-stone-500">{label}</p>
-      <p className="mt-1 font-medium">{value || "—"}</p>
     </div>
   );
 }

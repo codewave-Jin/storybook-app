@@ -4,6 +4,10 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CharacterPhotoPicker } from "@/components/CharacterPhotoPicker";
+import {
+  CHARACTER_OUTFIT_OPTIONS,
+  isCharacterOutfitReady,
+} from "@/lib/character-outfit";
 
 function SubmitButton({
   disabledReason,
@@ -47,8 +51,14 @@ export function CharacterCreateForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [hasPhoto, setHasPhoto] = useState(false);
+  const [gender, setGender] = useState<"MALE" | "FEMALE" | "">("");
+  const [outfit, setOutfit] = useState("default");
   const submittingRef = useRef(false);
   const photoFileRef = useRef<File | null>(null);
+  const outfitReady =
+    gender === "MALE" || gender === "FEMALE"
+      ? isCharacterOutfitReady(outfit, gender)
+      : false;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -121,6 +131,8 @@ export function CharacterCreateForm({
               name="gender"
               value="FEMALE"
               required
+              checked={gender === "FEMALE"}
+              onChange={() => setGender("FEMALE")}
               className="sr-only"
             />
             여자
@@ -130,10 +142,35 @@ export function CharacterCreateForm({
               type="radio"
               name="gender"
               value="MALE"
+              checked={gender === "MALE"}
+              onChange={() => setGender("MALE")}
               className="sr-only"
             />
             남자
           </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-stone-700">옷</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {CHARACTER_OUTFIT_OPTIONS.map((option) => (
+            <label
+              key={option.key}
+              className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium has-[:checked]:border-sky-400 has-[:checked]:bg-sky-400 has-[:checked]:text-white"
+            >
+              <input
+                type="radio"
+                name="outfit"
+                value={option.key}
+                required
+                checked={outfit === option.key}
+                onChange={() => setOutfit(option.key)}
+                className="sr-only"
+              />
+              {option.label}
+            </label>
+          ))}
         </div>
       </fieldset>
 
@@ -156,7 +193,11 @@ export function CharacterCreateForm({
           pending={pending}
           photoReady={hasPhoto}
           disabledReason={
-            noTokens ? "토큰이 부족합니다 (충전하기)" : undefined
+            noTokens
+              ? "토큰이 부족합니다 (충전하기)"
+              : gender && outfit && !outfitReady
+                ? "이 옷과 성별 조합은 아직 준비 중입니다"
+                : undefined
           }
         />
       ) : (

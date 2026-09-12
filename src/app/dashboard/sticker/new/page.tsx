@@ -12,7 +12,7 @@ export default async function NewStickerPage() {
     redirect("/login?callbackUrl=/dashboard/sticker/new");
   }
 
-  const [characters, borders, costumes, phrases, sizes] = await Promise.all([
+  const [characters, borders, sizes] = await Promise.all([
     prisma.character.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
@@ -20,13 +20,6 @@ export default async function NewStickerPage() {
     prisma.stickerBorder.findMany({
       where: { isActive: true },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-    }),
-    prisma.stickerCostume.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: "asc" },
-    }),
-    prisma.stickerPhrasePreset.findMany({
-      orderBy: { text: "asc" },
     }),
     prisma.stickerSizeOption.findMany({
       orderBy: { widthMm: "asc" },
@@ -43,6 +36,8 @@ export default async function NewStickerPage() {
       </Link>
       <div className="mt-4">
         <StickerWizard
+          defaultEmail={session.user.email ?? undefined}
+          defaultName={session.user.name ?? undefined}
           characters={characters.map((character) => ({
             id: character.id,
             label: character.label,
@@ -55,18 +50,9 @@ export default async function NewStickerPage() {
             id: border.id,
             label: border.label,
             thumbnailPath: border.thumbnailPath ?? border.imageUrl,
+            imageUrl: border.imageUrl,
             category: border.category,
             sortOrder: border.sortOrder,
-          }))}
-          costumes={costumes.map((costume) => ({
-            id: costume.id,
-            label: costume.label,
-            referenceImageUrl: costume.referenceImageUrl,
-            sortOrder: costume.sortOrder,
-          }))}
-          phrases={phrases.map((phrase) => ({
-            id: phrase.id,
-            text: phrase.text,
           }))}
           sizes={sizes.map((size) => ({
             id: size.id,

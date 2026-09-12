@@ -1,31 +1,30 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFormState, useFormStatus } from "react-dom";
+import { useFormState } from "react-dom";
 import {
   payForStickerOrder,
   type PayStickerOrderState,
 } from "@/app/actions/stickers";
 import { PaymentComingSoon } from "@/components/PaymentComingSoon";
+import { StickerCheckoutDialog } from "@/components/StickerCheckoutDialog";
+import type { OrderOptionLine } from "@/lib/storybook-order-summary";
 import { PAYMENTS_ENABLED } from "@/lib/payments";
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-sm font-semibold text-white shadow-sm hover:bg-[#d56c51] disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {pending ? "결제 중..." : "결제하고 실제 스티커 받기"}
-    </button>
-  );
-}
-
-export function StickerPreviewPayButton({ orderId }: { orderId: string }) {
+export function StickerPreviewPayButton({
+  orderId,
+  optionLines,
+  defaultEmail,
+  defaultName,
+}: {
+  orderId: string;
+  optionLines: OrderOptionLine[];
+  defaultEmail?: string;
+  defaultName?: string;
+}) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [state, formAction] = useFormState<PayStickerOrderState, FormData>(
     payForStickerOrder,
     undefined,
@@ -33,6 +32,7 @@ export function StickerPreviewPayButton({ orderId }: { orderId: string }) {
 
   useEffect(() => {
     if (state?.success) {
+      setOpen(false);
       router.refresh();
     }
   }, [state, router]);
@@ -42,17 +42,29 @@ export function StickerPreviewPayButton({ orderId }: { orderId: string }) {
   }
 
   return (
-    <form action={formAction}>
-      <input type="hidden" name="orderId" value={orderId} />
-      {state?.error ? (
-        <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-700">
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-sm font-semibold text-white shadow-sm hover:bg-[#d56c51]"
+      >
+        결제하기
+      </button>
+      {state?.error && !open ? (
+        <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-700">
           {state.error}
         </p>
       ) : null}
-      <SubmitButton />
-      <p className="mt-1.5 text-center text-xs text-stone-500">
-        지금은 테스트 결제입니다. 버튼을 누르면 결제가 완료됩니다.
-      </p>
-    </form>
+      <StickerCheckoutDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        optionLines={optionLines}
+        defaultEmail={defaultEmail}
+        defaultName={defaultName}
+        error={state?.error}
+        formAction={formAction}
+        hiddenFields={<input type="hidden" name="orderId" value={orderId} />}
+      />
+    </>
   );
 }

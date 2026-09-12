@@ -1,8 +1,5 @@
 import { waitUntil } from "@vercel/functions";
-import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { logGenerationEvent } from "@/lib/generation-events";
-import { enqueueAndKickGptImageJob } from "@/lib/gpt-image-queue";
-import { GPT_IMAGE_JOB_KIND } from "@/lib/gpt-image-queue-config";
 import { runStickerPreviewGeneration } from "@/lib/sticker-generation";
 import { shouldKickPendingStickerPreview } from "@/lib/sticker-generation-policy";
 import { prisma } from "@/lib/prisma";
@@ -41,40 +38,20 @@ export async function queueStickerGenerationJobs(
     detail: { borderId: order.borderId },
   });
 
-  if (isComfyMockEnabled()) {
-    try {
-      const result = await runStickerPreviewGeneration(orderId);
-      if (result.error) {
-        console.error(
-          "[sticker-generation] generate failed",
-          orderId,
-          result.error,
-        );
-      }
-    } catch (error) {
-      console.error("[sticker-generation] generate threw", orderId, error);
+  try {
+    const result = await runStickerPreviewGeneration(orderId, {
+      fromQueue: true,
+    });
+    if (result.error) {
+      console.error(
+        "[sticker-generation] generate failed",
+        orderId,
+        result.error,
+      );
     }
-    return;
+  } catch (error) {
+    console.error("[sticker-generation] generate threw", orderId, error);
   }
-
-  await prisma.stickerOrder.updateMany({
-    where: {
-      id: order.id,
-      previewImagePath: null,
-      previewStatus: { in: ["IDLE", "FAILED"] },
-    },
-    data: {
-      previewStatus: "PROCESSING",
-      errorReason: null,
-    },
-  });
-
-  await enqueueAndKickGptImageJob({
-    kind: GPT_IMAGE_JOB_KIND.STICKER,
-    targetId: order.id,
-    inputImages: order.borderId ? 1 : 2,
-    payload: {},
-  });
 }
 
 /**

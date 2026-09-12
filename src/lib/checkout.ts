@@ -1,4 +1,4 @@
-import { clampOrderQuantity } from "@/lib/payments";
+import { clampOrderQuantity, clampStickerSheetCount } from "@/lib/payments";
 
 export type CheckoutInput = {
   checkoutEmail: string;
@@ -30,6 +30,11 @@ export function parseCheckoutForm(formData: FormData): CheckoutInput {
       includeRaw === "on" || includeRaw === "true" || includeRaw === "1",
     quantity: clampOrderQuantity(Number(readField(formData, "quantity"))),
   };
+}
+
+export function parseStickerSheetCount(formData: FormData) {
+  const raw = readField(formData, "sheetCount") || readField(formData, "quantity");
+  return clampStickerSheetCount(Number(raw));
 }
 
 export function validateCheckoutInput(input: CheckoutInput): string | null {
