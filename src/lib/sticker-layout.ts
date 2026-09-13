@@ -17,25 +17,34 @@ import {
 export { STICKER_LAYOUT } from "@/lib/sticker-layout-constants";
 
 const TEXT_COLOR = "#3D2A1C";
+const BUNDLED_KR_FONT = path.join(process.cwd(), "public", "fonts", "Jua-Regular.ttf");
 
 function escapeXml(value: string) {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function svgFontFamily(cssFamily: string) {
+  const first = cssFamily.split(",")[0]?.trim() ?? "sans-serif";
+  return first.replaceAll('"', "").replaceAll("'", "") || "sans-serif";
 }
 
 async function stickerFontFace(fontKey: string) {
   const font = stickerFontByKey(fontKey);
-  const filePath = font.files.find((candidate) => existsSync(candidate));
+  const filePath =
+    font.files.find((candidate) => existsSync(candidate)) ??
+    (existsSync(BUNDLED_KR_FONT) ? BUNDLED_KR_FONT : "");
   if (!filePath) {
-    return { face: "", family: font.cssFamily, weight: font.cssWeight };
+    return { face: "", family: svgFontFamily(font.cssFamily), weight: font.cssWeight };
   }
   const bytes = await readFile(filePath);
   const format = path.extname(filePath).toLowerCase() === ".otf" ? "otf" : "ttf";
   return {
-    face: `@font-face{font-family:'StickerKr';src:url(data:font/${format};base64,${bytes.toString("base64")}) format('${format}');}`,
+    face: `@font-face{font-family:StickerKr;src:url(data:font/${format};base64,${bytes.toString("base64")}) format('${format}');}`,
     family: "StickerKr",
     weight: font.cssWeight,
   };
@@ -85,7 +94,7 @@ async function renderStickerTextOverlay(options: {
   const bodyMarkup = lines
     .map((line, index) => {
       const y = bodyStart + index * lineHeight;
-      return `<text x="${left + width / 2}" y="${y}" text-anchor="middle" font-family="${fontFamily}" font-weight="${font.weight}" font-size="${bodySize}" fill="${TEXT_COLOR}">${escapeXml(line)}</text>`;
+      return `<text x="${left + width / 2}" y="${y}" text-anchor="middle" font-family="${escapeXml(fontFamily)}" font-weight="${font.weight}" font-size="${bodySize}" fill="${TEXT_COLOR}">${escapeXml(line)}</text>`;
     })
     .join("");
 
@@ -95,7 +104,7 @@ async function renderStickerTextOverlay(options: {
       <path d="M${crownWidth * 0.08} ${crownHeight * 0.82} L${crownWidth * 0.18} ${crownHeight * 0.28} L${crownWidth * 0.36} ${crownHeight * 0.62} L${crownWidth * 0.5} ${crownHeight * 0.12} L${crownWidth * 0.64} ${crownHeight * 0.62} L${crownWidth * 0.82} ${crownHeight * 0.28} L${crownWidth * 0.92} ${crownHeight * 0.82}" />
     </g>
     <rect x="${crownX + crownWidth * 0.06}" y="${crownY + crownHeight * 0.78}" width="${crownWidth * 0.88}" height="${crownHeight * 0.16}" rx="2" fill="#E8B84A" />
-    <text x="${left + width / 2}" y="${titleY}" text-anchor="middle" font-family="${fontFamily}" font-weight="${font.weight}" font-size="${titleSize}" fill="${TEXT_COLOR}">${escapeXml(title)}</text>
+    <text x="${left + width / 2}" y="${titleY}" text-anchor="middle" font-family="${escapeXml(fontFamily)}" font-weight="${font.weight}" font-size="${titleSize}" fill="${TEXT_COLOR}">${escapeXml(title)}</text>
     ${bodyMarkup}
   </svg>`;
 

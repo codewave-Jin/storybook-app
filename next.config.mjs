@@ -31,6 +31,9 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "20mb",
     },
+    outputFileTracingIncludes: {
+      "/api/stickers/compose": ["./public/fonts/Jua-Regular.ttf"],
+    },
   },
 };
 
