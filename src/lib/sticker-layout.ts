@@ -17,7 +17,6 @@ import {
 export { STICKER_LAYOUT } from "@/lib/sticker-layout-constants";
 
 const TEXT_COLOR = "#3D2A1C";
-const BUNDLED_KR_FONT = path.join(process.cwd(), "public", "fonts", "Jua-Regular.ttf");
 
 function escapeXml(value: string) {
   return value
@@ -33,11 +32,18 @@ function svgFontFamily(cssFamily: string) {
   return first.replaceAll('"', "").replaceAll("'", "") || "sans-serif";
 }
 
+function resolveFontFile(filePath: string) {
+  if (path.isAbsolute(filePath) || /^[A-Za-z]:[\\/]/.test(filePath)) {
+    return filePath;
+  }
+  return path.join(process.cwd(), filePath);
+}
+
 async function stickerFontFace(fontKey: string) {
   const font = stickerFontByKey(fontKey);
-  const filePath =
-    font.files.find((candidate) => existsSync(candidate)) ??
-    (existsSync(BUNDLED_KR_FONT) ? BUNDLED_KR_FONT : "");
+  const filePath = font.files
+    .map((candidate) => resolveFontFile(candidate))
+    .find((candidate) => existsSync(candidate));
   if (!filePath) {
     return { face: "", family: svgFontFamily(font.cssFamily), weight: font.cssWeight };
   }
@@ -88,7 +94,7 @@ async function renderStickerTextOverlay(options: {
   const bodyStart = titleY + titleSize * 0.42;
   const lineHeight = bodySize * 1.42;
   const lines = stickerPhraseLines(body);
-  const font = await stickerFontFace(options.layout.textStyle?.fontKey ?? "malgun-bold");
+  const font = await stickerFontFace(options.layout.textStyle?.fontKey ?? "jua");
   const fontFamily = font.family;
 
   const bodyMarkup = lines

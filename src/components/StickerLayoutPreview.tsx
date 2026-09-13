@@ -37,7 +37,7 @@ export function StickerLayoutPreview({
   const character = layout.character;
   const text = layout.text;
   const border = layout.border;
-  const font = stickerFontByKey(layout.textStyle?.fontKey ?? "malgun-bold");
+  const font = stickerFontByKey(layout.textStyle?.fontKey ?? "jua");
   const titleScale = layout.textStyle?.titleScale ?? 1;
   const bodyScale = layout.textStyle?.bodyScale ?? 1;
 

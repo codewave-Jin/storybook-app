@@ -1,3 +1,5 @@
+import { DEFAULT_STICKER_FONT_KEY } from "@/lib/sticker-fonts";
+
 export const STICKER_CANVAS_SIZE = 1536;
 
 export type StickerLayerBox = {
@@ -47,7 +49,7 @@ export const DEFAULT_STICKER_LAYOUT: StickerLayoutState = {
     offsetYRatio: 0.008,
   },
   textStyle: {
-    fontKey: "malgun-bold",
+    fontKey: DEFAULT_STICKER_FONT_KEY,
     titleScale: 1,
     bodyScale: 1,
   },
@@ -94,7 +96,7 @@ export function clampStickerLayout(layout: StickerLayoutState): StickerLayoutSta
       offsetYRatio: clamp(layout.border.offsetYRatio, -0.2, 0.2),
     },
     textStyle: {
-      fontKey: layout.textStyle?.fontKey || "malgun-bold",
+      fontKey: layout.textStyle?.fontKey || DEFAULT_STICKER_FONT_KEY,
       titleScale: clamp(layout.textStyle?.titleScale ?? 1, 0.7, 1.6),
       bodyScale: clamp(layout.textStyle?.bodyScale ?? 1, 0.7, 1.6),
     },

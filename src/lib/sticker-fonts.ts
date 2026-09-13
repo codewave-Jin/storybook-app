@@ -1,5 +1,12 @@
 export const STICKER_FONT_OPTIONS = [
   {
+    key: "jua",
+    label: "주아",
+    cssFamily: '"Jua", sans-serif',
+    cssWeight: 400,
+    files: ["public/fonts/Jua-Regular.ttf"],
+  },
+  {
     key: "malgun-bold",
     label: "맑은 고딕 굵게",
     cssFamily: '"Malgun Gothic", sans-serif',
@@ -30,6 +37,8 @@ export const STICKER_FONT_OPTIONS = [
 ] as const;
 
 export type StickerFontKey = (typeof STICKER_FONT_OPTIONS)[number]["key"];
+
+export const DEFAULT_STICKER_FONT_KEY = "jua";
 
 export function stickerFontByKey(key: string) {
   return (

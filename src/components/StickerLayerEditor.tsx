@@ -220,7 +220,7 @@ export function StickerLayerEditor({
           <label className="block">
             <span className="text-xs text-stone-500">폰트</span>
             <select
-              value={layout.textStyle?.fontKey ?? "malgun-bold"}
+              value={layout.textStyle?.fontKey ?? "jua"}
               onChange={(event) =>
                 updateLayout({
                   ...layout,
