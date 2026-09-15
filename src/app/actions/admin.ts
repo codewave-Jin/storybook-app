@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { FulfillmentStatus, ProductionStatus } from "@prisma/client";
+import type {
+  FulfillmentStatus,
+  PaymentStatus,
+  ProductionStatus,
+  StickerPreviewStatus,
+} from "@prisma/client";
 import { requireAdmin } from "@/lib/admin";
 import {
   canTransitionFulfillment,
@@ -11,7 +16,8 @@ import { loadOrderPrintComment } from "@/lib/order-print-comment";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { collectIllustrationAssetPaths } from "@/lib/illustration-versions";
-import { deleteIllustrationFile } from "@/lib/uploads";
+import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
+import { deleteIllustrationFile, deleteStickerFile } from "@/lib/uploads";
 
 const PRODUCTION_STATUSES: ProductionStatus[] = [
   "WAITING",
@@ -288,6 +294,125 @@ export async function deleteOrder(orderId: string) {
   revalidatePath(`/admin/illustrations/${orderId}`);
   revalidatePath("/admin/upscale");
   revalidatePath(`/admin/upscale/${orderId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/mypage");
+  return { success: true };
+}
+
+export type AdminStickerOrderDetail = {
+  id: string;
+  userName: string;
+  userEmail: string;
+  productTitle: string;
+  phrase: string;
+  sizeLabel: string;
+  sheetCount: number;
+  quantity: number;
+  paymentStatus: PaymentStatus;
+  previewStatus: StickerPreviewStatus;
+  productionStatus: ProductionStatus;
+  errorReason: string | null;
+  checkoutEmail: string | null;
+  checkoutPhone: string | null;
+  shippingName: string | null;
+  shippingPostalCode: string | null;
+  shippingAddress: string | null;
+  shippingAddressDetail: string | null;
+  previewImagePath: string | null;
+  compositeImagePath: string | null;
+  finalImagePath: string | null;
+  character: {
+    id: string;
+    label: string;
+    originalPhotoPath: string;
+    generatedImagePath: string | null;
+  };
+};
+
+export async function getAdminStickerOrderDetail(
+  orderId: string,
+): Promise<AdminStickerOrderDetail | null> {
+  await requireAdmin();
+
+  const order = await prisma.stickerOrder.findUnique({
+    where: { id: orderId },
+    include: {
+      user: { select: { name: true, email: true } },
+      character: {
+        select: {
+          id: true,
+          label: true,
+          originalPhotoPath: true,
+          generatedImagePath: true,
+        },
+      },
+      border: { select: { label: true } },
+      template: { select: { label: true } },
+      sizeOption: { select: { label: true } },
+    },
+  });
+
+  if (!order) {
+    return null;
+  }
+
+  return {
+    id: order.id,
+    userName: order.user.name,
+    userEmail: order.user.email,
+    productTitle: stickerOrderTitle(
+      order.character.label,
+      stickerOrderExtraLabel(order),
+    ),
+    phrase: order.phrase,
+    sizeLabel: order.sizeOption.label,
+    sheetCount: order.sheetCount,
+    quantity: order.quantity,
+    paymentStatus: order.paymentStatus,
+    previewStatus: order.previewStatus,
+    productionStatus: order.productionStatus,
+    errorReason: order.errorReason,
+    checkoutEmail: order.checkoutEmail,
+    checkoutPhone: order.checkoutPhone,
+    shippingName: order.shippingName,
+    shippingPostalCode: order.shippingPostalCode,
+    shippingAddress: order.shippingAddress,
+    shippingAddressDetail: order.shippingAddressDetail,
+    previewImagePath: order.previewImagePath,
+    compositeImagePath: order.compositeImagePath,
+    finalImagePath: order.finalImagePath,
+    character: order.character,
+  };
+}
+
+export async function deleteAdminStickerOrder(orderId: string) {
+  await requireAdmin();
+
+  const order = await prisma.stickerOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      previewImagePath: true,
+      finalImagePath: true,
+      compositeImagePath: true,
+    },
+  });
+
+  if (!order) {
+    return { error: "주문을 찾을 수 없습니다." };
+  }
+
+  await deleteStickerFile(order.previewImagePath);
+  await deleteStickerFile(order.finalImagePath);
+  await deleteStickerFile(order.compositeImagePath);
+
+  await prisma.$transaction([
+    prisma.review.deleteMany({ where: { stickerOrderId: orderId } }),
+    prisma.stickerOrder.delete({ where: { id: orderId } }),
+  ]);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/orders");
   revalidatePath("/dashboard");
   revalidatePath("/mypage");
   return { success: true };

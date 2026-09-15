@@ -14,6 +14,46 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   FAILED: "결제실패",
 };
 
+export const ADMIN_PRODUCT_FILTERS = [
+  { value: "ALL", label: "전체" },
+  { value: "STORYBOOK", label: "동화책" },
+  { value: "STICKER", label: "스티커" },
+] as const;
+
+export type AdminProductFilter = (typeof ADMIN_PRODUCT_FILTERS)[number]["value"];
+
+export function isAdminProductFilter(value: string): value is AdminProductFilter {
+  return ADMIN_PRODUCT_FILTERS.some((item) => item.value === value);
+}
+
+export function stickerAdminStatus(order: {
+  previewStatus: "IDLE" | "PROCESSING" | "COMPLETED" | "FAILED";
+  paymentStatus: PaymentStatus;
+  productionStatus: ProductionStatus;
+}): { label: string; className: string } {
+  if (order.previewStatus === "IDLE" || order.previewStatus === "PROCESSING") {
+    return { label: "생성중", className: "bg-amber-50 text-amber-700" };
+  }
+  if (order.previewStatus === "FAILED") {
+    return { label: "생성 실패", className: "bg-red-50 text-red-700" };
+  }
+  if (order.paymentStatus !== "PAID") {
+    return { label: "미리보기", className: "bg-stone-100 text-stone-600" };
+  }
+  switch (order.productionStatus) {
+    case "COMPLETED":
+      return { label: "완료", className: "bg-emerald-50 text-emerald-700" };
+    case "ILLUSTRATING":
+    case "UPSCALING":
+      return {
+        label: PRODUCTION_STATUS_LABEL[order.productionStatus],
+        className: "bg-amber-50 text-amber-700",
+      };
+    default:
+      return { label: "대기중", className: "bg-stone-100 text-stone-600" };
+  }
+}
+
 export function getFulfillmentLabel(
   paymentStatus: PaymentStatus,
   productionStatus: ProductionStatus,

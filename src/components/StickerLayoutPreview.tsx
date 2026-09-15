@@ -75,7 +75,7 @@ export function StickerLayoutPreview({
       <div
         data-sticker-layer="text"
         aria-label="문구 선택"
-        className="absolute z-20 flex cursor-grab flex-col items-center text-center active:cursor-grabbing"
+        className="absolute z-20 flex cursor-grab flex-col items-center overflow-hidden text-center [container-type:size] active:cursor-grabbing"
         style={{
           left: `${text.leftRatio * 100}%`,
           top: `${text.topRatio * 100}%`,
@@ -84,26 +84,38 @@ export function StickerLayoutPreview({
           color: "#3D2A1C",
           fontFamily: font.cssFamily,
           fontWeight: font.cssWeight,
+          wordBreak: "keep-all",
+          letterSpacing: "0",
         }}
       >
-        <span
-          className="leading-none text-[#E8B84A]"
-          style={{ fontSize: `clamp(0.7rem, ${4.2 * titleScale}vw, ${1.15 * titleScale}rem)` }}
+        <svg
+          aria-hidden
+          viewBox="0 0 62 38"
+          className="mt-[2%] w-[18.6%] max-w-[3.5rem] shrink-0"
         >
-          ♛
-        </span>
+          <g
+            fill="none"
+            stroke="#E8B84A"
+            strokeWidth="4"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          >
+            <path d="M5 31 L11 11 L22 24 L31 5 L40 24 L51 11 L57 31" />
+          </g>
+          <rect x="4" y="30" width="54" height="6" rx="2" fill="#E8B84A" />
+        </svg>
         <p
-          className="mt-1 leading-none tracking-tight"
-          style={{ fontSize: `clamp(1.5rem, ${11 * titleScale}vw, ${3.3 * titleScale}rem)` }}
+          className="mt-[4%] leading-none"
+          style={{ fontSize: `calc(${26 * titleScale}cqw)` }}
         >
           {title}
         </p>
         <div
-          className="mt-2 space-y-0.5 leading-snug"
-          style={{ fontSize: `clamp(0.7rem, ${3.4 * bodyScale}vw, ${1.05 * bodyScale}rem)` }}
+          className="mt-[6%] flex w-full flex-col items-center gap-[0.35em] leading-snug"
+          style={{ fontSize: `calc(${9.2 * bodyScale}cqw)` }}
         >
-          {lines.map((line) => (
-            <p key={line}>{line}</p>
+          {lines.map((line, index) => (
+            <p key={`${index}-${line}`}>{line}</p>
           ))}
         </div>
         {selectedLayer === "text" ? <DashedFrame /> : null}

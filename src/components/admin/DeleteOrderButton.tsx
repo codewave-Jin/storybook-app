@@ -2,14 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { deleteOrder } from "@/app/actions/admin";
+import { deleteAdminStickerOrder, deleteOrder } from "@/app/actions/admin";
 
 export function DeleteOrderButton({
   orderId,
+  kind = "STORYBOOK",
   redirectTo,
   onDeleted,
 }: {
   orderId: string;
+  kind?: "STORYBOOK" | "STICKER";
   redirectTo?: string;
   onDeleted?: () => void;
 }) {
@@ -19,7 +21,11 @@ export function DeleteOrderButton({
 
   function handleDelete() {
     startTransition(async () => {
-      await deleteOrder(orderId);
+      if (kind === "STICKER") {
+        await deleteAdminStickerOrder(orderId);
+      } else {
+        await deleteOrder(orderId);
+      }
       setOpen(false);
       onDeleted?.();
       if (redirectTo) {
@@ -54,8 +60,9 @@ export function DeleteOrderButton({
           >
             <h2 className="text-lg font-semibold">주문 삭제</h2>
             <p className="mt-2 text-sm text-stone-500">
-              이 주문과 연결된 삽화를 모두 삭제할까요? 삭제하면 되돌릴 수
-              없습니다.
+              {kind === "STICKER"
+                ? "이 스티커 주문을 삭제할까요? 삭제하면 되돌릴 수 없습니다."
+                : "이 주문과 연결된 삽화를 모두 삭제할까요? 삭제하면 되돌릴 수 없습니다."}
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button

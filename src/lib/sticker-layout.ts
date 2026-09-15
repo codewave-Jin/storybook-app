@@ -1,6 +1,8 @@
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import path from "path";
+import { createElement } from "react";
+import satori from "satori";
 import sharp, { type OverlayOptions } from "sharp";
 import {
   DEFAULT_STICKER_LAYOUT,
@@ -17,20 +19,7 @@ import {
 export { STICKER_LAYOUT } from "@/lib/sticker-layout-constants";
 
 const TEXT_COLOR = "#3D2A1C";
-
-function escapeXml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
-}
-
-function svgFontFamily(cssFamily: string) {
-  const first = cssFamily.split(",")[0]?.trim() ?? "sans-serif";
-  return first.replaceAll('"', "").replaceAll("'", "") || "sans-serif";
-}
+const fontCache = new Map<string, { name: string; data: Buffer }>();
 
 function resolveFontFile(filePath: string) {
   if (path.isAbsolute(filePath) || /^[A-Za-z]:[\\/]/.test(filePath)) {
@@ -39,21 +28,43 @@ function resolveFontFile(filePath: string) {
   return path.join(process.cwd(), filePath);
 }
 
-async function stickerFontFace(fontKey: string) {
-  const font = stickerFontByKey(fontKey);
-  const filePath = font.files
-    .map((candidate) => resolveFontFile(candidate))
-    .find((candidate) => existsSync(candidate));
-  if (!filePath) {
-    return { face: "", family: svgFontFamily(font.cssFamily), weight: font.cssWeight };
+function isOutlineFont(filePath: string) {
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === ".ttf" || ext === ".otf";
+}
+
+async function loadStickerFont(fontKey: string) {
+  const cached = fontCache.get(fontKey);
+  if (cached) {
+    return cached;
   }
-  const bytes = await readFile(filePath);
-  const format = path.extname(filePath).toLowerCase() === ".otf" ? "otf" : "ttf";
-  return {
-    face: `@font-face{font-family:StickerKr;src:url(data:font/${format};base64,${bytes.toString("base64")}) format('${format}');}`,
-    family: "StickerKr",
-    weight: font.cssWeight,
-  };
+
+  const selected = stickerFontByKey(fontKey);
+  const fallback = stickerFontByKey("jua");
+  for (const font of [selected, fallback]) {
+    for (const candidate of font.files) {
+      const filePath = resolveFontFile(candidate);
+      if (!existsSync(filePath) || !isOutlineFont(filePath)) {
+        continue;
+      }
+      const loaded = { name: "StickerKr", data: await readFile(filePath) };
+      fontCache.set(fontKey, loaded);
+      return loaded;
+    }
+  }
+
+  throw new Error("스티커 한글 폰트 파일을 찾을 수 없습니다.");
+}
+
+function crownDataUri(width: number, height: number) {
+  const stroke = Math.max(2, width * 0.07);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <g fill="none" stroke="#E8B84A" stroke-width="${stroke}" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M${width * 0.08} ${height * 0.82} L${width * 0.18} ${height * 0.28} L${width * 0.36} ${height * 0.62} L${width * 0.5} ${height * 0.12} L${width * 0.64} ${height * 0.62} L${width * 0.82} ${height * 0.28} L${width * 0.92} ${height * 0.82}" />
+    </g>
+    <rect x="${width * 0.06}" y="${height * 0.78}" width="${width * 0.88}" height="${height * 0.16}" rx="2" fill="#E8B84A" />
+  </svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
 export function stickerCharacterBox(
@@ -78,43 +89,108 @@ async function renderStickerTextOverlay(options: {
 }) {
   const { title, body } = parseStickerPhrase(options.phrase);
   const box = options.layout.text;
-  const left = options.width * box.leftRatio;
-  const top = options.height * box.topRatio;
-  const width = options.width * box.widthRatio;
-  const height = options.height * box.heightRatio;
+  const left = Math.round(options.width * box.leftRatio);
+  const top = Math.round(options.height * box.topRatio);
+  const width = Math.max(1, Math.round(options.width * box.widthRatio));
+  const height = Math.max(1, Math.round(options.height * box.heightRatio));
   const titleScale = options.layout.textStyle?.titleScale ?? 1;
   const bodyScale = options.layout.textStyle?.bodyScale ?? 1;
-  const titleSize = Math.round(Math.min(width * 0.3, height * 0.34) * titleScale);
-  const bodySize = Math.round(Math.min(width * 0.108, height * 0.12) * bodyScale);
-  const crownWidth = Math.round(titleSize * 0.62);
-  const crownHeight = Math.round(titleSize * 0.38);
-  const crownX = left + width / 2 - crownWidth / 2;
-  const crownY = top + height * 0.02;
-  const titleY = crownY + crownHeight + titleSize * 0.78;
-  const bodyStart = titleY + titleSize * 0.42;
-  const lineHeight = bodySize * 1.42;
+  const titleSize = Math.max(
+    12,
+    Math.round(Math.min(width * 0.26, height * 0.28) * titleScale),
+  );
+  const bodySize = Math.max(
+    10,
+    Math.round(Math.min(width * 0.09, height * 0.1) * bodyScale),
+  );
+  const crownWidth = Math.max(8, Math.round(titleSize * 0.62));
+  const crownHeight = Math.max(6, Math.round(titleSize * 0.38));
   const lines = stickerPhraseLines(body);
-  const font = await stickerFontFace(options.layout.textStyle?.fontKey ?? "jua");
-  const fontFamily = font.family;
+  const font = await loadStickerFont(options.layout.textStyle?.fontKey ?? "jua");
 
-  const bodyMarkup = lines
-    .map((line, index) => {
-      const y = bodyStart + index * lineHeight;
-      return `<text x="${left + width / 2}" y="${y}" text-anchor="middle" font-family="${escapeXml(fontFamily)}" font-weight="${font.weight}" font-size="${bodySize}" fill="${TEXT_COLOR}">${escapeXml(line)}</text>`;
-    })
-    .join("");
+  const textSvg = await satori(
+    createElement(
+      "div",
+      {
+        style: {
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          paddingTop: Math.round(height * 0.02),
+          paddingBottom: Math.round(height * 0.08),
+        },
+      },
+      createElement("img", {
+        src: crownDataUri(crownWidth, crownHeight),
+        width: crownWidth,
+        height: crownHeight,
+      }),
+      createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            width: "100%",
+            justifyContent: "center",
+            marginTop: Math.round(titleSize * 0.12),
+            color: TEXT_COLOR,
+            fontSize: titleSize,
+            fontFamily: font.name,
+            lineHeight: 1,
+          },
+        },
+        title,
+      ),
+      ...lines.map((line, index) =>
+        createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              width: "100%",
+              justifyContent: "center",
+              marginTop:
+                index === 0
+                  ? Math.round(titleSize * 0.28)
+                  : Math.round(bodySize * 0.28),
+              color: TEXT_COLOR,
+              fontSize: bodySize,
+              fontFamily: font.name,
+              lineHeight: 1.2,
+            },
+          },
+          line,
+        ),
+      ),
+    ),
+    {
+      width,
+      height,
+      fonts: [{ name: font.name, data: font.data, weight: 400, style: "normal" }],
+    },
+  );
 
-  const svg = `<svg width="${options.width}" height="${options.height}" xmlns="http://www.w3.org/2000/svg">
-    <style>${font.face} text{font-weight:${font.weight};}</style>
-    <g transform="translate(${crownX}, ${crownY})" fill="none" stroke="#E8B84A" stroke-width="${Math.max(2, titleSize * 0.045)}" stroke-linejoin="round" stroke-linecap="round">
-      <path d="M${crownWidth * 0.08} ${crownHeight * 0.82} L${crownWidth * 0.18} ${crownHeight * 0.28} L${crownWidth * 0.36} ${crownHeight * 0.62} L${crownWidth * 0.5} ${crownHeight * 0.12} L${crownWidth * 0.64} ${crownHeight * 0.62} L${crownWidth * 0.82} ${crownHeight * 0.28} L${crownWidth * 0.92} ${crownHeight * 0.82}" />
-    </g>
-    <rect x="${crownX + crownWidth * 0.06}" y="${crownY + crownHeight * 0.78}" width="${crownWidth * 0.88}" height="${crownHeight * 0.16}" rx="2" fill="#E8B84A" />
-    <text x="${left + width / 2}" y="${titleY}" text-anchor="middle" font-family="${escapeXml(fontFamily)}" font-weight="${font.weight}" font-size="${titleSize}" fill="${TEXT_COLOR}">${escapeXml(title)}</text>
-    ${bodyMarkup}
-  </svg>`;
+  const textPng = await sharp(Buffer.from(textSvg)).png().toBuffer();
+  const canvas = await sharp({
+    create: {
+      width: options.width,
+      height: options.height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .png()
+    .toBuffer();
 
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  const destLeft = Math.max(0, Math.min(left, options.width - 1));
+  const destTop = Math.max(0, Math.min(top, options.height - 1));
+  return sharp(canvas)
+    .composite([{ input: textPng, left: destLeft, top: destTop }])
+    .png()
+    .toBuffer();
 }
 
 async function overlayWithinCanvas(

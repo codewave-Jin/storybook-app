@@ -7,8 +7,10 @@ import { useRouter } from "next/navigation";
 import type { FulfillmentStatus } from "@prisma/client";
 import {
   getAdminOrderDetail,
+  getAdminStickerOrderDetail,
   updateOrderFulfillment,
   type AdminOrderDetail,
+  type AdminStickerOrderDetail,
   type FulfillmentUpdateState,
 } from "@/app/actions/admin";
 import {
@@ -17,32 +19,43 @@ import {
   SHIPPING_CARRIERS,
 } from "@/lib/fulfillment";
 import { DeleteOrderButton } from "@/components/admin/DeleteOrderButton";
-import { formatDateTime } from "@/lib/orders";
+import { AppImage } from "@/components/AppImage";
+import {
+  formatDateTime,
+  PAYMENT_STATUS_LABEL,
+  PRODUCTION_STATUS_LABEL,
+  stickerAdminStatus,
+} from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
 export type AdminOrderRow = {
   id: string;
+  kind: "STORYBOOK" | "STICKER";
   userName: string;
   userEmail: string;
+  productKindLabel: string;
   productTitle: string;
-  fulfillmentStatus: FulfillmentStatus;
+  statusLabel: string;
+  statusClass: string;
   createdAt: string;
   expectedDeliveryAt: string;
 };
 
-function StatusBadge({ status }: { status: FulfillmentStatus }) {
+function StatusBadge({
+  label,
+  className,
+}: {
+  label: string;
+  className: string;
+}) {
   return (
     <span
       className={cn(
         "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        status === "DELIVERED" && "bg-emerald-50 text-emerald-700",
-        status === "SHIPPING" && "bg-sky-50 text-sky-700",
-        status === "PRINTED" && "bg-violet-50 text-violet-700",
-        status === "PRINTING" && "bg-amber-50 text-amber-700",
-        status === "PREPARING" && "bg-stone-100 text-stone-600",
+        className,
       )}
     >
-      {FULFILLMENT_STATUS_LABEL[status]}
+      {label}
     </span>
   );
 }
@@ -363,8 +376,248 @@ function OrderDetailModal({
   );
 }
 
+function shippingLines(detail: AdminStickerOrderDetail) {
+  return [
+    detail.shippingName,
+    detail.checkoutPhone,
+    detail.checkoutEmail,
+    [detail.shippingPostalCode, detail.shippingAddress, detail.shippingAddressDetail]
+      .filter(Boolean)
+      .join(" "),
+  ].filter((value): value is string => Boolean(value?.trim()));
+}
+
+function StickerOrderDetailModal({
+  orderId,
+  onClose,
+}: {
+  orderId: string;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [detail, setDetail] = useState<AdminStickerOrderDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDetail(null);
+    setLoadError(null);
+
+    getAdminStickerOrderDetail(orderId)
+      .then((order) => {
+        if (cancelled) {
+          return;
+        }
+        if (!order) {
+          setLoadError("주문을 찾을 수 없습니다.");
+          return;
+        }
+        setDetail(order);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError("주문 정보를 불러오지 못했습니다.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const status = detail ? stickerAdminStatus(detail) : null;
+  const previewSrc =
+    detail?.previewImagePath ||
+    detail?.compositeImagePath ||
+    detail?.finalImagePath ||
+    null;
+  const address = detail ? shippingLines(detail) : [];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-sticker-order-modal-title"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="admin-sticker-order-modal-title" className="text-lg font-semibold">
+              스티커 주문 상세
+            </h2>
+            <p className="mt-1 break-all text-xs text-stone-400">주문번호 {orderId}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 rounded-lg px-3 text-sm text-stone-500 hover:bg-stone-100"
+          >
+            닫기
+          </button>
+        </div>
+
+        {loadError ? (
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            {loadError}
+          </p>
+        ) : !detail || !status ? (
+          <p className="mt-8 text-center text-sm text-stone-400">불러오는 중...</p>
+        ) : (
+          <>
+            <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-stone-500">유저명</dt>
+                <dd className="mt-0.5 font-medium">{detail.userName}</dd>
+              </div>
+              <div>
+                <dt className="text-stone-500">이메일</dt>
+                <dd className="mt-0.5 break-all font-medium">{detail.userEmail}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-stone-500">상품명</dt>
+                <dd className="mt-0.5 font-medium">스티커 · {detail.productTitle}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-stone-500">문구</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap font-medium">{detail.phrase}</dd>
+              </div>
+              <div>
+                <dt className="text-stone-500">사이즈 / 수량</dt>
+                <dd className="mt-0.5 font-medium">
+                  {detail.sizeLabel} · {detail.sheetCount}장 · {detail.quantity}장분
+                </dd>
+              </div>
+              <div>
+                <dt className="text-stone-500">상태</dt>
+                <dd className="mt-0.5">
+                  <StatusBadge label={status.label} className={status.className} />
+                  <p className="mt-1 text-xs text-stone-500">
+                    결제 {PAYMENT_STATUS_LABEL[detail.paymentStatus]} · 제작{" "}
+                    {PRODUCTION_STATUS_LABEL[detail.productionStatus]}
+                  </p>
+                </dd>
+              </div>
+              {address.length > 0 ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-stone-500">배송 정보</dt>
+                  <dd className="mt-0.5 space-y-0.5 font-medium">
+                    {address.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </dd>
+                </div>
+              ) : (
+                <div className="sm:col-span-2">
+                  <dt className="text-stone-500">배송 정보</dt>
+                  <dd className="mt-0.5 text-stone-400">입력된 배송지가 없습니다.</dd>
+                </div>
+              )}
+              {detail.errorReason ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-stone-500">오류</dt>
+                  <dd className="mt-0.5 text-red-600">{detail.errorReason}</dd>
+                </div>
+              ) : null}
+            </dl>
+
+            {previewSrc ? (
+              <section className="mt-5">
+                <h3 className="text-sm font-medium text-stone-700">스티커 미리보기</h3>
+                <a
+                  href={previewSrc}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relative mt-3 block aspect-square max-w-56 overflow-hidden rounded-2xl border border-stone-200 bg-stone-50"
+                >
+                  <AppImage
+                    src={previewSrc}
+                    alt="스티커 미리보기"
+                    fill
+                    className="object-contain"
+                    sizes="224px"
+                  />
+                </a>
+              </section>
+            ) : null}
+
+            <section className="mt-6">
+              <h3 className="text-sm font-medium text-stone-700">캐릭터 이미지</h3>
+              <ul className="mt-3 space-y-3">
+                <li className="rounded-xl border border-stone-200 px-3 py-2 text-sm">
+                  <p className="font-medium">{detail.character.label}</p>
+                  <div className="mt-1 flex flex-wrap gap-3">
+                    <a
+                      href={detail.character.originalPhotoPath}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sky-600 hover:underline"
+                    >
+                      원본 사진
+                    </a>
+                    {detail.character.generatedImagePath ? (
+                      <a
+                        href={detail.character.generatedImagePath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sky-600 hover:underline"
+                      >
+                        생성 결과
+                      </a>
+                    ) : (
+                      <span className="text-stone-400">생성 결과 없음</span>
+                    )}
+                    {previewSrc ? (
+                      <a
+                        href={previewSrc}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sky-600 hover:underline"
+                      >
+                        스티커 이미지
+                      </a>
+                    ) : null}
+                  </div>
+                </li>
+              </ul>
+            </section>
+
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              <DeleteOrderButton
+                orderId={detail.id}
+                kind="STICKER"
+                onDeleted={() => {
+                  onClose();
+                  router.refresh();
+                }}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{
+    id: string;
+    kind: "STORYBOOK" | "STICKER";
+  } | null>(null);
 
   return (
     <>
@@ -376,28 +629,33 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
         ) : (
           orders.map((order) => (
             <article
-              key={order.id}
+              key={`${order.kind}-${order.id}`}
               className="rounded-2xl border border-stone-200 bg-white p-4"
             >
               <button
                 type="button"
                 aria-label={`${order.userName} 주문 상세`}
-                onClick={() => setSelectedId(order.id)}
+                onClick={() => setSelected({ id: order.id, kind: order.kind })}
                 className="w-full text-left"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium">{order.userName}</p>
-                  <StatusBadge status={order.fulfillmentStatus} />
+                  <StatusBadge label={order.statusLabel} className={order.statusClass} />
                 </div>
                 <p className="mt-1 break-all text-sm text-stone-500">{order.userEmail}</p>
-                <p className="mt-2 text-sm text-stone-700">{order.productTitle}</p>
+                <p className="mt-2 text-sm text-stone-700">
+                  <span className="mr-1.5 text-xs font-medium text-stone-400">
+                    {order.productKindLabel}
+                  </span>
+                  {order.productTitle}
+                </p>
                 <p className="mt-1 break-all text-xs text-stone-400">{order.id}</p>
                 <p className="mt-2 text-xs text-stone-500">
                   주문 {order.createdAt} · 배송예정 {order.expectedDeliveryAt}
                 </p>
               </button>
               <div className="mt-3 flex justify-end">
-                <DeleteOrderButton orderId={order.id} />
+                <DeleteOrderButton orderId={order.id} kind={order.kind} />
               </div>
             </article>
           ))
@@ -405,12 +663,13 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
       </div>
 
       <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-stone-200 bg-white md:block">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="bg-stone-50 text-stone-500">
             <tr>
               <th className="px-4 py-3 font-medium">유저명</th>
               <th className="px-4 py-3 font-medium">이메일</th>
               <th className="px-4 py-3 font-medium">주문번호</th>
+              <th className="px-4 py-3 font-medium">상품</th>
               <th className="px-4 py-3 font-medium">상품명</th>
               <th className="px-4 py-3 font-medium">현재 상태</th>
               <th className="px-4 py-3 font-medium">주문일</th>
@@ -421,22 +680,22 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
           <tbody>
             {orders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-stone-400">
+                <td colSpan={9} className="px-4 py-12 text-center text-stone-400">
                   주문이 없습니다.
                 </td>
               </tr>
             ) : (
               orders.map((order) => (
                 <tr
-                  key={order.id}
+                  key={`${order.kind}-${order.id}`}
                   role="button"
                   tabIndex={0}
                   aria-label={`${order.userName} 주문 상세`}
-                  onClick={() => setSelectedId(order.id)}
+                  onClick={() => setSelected({ id: order.id, kind: order.kind })}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      setSelectedId(order.id);
+                      setSelected({ id: order.id, kind: order.kind });
                     }
                   }}
                   className="cursor-pointer border-t border-stone-100 hover:bg-stone-50"
@@ -446,9 +705,10 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
                   <td className="px-4 py-3 break-all text-xs text-stone-500">
                     {order.id}
                   </td>
+                  <td className="px-4 py-3">{order.productKindLabel}</td>
                   <td className="px-4 py-3">{order.productTitle}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={order.fulfillmentStatus} />
+                    <StatusBadge label={order.statusLabel} className={order.statusClass} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">{order.createdAt}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -459,7 +719,7 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                   >
-                    <DeleteOrderButton orderId={order.id} />
+                    <DeleteOrderButton orderId={order.id} kind={order.kind} />
                   </td>
                 </tr>
               ))
@@ -468,11 +728,18 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
         </table>
       </div>
 
-      {selectedId ? (
+      {selected?.kind === "STORYBOOK" ? (
         <OrderDetailModal
-          key={selectedId}
-          orderId={selectedId}
-          onClose={() => setSelectedId(null)}
+          key={selected.id}
+          orderId={selected.id}
+          onClose={() => setSelected(null)}
+        />
+      ) : null}
+      {selected?.kind === "STICKER" ? (
+        <StickerOrderDetailModal
+          key={selected.id}
+          orderId={selected.id}
+          onClose={() => setSelected(null)}
         />
       ) : null}
     </>

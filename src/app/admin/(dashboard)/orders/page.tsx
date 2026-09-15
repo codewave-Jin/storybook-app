@@ -3,19 +3,30 @@ import { AdminOrdersBoard } from "@/components/admin/AdminOrdersBoard";
 import {
   defaultExpectedDeliveryAt,
   FULFILLMENT_STATUS_FILTERS,
+  FULFILLMENT_STATUS_LABEL,
   isFulfillmentStatus,
 } from "@/lib/fulfillment";
-import { formatDate, formatDateTime } from "@/lib/orders";
+import {
+  ADMIN_PRODUCT_FILTERS,
+  formatDate,
+  formatDateTime,
+  isAdminProductFilter,
+  stickerAdminStatus,
+} from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
-function ordersHref(query: string, status?: string) {
+function ordersHref(query: string, status?: string, product?: string) {
   const params = new URLSearchParams();
   if (query) {
     params.set("q", query);
   }
   if (status && status !== "ALL") {
     params.set("status", status);
+  }
+  if (product && product !== "ALL") {
+    params.set("product", product);
   }
   const value = params.toString();
   return value ? `/admin/orders?${value}` : "/admin/orders";
@@ -24,55 +35,117 @@ function ordersHref(query: string, status?: string) {
 export default async function AdminOrdersPage({
   searchParams,
 }: {
-  searchParams: { q?: string; status?: string };
+  searchParams: { q?: string; status?: string; product?: string };
 }) {
   const query = searchParams.q?.trim() ?? "";
   const statusFilter =
     searchParams.status && isFulfillmentStatus(searchParams.status)
       ? searchParams.status
       : undefined;
+  const productFilter = isAdminProductFilter(searchParams.product ?? "")
+    ? searchParams.product
+    : "ALL";
 
-  const where: Prisma.StorybookOrderWhereInput = {
+  const userSearch = query
+    ? {
+        user: {
+          OR: [
+            { email: { contains: query, mode: "insensitive" as const } },
+            { name: { contains: query, mode: "insensitive" as const } },
+          ],
+        },
+      }
+    : {};
+
+  const includeStorybooks = productFilter !== "STICKER";
+  const includeStickers =
+    productFilter !== "STORYBOOK" &&
+    (productFilter === "STICKER" ||
+      !statusFilter ||
+      statusFilter === "PREPARING");
+
+  const storybookWhere: Prisma.StorybookOrderWhereInput = {
     ...(statusFilter ? { fulfillmentStatus: statusFilter } : {}),
-    ...(query
-      ? {
-          user: {
-            OR: [
-              { email: { contains: query, mode: "insensitive" } },
-              { name: { contains: query, mode: "insensitive" } },
-            ],
-          },
-        }
-      : {}),
+    ...userSearch,
   };
 
-  const orders = await prisma.storybookOrder.findMany({
-    where,
-    include: {
-      user: { select: { email: true, name: true } },
-      template: { select: { title: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [storybooks, stickers] = await Promise.all([
+    includeStorybooks
+      ? prisma.storybookOrder.findMany({
+          where: storybookWhere,
+          include: {
+            user: { select: { email: true, name: true } },
+            template: { select: { title: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+    includeStickers
+      ? prisma.stickerOrder.findMany({
+          where: userSearch,
+          include: {
+            user: { select: { email: true, name: true } },
+            character: { select: { label: true } },
+            border: { select: { label: true } },
+            template: { select: { label: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
-  const rows = orders.map((order) => ({
-    id: order.id,
-    userName: order.user.name,
-    userEmail: order.user.email,
-    productTitle: order.template.title,
-    fulfillmentStatus: order.fulfillmentStatus ?? "PREPARING",
-    createdAt: formatDateTime(order.createdAt),
-    expectedDeliveryAt: formatDate(
-      order.expectedDeliveryAt ?? defaultExpectedDeliveryAt(order.createdAt),
-    ),
-  }));
+  const rows = [
+    ...storybooks.map((order) => ({
+      id: order.id,
+      kind: "STORYBOOK" as const,
+      userName: order.user.name,
+      userEmail: order.user.email,
+      productKindLabel: "동화책",
+      productTitle: order.template.title,
+      statusLabel: FULFILLMENT_STATUS_LABEL[order.fulfillmentStatus ?? "PREPARING"],
+      statusClass:
+        order.fulfillmentStatus === "DELIVERED"
+          ? "bg-emerald-50 text-emerald-700"
+          : order.fulfillmentStatus === "SHIPPING"
+            ? "bg-sky-50 text-sky-700"
+            : order.fulfillmentStatus === "PRINTED"
+              ? "bg-violet-50 text-violet-700"
+              : order.fulfillmentStatus === "PRINTING"
+                ? "bg-amber-50 text-amber-700"
+                : "bg-stone-100 text-stone-600",
+      createdAt: formatDateTime(order.createdAt),
+      createdAtMs: order.createdAt.getTime(),
+      expectedDeliveryAt: formatDate(
+        order.expectedDeliveryAt ?? defaultExpectedDeliveryAt(order.createdAt),
+      ),
+    })),
+    ...stickers.map((order) => {
+      const status = stickerAdminStatus(order);
+      return {
+        id: order.id,
+        kind: "STICKER" as const,
+        userName: order.user.name,
+        userEmail: order.user.email,
+        productKindLabel: "스티커",
+        productTitle: stickerOrderTitle(
+          order.character.label,
+          stickerOrderExtraLabel(order),
+        ),
+        statusLabel: status.label,
+        statusClass: status.className,
+        createdAt: formatDateTime(order.createdAt),
+        createdAtMs: order.createdAt.getTime(),
+        expectedDeliveryAt: formatDate(defaultExpectedDeliveryAt(order.createdAt)),
+      };
+    }),
+  ].sort((a, b) => b.createdAtMs - a.createdAtMs);
 
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">주문 관리</h1>
       <p className="mt-1 text-sm text-stone-500">
-        행을 클릭하면 배송 상태를 변경하고 캐릭터 이미지를 확인할 수 있습니다.
-        삭제하면 주문과 연결된 삽화가 함께 지워집니다.
+        동화책·스티커 주문을 함께 봅니다. 행을 클릭하면 상세와 배송 정보를 확인할 수
+        있습니다.
       </p>
 
       <form
@@ -90,6 +163,9 @@ export default async function AdminOrdersPage({
           />
         </label>
         {statusFilter ? <input type="hidden" name="status" value={statusFilter} /> : null}
+        {productFilter !== "ALL" ? (
+          <input type="hidden" name="product" value={productFilter} />
+        ) : null}
         <button
           type="submit"
           className="h-10 rounded-lg bg-sky-400 px-4 text-sm font-medium text-white hover:bg-sky-500"
@@ -99,16 +175,20 @@ export default async function AdminOrdersPage({
       </form>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {FULFILLMENT_STATUS_FILTERS.map((filter) => {
-          const active = filter.value === "ALL" ? !statusFilter : statusFilter === filter.value;
+        {ADMIN_PRODUCT_FILTERS.map((filter) => {
+          const active = productFilter === filter.value;
           return (
             <a
               key={filter.value}
-              href={ordersHref(query, filter.value)}
+              href={ordersHref(
+                query,
+                filter.value === "STICKER" ? undefined : statusFilter,
+                filter.value,
+              )}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm font-medium",
                 active
-                  ? "bg-stone-800 text-white"
+                  ? "bg-sky-400 text-white"
                   : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-100",
               )}
             >
@@ -117,6 +197,29 @@ export default async function AdminOrdersPage({
           );
         })}
       </div>
+
+      {productFilter !== "STICKER" ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {FULFILLMENT_STATUS_FILTERS.map((filter) => {
+            const active =
+              filter.value === "ALL" ? !statusFilter : statusFilter === filter.value;
+            return (
+              <a
+                key={filter.value}
+                href={ordersHref(query, filter.value, productFilter)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-sm font-medium",
+                  active
+                    ? "bg-stone-800 text-white"
+                    : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-100",
+                )}
+              >
+                {filter.label}
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
 
       <AdminOrdersBoard orders={rows} />
     </div>
