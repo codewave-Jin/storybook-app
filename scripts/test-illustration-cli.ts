@@ -2,7 +2,7 @@
  * Standalone GPT illustration smoke test (not wired to order flow).
  *
  * Default path uses the Responses API image_generation tool so a mainline
- * model can rewrite the prompt before gpt-image-2 generates the image.
+ * model can rewrite the prompt before gpt-image-2.5-sunburst generates the image.
  * Pass --api images to compare against the older images.edit path.
  *
  * Usage:
@@ -30,7 +30,7 @@ import {
 import { ACTIVE_STORYBOOK_TEMPLATE_TITLE } from "../src/lib/templates";
 
 const FOREST_TEMPLATE_TITLE = ACTIVE_STORYBOOK_TEMPLATE_TITLE;
-const IMAGE_EDIT_MODEL = "gpt-image-1.5" as const;
+const IMAGE_EDIT_MODEL = "gpt-image-2.5-sunburst" as const;
 const INPUT_FIDELITY = "high" as const;
 const DEFAULT_IMAGE_QUALITY = IMAGE_GEN_QUALITY;
 

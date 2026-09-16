@@ -7,6 +7,27 @@ export const STICKER_FONT_OPTIONS = [
     files: ["public/fonts/Jua-Regular.ttf"],
   },
   {
+    key: "kedu",
+    label: "케듀체",
+    cssFamily: '"KerisKedu", sans-serif',
+    cssWeight: 400,
+    files: ["public/fonts/KERISKEDU_R.ttf"],
+  },
+  {
+    key: "kedu-bold",
+    label: "케듀체 굵게",
+    cssFamily: '"KerisKedu", sans-serif',
+    cssWeight: 700,
+    files: ["public/fonts/KERISKEDU_B.ttf"],
+  },
+  {
+    key: "kedu-line",
+    label: "케듀체 라인",
+    cssFamily: '"KerisKeduLine", sans-serif',
+    cssWeight: 400,
+    files: ["public/fonts/KERISKEDU_Line.ttf"],
+  },
+  {
     key: "malgun-bold",
     label: "맑은 고딕 굵게",
     cssFamily: '"Malgun Gothic", sans-serif',

@@ -1,145 +1,266 @@
 import { AppImage } from "@/components/AppImage";
+import { stickerDecalByKey } from "@/lib/sticker-decals";
 import { stickerFontByKey } from "@/lib/sticker-fonts";
-import { parseStickerPhrase, stickerPhraseLines } from "@/lib/sticker-phrase";
 import {
   DEFAULT_STICKER_LAYOUT,
+  PHRASE_FONT_CANVAS_RATIO,
+  decalIdFromLayerKey,
+  decalLayerKey,
+  normalizeStack,
+  phraseIdFromLayerKey,
+  phraseLayerKey,
+  type StickerDecalLayer,
   type StickerLayerKey,
   type StickerLayoutState,
+  type StickerPhraseLayer,
 } from "@/lib/sticker-layout-constants";
+import { stickerPhraseLines } from "@/lib/sticker-phrase";
+import { cn } from "@/lib/utils";
 
-function DashedFrame({ circular = false }: { circular?: boolean }) {
+function DashedFrame({ tight = false }: { tight?: boolean }) {
   return (
     <div
-      className={
-        circular
-          ? "pointer-events-none absolute inset-[3%] z-40 rounded-full border-2 border-dashed border-sky-400"
-          : "pointer-events-none absolute inset-[6%] rounded-xl border-2 border-dashed border-sky-400"
-      }
+      className={cn(
+        "pointer-events-none absolute rounded-xl border-2 border-dashed border-sky-400",
+        tight ? "inset-0" : "inset-[6%]",
+      )}
     />
+  );
+}
+
+function PhraseLayer({
+  phrase,
+  index,
+  selected,
+  zIndex,
+}: {
+  phrase: StickerPhraseLayer;
+  index: number;
+  selected: boolean;
+  zIndex: number;
+}) {
+  const font = stickerFontByKey(phrase.style.fontKey);
+  const lines = stickerPhraseLines(phrase.text);
+  const fontCqw = PHRASE_FONT_CANVAS_RATIO * 100 * phrase.style.scale;
+  return (
+    <div
+      data-sticker-layer={phraseLayerKey(phrase.id)}
+      aria-label={`문구${index + 1}`}
+      className={cn(
+        "absolute flex flex-col items-center justify-center overflow-visible text-center",
+        selected ? "cursor-grab active:cursor-grabbing" : "pointer-events-none",
+      )}
+      style={{
+        zIndex,
+        left: `${phrase.box.leftRatio * 100}%`,
+        top: `${phrase.box.topRatio * 100}%`,
+        width: `${phrase.box.widthRatio * 100}%`,
+        height: `${phrase.box.heightRatio * 100}%`,
+        color: "#3D2A1C",
+        fontFamily: font.cssFamily,
+        fontWeight: font.cssWeight,
+        wordBreak: "keep-all",
+        letterSpacing: "0",
+        textAlign: "center",
+      }}
+    >
+      <div
+        className="flex flex-col items-center justify-center leading-[1.2]"
+        style={{ fontSize: `calc(${fontCqw}cqw)` }}
+      >
+        {lines.length > 0 ? (
+          lines.map((line, lineIndex) => (
+            <p
+              key={`${lineIndex}-${line}`}
+              className="m-0 whitespace-nowrap text-center"
+              style={{ marginTop: lineIndex === 0 ? 0 : "0.28em" }}
+            >
+              {line}
+            </p>
+          ))
+        ) : (
+          <p className="m-0 whitespace-nowrap text-center text-stone-300">문구</p>
+        )}
+      </div>
+      {selected ? <DashedFrame tight /> : null}
+    </div>
+  );
+}
+
+function DecalLayer({
+  decal,
+  index,
+  selected,
+  zIndex,
+}: {
+  decal: StickerDecalLayer;
+  index: number;
+  selected: boolean;
+  zIndex: number;
+}) {
+  const asset = stickerDecalByKey(decal.assetKey);
+  return (
+    <div
+      data-sticker-layer={decalLayerKey(decal.id)}
+      aria-label={`스티커${index + 1}`}
+      className={cn(
+        "absolute overflow-visible",
+        selected ? "cursor-grab active:cursor-grabbing" : "pointer-events-none",
+      )}
+      style={{
+        zIndex,
+        left: `${decal.box.leftRatio * 100}%`,
+        top: `${decal.box.topRatio * 100}%`,
+        width: `${decal.box.widthRatio * 100}%`,
+        height: `${decal.box.heightRatio * 100}%`,
+      }}
+    >
+      <img
+        src={asset.src}
+        alt={asset.label}
+        draggable={false}
+        className="pointer-events-none h-full w-full object-contain"
+      />
+      {selected ? <DashedFrame /> : null}
+    </div>
   );
 }
 
 export function StickerLayoutPreview({
   borderSrc,
   characterSrc,
-  phrase,
   layout = DEFAULT_STICKER_LAYOUT,
   selectedLayer,
+  transparentCanvas = false,
 }: {
   borderSrc?: string | null;
   characterSrc?: string | null;
-  phrase: string;
+  phrase?: string;
   layout?: StickerLayoutState;
   selectedLayer?: StickerLayerKey | null;
+  transparentCanvas?: boolean;
 }) {
-  const { title, body } = parseStickerPhrase(phrase);
-  const lines = stickerPhraseLines(body);
   const character = layout.character;
-  const text = layout.text;
   const border = layout.border;
-  const font = stickerFontByKey(layout.textStyle?.fontKey ?? "jua");
-  const titleScale = layout.textStyle?.titleScale ?? 1;
-  const bodyScale = layout.textStyle?.bodyScale ?? 1;
+  const stack = normalizeStack(layout);
 
   return (
-    <div className="relative mx-auto aspect-square w-full overflow-hidden rounded-full bg-white shadow-[0_0_0_3px_#fde68a,0_0_0_8px_#fdba74] select-none [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]">
-      <div
-        data-sticker-layer="border"
-        aria-label="테두리 선택"
-        className="absolute inset-0 z-0 cursor-pointer"
-      />
-      {characterSrc ? (
+    <div
+      data-sticker-canvas
+      className={cn(
+        "relative mx-auto aspect-square w-full overflow-hidden rounded-full shadow-[0_0_0_3px_#fde68a,0_0_0_8px_#fdba74] select-none [container-type:size] [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]",
+        transparentCanvas
+          ? "bg-[length:16px_16px] bg-[linear-gradient(45deg,#e7e5e4_25%,transparent_25%),linear-gradient(-45deg,#e7e5e4_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e7e5e4_75%),linear-gradient(-45deg,transparent_75%,#e7e5e4_75%)] bg-[position:0_0,0_8px,8px_-8px,-8px_0] bg-white"
+          : "bg-white",
+      )}
+    >
+      {layout.borderVisible && selectedLayer === "border" ? (
         <div
-          data-sticker-layer="character"
-          aria-label="캐릭터 선택"
-          className="absolute z-10 cursor-grab overflow-visible active:cursor-grabbing"
-          style={{
-            left: `${character.leftRatio * 100}%`,
-            top: `${character.topRatio * 100}%`,
-            width: `${character.widthRatio * 100}%`,
-            height: `${character.heightRatio * 100}%`,
-          }}
-        >
-          <AppImage
-            src={characterSrc}
-            alt="캐릭터"
-            fill
-            unoptimized
-            draggable={false}
-            className="pointer-events-none object-contain"
-            sizes="(max-width: 640px) 50vw, 16rem"
-          />
-          {selectedLayer === "character" ? <DashedFrame /> : null}
-        </div>
+          data-sticker-layer="border"
+          aria-label="테두리"
+          className="absolute inset-0 z-0 cursor-grab active:cursor-grabbing"
+        />
       ) : null}
-      <div
-        data-sticker-layer="text"
-        aria-label="문구 선택"
-        className="absolute z-20 flex cursor-grab flex-col items-center overflow-hidden text-center [container-type:size] active:cursor-grabbing"
-        style={{
-          left: `${text.leftRatio * 100}%`,
-          top: `${text.topRatio * 100}%`,
-          width: `${text.widthRatio * 100}%`,
-          height: `${text.heightRatio * 100}%`,
-          color: "#3D2A1C",
-          fontFamily: font.cssFamily,
-          fontWeight: font.cssWeight,
-          wordBreak: "keep-all",
-          letterSpacing: "0",
-        }}
-      >
-        <svg
-          aria-hidden
-          viewBox="0 0 62 38"
-          className="mt-[2%] w-[18.6%] max-w-[3.5rem] shrink-0"
-        >
-          <g
-            fill="none"
-            stroke="#E8B84A"
-            strokeWidth="4"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          >
-            <path d="M5 31 L11 11 L22 24 L31 5 L40 24 L51 11 L57 31" />
-          </g>
-          <rect x="4" y="30" width="54" height="6" rx="2" fill="#E8B84A" />
-        </svg>
-        <p
-          className="mt-[4%] leading-none"
-          style={{ fontSize: `calc(${26 * titleScale}cqw)` }}
-        >
-          {title}
-        </p>
-        <div
-          className="mt-[6%] flex w-full flex-col items-center gap-[0.35em] leading-snug"
-          style={{ fontSize: `calc(${9.2 * bodyScale}cqw)` }}
-        >
-          {lines.map((line, index) => (
-            <p key={`${index}-${line}`}>{line}</p>
-          ))}
-        </div>
-        {selectedLayer === "text" ? <DashedFrame /> : null}
-      </div>
-      {borderSrc ? (
-        <div
-          className="pointer-events-none absolute inset-0 z-30 origin-center"
-          style={{
-            transform: `translate(${border.offsetXRatio * 100}%, ${border.offsetYRatio * 100}%) scale(${border.scale})`,
-            transformOrigin: "center",
-          }}
-        >
-          <AppImage
-            src={borderSrc}
-            alt="테두리"
-            fill
-            unoptimized
-            draggable={false}
-            className="pointer-events-none object-contain"
-            sizes="(max-width: 640px) 80vw, 28rem"
-          />
-        </div>
-      ) : null}
-      {selectedLayer === "border" ? <DashedFrame circular /> : null}
+      {stack.map((key, order) => {
+        const zIndex = 10 + order;
+        if (key === "character") {
+          if (!layout.characterVisible || !characterSrc) {
+            return null;
+          }
+          return (
+            <div
+              key={key}
+              data-sticker-layer="character"
+              aria-label="캐릭터"
+              className={cn(
+                "absolute overflow-visible",
+                selectedLayer === "character"
+                  ? "cursor-grab active:cursor-grabbing"
+                  : "pointer-events-none",
+              )}
+              style={{
+                zIndex,
+                left: `${character.leftRatio * 100}%`,
+                top: `${character.topRatio * 100}%`,
+                width: `${character.widthRatio * 100}%`,
+                height: `${character.heightRatio * 100}%`,
+              }}
+            >
+              <AppImage
+                src={characterSrc}
+                alt="캐릭터"
+                fill
+                unoptimized
+                draggable={false}
+                className="pointer-events-none object-contain"
+                sizes="(max-width: 640px) 50vw, 16rem"
+              />
+              {selectedLayer === "character" ? <DashedFrame /> : null}
+            </div>
+          );
+        }
+        if (key === "border") {
+          if (!layout.borderVisible || !borderSrc) {
+            return null;
+          }
+          return (
+            <div
+              key={key}
+              className="pointer-events-none absolute inset-0 origin-center"
+              style={{
+                zIndex,
+                transform: `translate(${border.offsetXRatio * 100}%, ${border.offsetYRatio * 100}%) scale(${border.scale})`,
+                transformOrigin: "center",
+              }}
+            >
+              <AppImage
+                src={borderSrc}
+                alt="테두리"
+                fill
+                unoptimized
+                draggable={false}
+                className="pointer-events-none object-contain"
+                sizes="(max-width: 640px) 80vw, 28rem"
+              />
+            </div>
+          );
+        }
+        const phraseId = phraseIdFromLayerKey(key);
+        if (phraseId) {
+          const phraseIndex = layout.phrases.findIndex((item) => item.id === phraseId);
+          const phrase = layout.phrases[phraseIndex];
+          if (!phrase) {
+            return null;
+          }
+          return (
+            <PhraseLayer
+              key={key}
+              phrase={phrase}
+              index={phraseIndex}
+              selected={selectedLayer === key}
+              zIndex={zIndex}
+            />
+          );
+        }
+        const decalId = decalIdFromLayerKey(key);
+        if (decalId) {
+          const decalIndex = layout.decals.findIndex((item) => item.id === decalId);
+          const decal = layout.decals[decalIndex];
+          if (!decal) {
+            return null;
+          }
+          return (
+            <DecalLayer
+              key={key}
+              decal={decal}
+              index={decalIndex}
+              selected={selectedLayer === key}
+              zIndex={zIndex}
+            />
+          );
+        }
+        return null;
+      })}
     </div>
   );
 }

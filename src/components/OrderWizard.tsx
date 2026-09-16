@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { AppImage } from "@/components/AppImage";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { createOrder, type CreateOrderState } from "@/app/actions/orders";
+import { TokenConfirmDialog } from "@/components/StickerTokenConfirmDialog";
 import { CUSTOM_INPUT_MAX_LENGTH } from "@/lib/custom-input-guard";
 import type { CastRole, CustomField, HeroAgeRangeKey } from "@/lib/templates";
 import {
@@ -71,14 +72,14 @@ function defaultArtStyleId(styles: OrderArtStyleOption[]) {
   );
 }
 
-function PreviewButton() {
+function PreviewButton({ disabled }: { disabled?: boolean }) {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
-      disabled={pending}
-      className="flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white hover:bg-sky-500 disabled:opacity-60 sm:w-auto sm:px-8"
+      disabled={pending || disabled}
+      className="flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-base font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
     >
       {pending ? "미리보기 만드는 중..." : "미리보기 만들기"}
     </button>
@@ -88,9 +89,11 @@ function PreviewButton() {
 export function OrderWizard({
   templates,
   characters,
+  tokenBalance = 0,
 }: {
   templates: OrderTemplateOption[];
   characters: OrderCharacterOption[];
+  tokenBalance?: number;
 }) {
   const [step, setStep] = useState(STEP_TEMPLATE);
   const [templateId, setTemplateId] = useState<string | null>(null);
@@ -106,6 +109,9 @@ export function OrderWizard({
   const [draftRelationKey, setDraftRelationKey] = useState<string | null>(null);
   const [draftCharacterId, setDraftCharacterId] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
+  const [tokenConfirmOpen, setTokenConfirmOpen] = useState(false);
+  const [tokenConfirmed, setTokenConfirmed] = useState(false);
+  const previewFormRef = useRef<HTMLFormElement>(null);
   const [state, formAction] = useFormState<CreateOrderState, FormData>(
     createOrder,
     undefined,
@@ -760,9 +766,26 @@ export function OrderWizard({
             <p className="rounded-lg bg-[#F6E7C1]/70 px-3 py-2 text-sm text-[#8A5A12]">
               지금은 표지와 1페이지, 3페이지를 먼저 만들어요. 마음에 들면 결제로 나머지 장을 이어서 완성할 수 있어요.
             </p>
+            <p className="text-sm text-stone-500">
+              미리보기 만들 때 토큰 1개가 사용되고, 결제하면 다시 돌려드려요. 현재 토큰 {tokenBalance}개
+            </p>
           </div>
 
-          <form action={formAction} className="mt-6">
+          <form
+            ref={previewFormRef}
+            action={formAction}
+            className="mt-6"
+            onSubmit={(event) => {
+              if (tokenBalance < 1) {
+                event.preventDefault();
+                return;
+              }
+              if (!tokenConfirmed) {
+                event.preventDefault();
+                setTokenConfirmOpen(true);
+              }
+            }}
+          >
             <input type="hidden" name="templateId" value={templateId ?? ""} />
             <input type="hidden" name="artStyleId" value={artStyleId ?? ""} />
             <input
@@ -805,8 +828,20 @@ export function OrderWizard({
                 {state.error}
               </p>
             ) : null}
-            <PreviewButton />
+            <PreviewButton disabled={tokenBalance < 1} />
           </form>
+          <TokenConfirmDialog
+            open={tokenConfirmOpen}
+            tokens={tokenBalance}
+            pendingLabel="미리보기 만드는 중..."
+            description="미리보기를 만들면 토큰 1개가 사용돼요. 결제가 끝나면 다시 돌려드려요."
+            onClose={() => setTokenConfirmOpen(false)}
+            onConfirm={() => {
+              setTokenConfirmed(true);
+              setTokenConfirmOpen(false);
+              previewFormRef.current?.requestSubmit();
+            }}
+          />
         </section>
       ) : null}
 

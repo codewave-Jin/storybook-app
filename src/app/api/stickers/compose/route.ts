@@ -1,15 +1,39 @@
+import { writeFile } from "fs/promises";
+import path from "path";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { composeStickerPreviewImage } from "@/lib/sticker-compose";
-import { parseStickerLayout } from "@/lib/sticker-layout-constants";
+import {
+  parseStickerLayout,
+  type StickerLayoutState,
+} from "@/lib/sticker-layout-constants";
 import { prisma } from "@/lib/prisma";
 import {
-  MAX_STICKER_BODY_LENGTH,
-  MAX_STICKER_TITLE_LENGTH,
   parseStickerPhrase,
+  stickerPhraseValidationError,
 } from "@/lib/sticker-phrase";
 
 export const maxDuration = 180;
+
+const STICKER_LAYOUT_SAMPLE_PATH = path.join(
+  process.cwd(),
+  "sticker-layout-sample.json",
+);
+
+async function persistStickerLayoutSample(layout: StickerLayoutState) {
+  if (process.env.VERCEL === "1") {
+    return;
+  }
+  try {
+    await writeFile(
+      STICKER_LAYOUT_SAMPLE_PATH,
+      `${JSON.stringify(layout, null, 2)}\n`,
+      "utf8",
+    );
+  } catch (error) {
+    console.warn("[sticker-compose] layout sample not saved", error);
+  }
+}
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -35,21 +59,10 @@ export async function POST(request: Request) {
   const layout = parseStickerLayout(body?.layout);
   const parts = parseStickerPhrase(phrase);
 
-  if (!characterId || !borderId || (!parts.title && !parts.body)) {
+  const phraseError = stickerPhraseValidationError(parts, { required: false });
+  if (!characterId || !borderId || phraseError) {
     return NextResponse.json(
-      { error: "캐릭터, 테두리, 문구를 확인해 주세요." },
-      { status: 400 },
-    );
-  }
-  if (parts.title.length > MAX_STICKER_TITLE_LENGTH) {
-    return NextResponse.json(
-      { error: `제목은 ${MAX_STICKER_TITLE_LENGTH}자 이하로 입력해 주세요.` },
-      { status: 400 },
-    );
-  }
-  if (parts.body.length > MAX_STICKER_BODY_LENGTH) {
-    return NextResponse.json(
-      { error: `문구는 ${MAX_STICKER_BODY_LENGTH}자 이하로 입력해 주세요.` },
+      { error: phraseError ?? "캐릭터와 테두리를 확인해 주세요." },
       { status: 400 },
     );
   }
@@ -61,7 +74,7 @@ export async function POST(request: Request) {
     }),
     prisma.stickerBorder.findFirst({
       where: { id: borderId, isActive: true },
-      select: { imageUrl: true },
+      select: { imageUrl: true, category: true, key: true },
     }),
   ]);
 
@@ -87,7 +100,11 @@ export async function POST(request: Request) {
       layout,
       cutoutImagePath,
       cutoutOnly: !bake,
+      transparentCanvas: border.category === "NONE" || border.key === "none",
     });
+    if (bake) {
+      await persistStickerLayoutSample(composed.layout);
+    }
     return NextResponse.json({
       previewImagePath: bake ? composed.imagePath : null,
       cutoutImagePath: composed.cutoutImagePath,

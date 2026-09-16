@@ -22,6 +22,7 @@ export async function GET(
       errorReason: true,
       productionStatus: true,
       createdAt: true,
+      customCostumeHint: true,
     },
   });
 

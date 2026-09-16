@@ -209,6 +209,21 @@ export const STICKER_BORDER_CATEGORY_LABEL: Record<
   SPECIAL: "특수",
 };
 
+export function isTransparentStickerBorder(border: {
+  category?: string | null;
+  key?: string | null;
+}) {
+  return border.category === "NONE" || border.key === "none";
+}
+
+const STICKER_BORDER_LABELS: Record<string, string> = {
+  none: "테두리 없음",
+};
+
+export function stickerBorderLabel(key: string, fallback: string) {
+  return STICKER_BORDER_LABELS[key] ?? fallback;
+}
+
 /** Border for new orders, template for legacy orders without a border. */
 export function stickerOrderExtraLabel(order: {
   border?: { label: string } | null;

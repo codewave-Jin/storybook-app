@@ -10,7 +10,11 @@ import {
   revalidateAdminOrderViews,
   revalidateIllustrationWork,
 } from "@/lib/revalidate-admin";
-import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
+import {
+  comfyCallbackPayload,
+  isComfyMockEnabled,
+  postToComfy,
+} from "@/lib/comfy-server";
 import {
   saveAdminCharacterFile,
   saveAdminIllustrationFile,
@@ -207,6 +211,9 @@ export async function requestIllustrationExpressionEdit(
       illustration_id: illustrationId,
       image_path: toAbsolutePublicPath(sceneSource),
       expression,
+      ...comfyCallbackPayload(
+        `/api/illustrations/${illustrationId}/complete`,
+      ),
     });
 
     if (!response.ok) {

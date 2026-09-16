@@ -20,7 +20,7 @@ import { fileURLToPath } from "url";
 import OpenAI from "openai";
 
 const RESPONSES_MODEL = "gpt-5.6" as const;
-const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
+const IMAGE_GEN_TOOL_MODEL = "gpt-image-2.5-sunburst" as const;
 const IMAGE_GEN_SIZE = "1024x1024" as const;
 const OUTPUT_FORMAT = "jpeg" as const;
 

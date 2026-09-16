@@ -12,6 +12,7 @@ import {
   mimeForOutputFormat,
   STYLE_TRANSFER_QUALITY,
 } from "@/lib/image-generation-config";
+import { IMAGE_GEN_TOOL_MODEL } from "@/lib/openai-illustration";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 import { buildStyleCharacterPrompt } from "@/lib/storybook-prompts";
 import {
@@ -23,7 +24,6 @@ import {
 export const CHARACTER_ASSET_BUCKET = "character-assets";
 
 const RESPONSES_MODEL = "gpt-5.6" as const;
-const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
 
 type ImageInput = {
   bytes: Buffer;

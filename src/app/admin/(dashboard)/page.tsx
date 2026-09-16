@@ -64,6 +64,12 @@ export default async function AdminHomePage() {
           {activeJobs.length > 0 ? ` (${activeJobs.length}건 진행 중)` : ""}
         </Link>
         <Link
+          href="/admin/users"
+          className="inline-flex h-10 items-center rounded-lg bg-white px-4 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-stone-50"
+        >
+          회원 리스트
+        </Link>
+        <Link
           href="/admin/orders"
           className="inline-flex h-10 items-center rounded-lg bg-sky-400 px-4 text-sm font-medium text-white"
         >

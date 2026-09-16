@@ -13,7 +13,7 @@ import {
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
 export const RESPONSES_MODEL = "gpt-5.6" as const;
-export const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
+export const IMAGE_GEN_TOOL_MODEL = "gpt-image-2.5-sunburst" as const;
 export {
   IMAGE_GEN_SIZE,
   IMAGE_QUALITY,

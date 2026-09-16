@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { OrderWizard } from "@/components/OrderWizard";
 import { prisma } from "@/lib/prisma";
+import { getCharacterSlotAndTokens } from "@/lib/tokens";
 import {
   isStorybookTemplateSelectable,
   parseCastRoles,
@@ -16,7 +17,8 @@ export default async function NewOrderPage() {
     redirect("/login?callbackUrl=/dashboard/order/new");
   }
 
-  const [templates, characters] = await Promise.all([
+  const [{ tokens }, templates, characters] = await Promise.all([
+    getCharacterSlotAndTokens(session.user.id),
     prisma.storybookTemplate.findMany({
       orderBy: { title: "asc" },
       include: {
@@ -57,6 +59,7 @@ export default async function NewOrderPage() {
       </Link>
       <div className="mt-4">
         <OrderWizard
+          tokenBalance={tokens}
           templates={templates
             .map((template) => ({
               id: template.id,

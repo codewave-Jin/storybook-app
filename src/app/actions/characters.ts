@@ -5,11 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { isComfyMockEnabled } from "@/lib/comfy-server";
 import { prisma } from "@/lib/prisma";
-import {
-  canCreateCharacter,
-  consumeToken,
-  refundToken,
-} from "@/lib/tokens";
+import { canCreateCharacter } from "@/lib/tokens";
 import { deletePublicFile, deleteStickerFile, saveCharacterPhoto } from "@/lib/uploads";
 
 export type CharacterFormState = {
@@ -59,12 +55,6 @@ export async function createCharacter(
     };
   }
 
-  const consumed = await consumeToken(userId);
-  if (!consumed.success) {
-    await deletePublicFile(originalPhotoPath);
-    return { error: consumed.message ?? "토큰이 부족합니다" };
-  }
-
   try {
     await prisma.character.create({
       data: {
@@ -83,9 +73,6 @@ export async function createCharacter(
       },
     });
   } catch {
-    if (consumed.used) {
-      await refundToken(userId, consumed.used);
-    }
     await deletePublicFile(originalPhotoPath);
     return { error: "캐릭터 생성에 실패했습니다. 다시 시도해 주세요." };
   }

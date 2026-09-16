@@ -3,8 +3,9 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StickerWizard } from "@/components/StickerWizard";
-import { isStickerSizeSelectable } from "@/lib/templates";
+import { stickerBorderLabel, isStickerSizeSelectable } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
+import { getCharacterSlotAndTokens } from "@/lib/tokens";
 
 export default async function NewStickerPage() {
   const session = await auth();
@@ -12,7 +13,8 @@ export default async function NewStickerPage() {
     redirect("/login?callbackUrl=/dashboard/sticker/new");
   }
 
-  const [characters, borders, sizes] = await Promise.all([
+  const [{ tokens }, characters, borders, sizes] = await Promise.all([
+    getCharacterSlotAndTokens(session.user.id),
     prisma.character.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
@@ -36,6 +38,7 @@ export default async function NewStickerPage() {
       </Link>
       <div className="mt-4">
         <StickerWizard
+          tokenBalance={tokens}
           defaultEmail={session.user.email ?? undefined}
           defaultName={session.user.name ?? undefined}
           characters={characters.map((character) => ({
@@ -48,7 +51,8 @@ export default async function NewStickerPage() {
           }))}
           borders={borders.map((border) => ({
             id: border.id,
-            label: border.label,
+            key: border.key,
+            label: stickerBorderLabel(border.key, border.label),
             thumbnailPath: border.thumbnailPath ?? border.imageUrl,
             imageUrl: border.imageUrl,
             category: border.category,

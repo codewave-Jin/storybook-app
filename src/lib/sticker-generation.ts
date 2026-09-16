@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { composeStickerPreviewImage } from "@/lib/sticker-compose";
 import { buildStickerPreviewPrompt } from "@/lib/sticker-prompt";
 import { shouldReclaimStickerProcessing } from "@/lib/sticker-generation-policy";
+import { isSpecialStickerHint } from "@/lib/sticker-special";
 import { persistGeneratedStickerBuffer } from "@/lib/uploads";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
@@ -78,6 +79,11 @@ export async function runStickerPreviewGeneration(
   logSticker("sticker.job_start", "스티커 미리보기 생성 시작", {
     borderId: order.borderId,
   });
+
+  if (isSpecialStickerHint(order.customCostumeHint)) {
+    logSticker("sticker.skipped", "특수 제작은 GPT 경로 사용");
+    return { success: true, skipped: true };
+  }
 
   if (order.previewImagePath || order.previewStatus === "COMPLETED") {
     logSticker("sticker.skipped", "이미 미리보기 있음");

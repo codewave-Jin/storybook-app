@@ -27,6 +27,8 @@ const nextConfig = {
       "satori",
       "sharp",
       "@resvg/resvg-js",
+      "@prisma/client",
+      "prisma",
     ],
     serverActions: {
       bodySizeLimit: "20mb",

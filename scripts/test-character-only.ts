@@ -9,7 +9,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import OpenAI, { toFile } from "openai";
 
-const IMAGE_MODEL = "gpt-image-1.5" as const;
+const IMAGE_MODEL = "gpt-image-2.5-sunburst" as const;
 const INPUT_FIDELITY = "high" as const;
 const PROMPT =
   "Redraw this exact child character with the same face, hairstyle, and outfit, in a simple standing pose against a plain light background. Preserve facial features and proportions with high fidelity.";

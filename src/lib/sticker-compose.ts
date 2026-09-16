@@ -19,6 +19,7 @@ export async function composeStickerPreviewImage(options: {
   layout?: StickerLayoutState;
   cutoutImagePath?: string;
   cutoutOnly?: boolean;
+  transparentCanvas?: boolean;
 }) {
   const layout = clampStickerLayout(options.layout ?? DEFAULT_STICKER_LAYOUT);
   const reusedCutout =
@@ -55,6 +56,7 @@ export async function composeStickerPreviewImage(options: {
     characterBytes: cutoutBytes,
     phrase: options.phrase,
     layout,
+    transparentCanvas: options.transparentCanvas,
   });
 
   const imagePath = await persistGeneratedStickerBuffer(previewBytes, "image/png");

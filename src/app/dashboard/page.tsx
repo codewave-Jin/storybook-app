@@ -19,14 +19,10 @@ import {
   FULFILLMENT_STATUS_BADGE,
   FULFILLMENT_STATUS_LABEL,
 } from "@/lib/fulfillment";
-import { PRODUCTION_STATUS_LABEL, formatDateTime } from "@/lib/orders";
+import { PRODUCTION_STATUS_LABEL, PAYMENT_STATUS_LABEL, formatDateTime } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
-import {
-  collectOrderCharacterIds,
-  storybookOrderOptionLines,
-  type OrderOptionLine,
-} from "@/lib/storybook-order-summary";
-import { FREE_TOKEN_DAILY_MAX, getOrCreateTodayFreeTokens } from "@/lib/tokens";
+import { storybookOrderOptionLines, collectOrderCharacterIds, type OrderOptionLine } from "@/lib/storybook-order-summary";
+import { stickerPhraseDisplay } from "@/lib/sticker-phrase";
 
 const PRODUCTION_BADGE: Record<ProductionStatus, string> = {
   WAITING: "bg-[#F6E7C1] text-[#8A5A12]",
@@ -71,7 +67,7 @@ function stickerWorkStatus(order: {
   }
   if (order.paymentStatus !== "PAID") {
     return {
-      label: PRODUCTION_STATUS_LABEL.WAITING,
+      label: PAYMENT_STATUS_LABEL.PENDING,
       badgeClass: PRODUCTION_BADGE.WAITING,
     };
   }
@@ -90,11 +86,11 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  max: number;
+  max?: number;
   accent: "yellow" | "coral";
   hint?: string;
 }) {
-  const ratio = max > 0 ? Math.min(1, value / max) : 0;
+  const ratio = max && max > 0 ? Math.min(1, value / max) : 0;
   const track = accent === "yellow" ? "bg-[#F6E7C1]" : "bg-[#FDE8E0]";
   const fill = accent === "yellow" ? "bg-[#E8C84A]" : "bg-[#E07A5F]";
   const tint =
@@ -110,15 +106,19 @@ function StatCard({
         </p>
         <p className="text-sm font-semibold leading-none tabular-nums text-stone-800">
           {value}
-          <span className="text-[11px] font-medium text-stone-400">/{max}</span>
+          {typeof max === "number" ? (
+            <span className="text-[11px] font-medium text-stone-400">/{max}</span>
+          ) : null}
         </p>
       </div>
-      <div className={`mt-1 h-0.5 overflow-hidden rounded-full ${track}`}>
-        <div
-          className={`h-full rounded-full ${fill}`}
-          style={{ width: `${Math.max(ratio * 100, value > 0 ? 8 : 0)}%` }}
-        />
-      </div>
+      {typeof max === "number" ? (
+        <div className={`mt-1 h-0.5 overflow-hidden rounded-full ${track}`}>
+          <div
+            className={`h-full rounded-full ${fill}`}
+            style={{ width: `${Math.max(ratio * 100, value > 0 ? 8 : 0)}%` }}
+          />
+        </div>
+      ) : null}
       {hint ? (
         <p className="mt-1 text-[10px] leading-tight text-stone-500">{hint}</p>
       ) : null}
@@ -127,20 +127,19 @@ function StatCard({
 }
 
 function DashboardStats({
-  freeTokens,
+  tokens,
   slotUsed,
   slotMax,
 }: {
-  freeTokens: number;
+  tokens: number;
   slotUsed: number;
   slotMax: number;
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <StatCard
-        label="오늘 무료 토큰"
-        value={freeTokens}
-        max={FREE_TOKEN_DAILY_MAX}
+        label="보유 토큰"
+        value={tokens}
         accent="yellow"
       />
       <StatCard
@@ -262,7 +261,7 @@ export default async function DashboardPage() {
       <DashboardShell
         title="대시보드"
         titleAccessory={
-          <DashboardStats freeTokens={0} slotUsed={0} slotMax={5} />
+          <DashboardStats tokens={0} slotUsed={0} slotMax={5} />
         }
       >
         <CharacterGrid
@@ -278,12 +277,11 @@ export default async function DashboardPage() {
     );
   }
 
-  await getOrCreateTodayFreeTokens(userId);
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       characterSlotLimit: true,
-      tokenBalance: { select: { freeBalance: true } },
+      tokenBalance: { select: { freeBalance: true, paidBalance: true } },
       characters: { orderBy: { createdAt: "desc" } },
       orders: {
         orderBy: { createdAt: "desc" },
@@ -329,7 +327,9 @@ export default async function DashboardPage() {
   }
   const characters = user?.characters ?? [];
   const limit = user?.characterSlotLimit ?? 5;
-  const freeTokens = user?.tokenBalance?.freeBalance ?? 0;
+  const tokens =
+    (user?.tokenBalance?.freeBalance ?? 0) +
+    (user?.tokenBalance?.paidBalance ?? 0);
   const canCreate = characters.length < limit;
   const hasCompleted = characters.some(
     (character) => character.status === "COMPLETED",
@@ -355,6 +355,7 @@ export default async function DashboardPage() {
       const printRequested =
         order.paymentStatus === "PAID" &&
         order.fulfillmentStatus !== "PREPARING";
+      const unpaid = order.paymentStatus !== "PAID";
       return {
         id: order.id,
         kind: "storybook" as const,
@@ -362,13 +363,17 @@ export default async function DashboardPage() {
         href: `/dashboard/orders/${order.id}/preview`,
         createdAt: order.createdAt,
         paymentStatus: order.paymentStatus,
-        statusLabel: printRequested
-          ? FULFILLMENT_STATUS_LABEL[order.fulfillmentStatus]
-          : PRODUCTION_STATUS_LABEL[order.productionStatus],
-        statusClass: printRequested
-          ? FULFILLMENT_STATUS_BADGE[order.fulfillmentStatus]
-          : PRODUCTION_BADGE[order.productionStatus],
-        canDelete: order.paymentStatus !== "PAID",
+        statusLabel: unpaid
+          ? PAYMENT_STATUS_LABEL.PENDING
+          : printRequested
+            ? FULFILLMENT_STATUS_LABEL[order.fulfillmentStatus]
+            : PRODUCTION_STATUS_LABEL[order.productionStatus],
+        statusClass: unpaid
+          ? PRODUCTION_BADGE.WAITING
+          : printRequested
+            ? FULFILLMENT_STATUS_BADGE[order.fulfillmentStatus]
+            : PRODUCTION_BADGE[order.productionStatus],
+        canDelete: unpaid,
         optionLines: storybookOrderOptionLines({
           selectedCharacterIds: order.selectedCharacterIds,
           customInputValues: order.customInputValues,
@@ -390,7 +395,7 @@ export default async function DashboardPage() {
       return {
         id: order.id,
         kind: "sticker" as const,
-        title: `${order.character.label} · ${order.phrase}`,
+        title: `${order.character.label} · ${stickerPhraseDisplay(order.phrase) || "스티커"}`,
         href: `/dashboard/sticker/${order.id}/preview`,
         createdAt: order.createdAt,
         paymentStatus: order.paymentStatus,
@@ -420,7 +425,7 @@ export default async function DashboardPage() {
       title="대시보드"
       titleAccessory={
         <DashboardStats
-          freeTokens={freeTokens}
+          tokens={tokens}
           slotUsed={characters.length}
           slotMax={limit}
         />

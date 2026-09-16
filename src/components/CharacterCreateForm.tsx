@@ -41,10 +41,8 @@ function SubmitButton({
 }
 
 export function CharacterCreateForm({
-  tokenBalance,
   isLoggedIn = true,
 }: {
-  tokenBalance: number;
   isLoggedIn?: boolean;
 }) {
   const router = useRouter();
@@ -103,8 +101,6 @@ export function CharacterCreateForm({
       setError("캐릭터 생성에 실패했습니다. 다시 시도해 주세요.");
     }
   }
-
-  const noTokens = tokenBalance < 1;
 
   return (
     <form
@@ -193,11 +189,9 @@ export function CharacterCreateForm({
           pending={pending}
           photoReady={hasPhoto}
           disabledReason={
-            noTokens
-              ? "토큰이 부족합니다 (충전하기)"
-              : gender && outfit && !outfitReady
-                ? "이 옷과 성별 조합은 아직 준비 중입니다"
-                : undefined
+            gender && outfit && !outfitReady
+              ? "이 옷과 성별 조합은 아직 준비 중입니다"
+              : undefined
           }
         />
       ) : (

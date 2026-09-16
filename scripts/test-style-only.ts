@@ -10,7 +10,7 @@ import path from "path";
 import { PrismaClient } from "@prisma/client";
 import OpenAI, { toFile } from "openai";
 
-const IMAGE_MODEL = "gpt-image-1.5" as const;
+const IMAGE_MODEL = "gpt-image-2.5-sunburst" as const;
 const INPUT_FIDELITY = "high" as const;
 const PROMPT =
   "Create a children's storybook illustration of a toddler waving hello in a garden, matching this image's exact art style, brushwork, and color palette.";

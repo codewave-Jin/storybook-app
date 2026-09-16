@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { CharacterCreateForm } from "@/components/CharacterCreateForm";
 import { DashboardShell } from "@/components/DashboardShell";
 import { prisma } from "@/lib/prisma";
-import { getCharacterSlotAndTokens, getOrCreateTodayFreeTokens } from "@/lib/tokens";
+import { getCharacterSlotAndTokens } from "@/lib/tokens";
 
 export default async function NewCharacterPage() {
   const session = await auth();
@@ -24,9 +24,7 @@ export default async function NewCharacterPage() {
     );
   }
 
-  await getOrCreateTodayFreeTokens(userId);
-
-  const { slot, tokens } = await getCharacterSlotAndTokens(userId);
+  const { slot } = await getCharacterSlotAndTokens(userId);
 
   return (
     <DashboardShell title="캐릭터 추가">
@@ -38,13 +36,9 @@ export default async function NewCharacterPage() {
       </Link>
 
       <div className="mx-auto mt-4 w-full max-w-lg">
-        <div className="mb-4 rounded-full bg-white px-4 py-2 text-sm font-medium ring-1 ring-stone-200">
-          현재 토큰: {tokens}개
-        </div>
-
         {slot.canCreate ? (
           <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-8">
-            <CharacterCreateForm tokenBalance={tokens} isLoggedIn />
+            <CharacterCreateForm isLoggedIn />
           </div>
         ) : (
           <div className="rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm">

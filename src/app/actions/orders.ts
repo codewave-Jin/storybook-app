@@ -15,6 +15,12 @@ import { ensureOrderPhotoAlbumPages } from "@/lib/photo-album-pages";
 import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
 import {
+  attachTokenHoldToOrder,
+  consumeTokenHold,
+  refundTokenHold,
+  refundTokenHoldsForOrder,
+} from "@/lib/tokens";
+import {
   MAX_SUPPORTING_CAST,
   isEnabledHeroAgeRangeKey,
   isStorybookTemplateSelectable,
@@ -153,19 +159,32 @@ export async function createOrder(
     return { error: resolvedStyle.error };
   }
 
-  const order = await prisma.storybookOrder.create({
-    data: {
-      userId,
-      templateId: template.id,
-      selectedCharacterIds: characterIds,
-      customInputValues,
-      heroAgeRange,
-      supportingCast,
-      artStyleId: resolvedStyle.artStyleId,
-      paymentStatus: "PENDING",
-      productionStatus: "WAITING",
-    },
-  });
+  const hold = await consumeTokenHold(userId, "STORYBOOK_PREVIEW");
+  if (!hold.success || !hold.holdId) {
+    return { error: hold.message ?? "토큰이 부족합니다" };
+  }
+
+  let order;
+  try {
+    order = await prisma.storybookOrder.create({
+      data: {
+        userId,
+        templateId: template.id,
+        selectedCharacterIds: characterIds,
+        customInputValues,
+        heroAgeRange,
+        supportingCast,
+        artStyleId: resolvedStyle.artStyleId,
+        paymentStatus: "PENDING",
+        productionStatus: "WAITING",
+      },
+    });
+    await attachTokenHoldToOrder(userId, hold.holdId, order.id);
+  } catch (error) {
+    await refundTokenHold(userId, hold.holdId);
+    console.error("createOrder failed", error);
+    return { error: "주문을 만들지 못했습니다. 다시 시도해 주세요." };
+  }
 
   try {
     logGenerationEvent({
@@ -287,6 +306,12 @@ export async function payForOrder(
     return { error: "결제 정보를 저장하지 못했습니다. 다시 시도해 주세요." };
   }
 
+  await refundTokenHoldsForOrder(
+    session.user.id,
+    "STORYBOOK_PREVIEW",
+    orderId,
+  );
+
   try {
     await prisma.$executeRaw`
       UPDATE "StorybookOrder"
@@ -364,6 +389,8 @@ export async function deleteDraftOrder(orderId: string) {
   if (order.paymentStatus === "PAID") {
     return { error: "결제가 끝난 주문은 삭제할 수 없습니다." };
   }
+
+  await refundTokenHoldsForOrder(session.user.id, "STORYBOOK_PREVIEW", orderId);
 
   for (const illustration of order.illustrations) {
     for (const path of collectIllustrationAssetPaths(illustration)) {

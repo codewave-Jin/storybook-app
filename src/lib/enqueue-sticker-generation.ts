@@ -16,6 +16,7 @@ export async function queueStickerGenerationJobs(
       previewImagePath: true,
       previewStatus: true,
       createdAt: true,
+      customCostumeHint: true,
     },
   });
 

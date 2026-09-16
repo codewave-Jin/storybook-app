@@ -171,31 +171,71 @@ const defaultStickerCostumes = [
 
 const STICKER_BORDER_PUBLIC_BASE = "/sticker-borders";
 
+function stickerBorder(options: {
+  key: string;
+  label: string;
+  file: string;
+  category: "NONE" | "BASIC" | "FLOWER" | "LINE" | "SPECIAL";
+  sortOrder: number;
+}) {
+  const imageUrl = `${STICKER_BORDER_PUBLIC_BASE}/${options.file}`;
+  return {
+    key: options.key,
+    label: options.label,
+    imageUrl,
+    thumbnailPath: imageUrl,
+    category: options.category,
+    characterSizeRatio: 0.48,
+    offsetXRatio: 0,
+    offsetYRatio: 0,
+    sortOrder: options.sortOrder,
+    isActive: true,
+  };
+}
+
 const defaultStickerBorders = [
-  {
+  stickerBorder({
+    key: "none",
+    label: "테두리 없음",
+    file: "none.png",
+    category: "NONE",
+    sortOrder: 0,
+  }),
+  stickerBorder({
     key: "flower",
     label: "꽃 테두리",
-    imageUrl: `${STICKER_BORDER_PUBLIC_BASE}/flower.png`,
-    thumbnailPath: `${STICKER_BORDER_PUBLIC_BASE}/flower.png`,
-    category: "FLOWER" as const,
-    characterSizeRatio: 0.48,
-    offsetXRatio: 0,
-    offsetYRatio: 0,
-    sortOrder: 0,
-    isActive: true,
-  },
-  {
-    key: "none",
-    label: "흰 원형 바탕",
-    imageUrl: `${STICKER_BORDER_PUBLIC_BASE}/none.png`,
-    thumbnailPath: `${STICKER_BORDER_PUBLIC_BASE}/none.png`,
-    category: "NONE" as const,
-    characterSizeRatio: 0.48,
-    offsetXRatio: 0,
-    offsetYRatio: 0,
+    file: "flower.png",
+    category: "FLOWER",
     sortOrder: 1,
-    isActive: true,
-  },
+  }),
+  stickerBorder({
+    key: "birthday",
+    label: "생일",
+    file: "생일.png",
+    category: "SPECIAL",
+    sortOrder: 2,
+  }),
+  stickerBorder({
+    key: "carnation",
+    label: "카네이션",
+    file: "카네이션.png",
+    category: "FLOWER",
+    sortOrder: 3,
+  }),
+  stickerBorder({
+    key: "heart",
+    label: "하트",
+    file: "하트.png",
+    category: "BASIC",
+    sortOrder: 4,
+  }),
+  stickerBorder({
+    key: "stars-moon",
+    label: "별과달",
+    file: "별과달.png",
+    category: "SPECIAL",
+    sortOrder: 5,
+  }),
 ];
 
 const stickerPhrasePresets = [
@@ -726,6 +766,9 @@ async function seedDemoUser() {
       name: "데모",
       tokenBalance: {
         create: { freeBalance: 3, paidBalance: 0 },
+      },
+      tokenTransactions: {
+        create: { amount: 3, type: "SIGNUP_GRANT" },
       },
     },
   });

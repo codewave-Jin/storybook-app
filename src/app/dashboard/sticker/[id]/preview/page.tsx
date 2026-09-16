@@ -4,10 +4,13 @@ import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
+import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { RetryStickerPreviewButton } from "@/components/RetryStickerPreviewButton";
 import { StickerPreviewPayButton } from "@/components/StickerPreviewPayButton";
 import { StickerPreviewViews } from "@/components/StickerPreviewViews";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
+import { stickerPhraseDisplay } from "@/lib/sticker-phrase";
+import { isSpecialStickerHint } from "@/lib/sticker-special";
 import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 
@@ -42,7 +45,7 @@ export default async function StickerPreviewPage({
   const failed = order.previewStatus === "FAILED";
   const completed = order.previewStatus === "COMPLETED" && order.previewImagePath;
 
-  if (order.previewStatus === "IDLE") {
+  if (order.previewStatus === "IDLE" && !isSpecialStickerHint(order.customCostumeHint)) {
     void enqueueStickerGeneration(order.id);
   }
 
@@ -61,18 +64,32 @@ export default async function StickerPreviewPage({
           })}
         />
       ) : null}
-      <Link
-        href="/dashboard"
-        className="text-sm font-medium text-stone-500 underline-offset-4 hover:underline"
-      >
-        ← 대시보드로
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/dashboard"
+          className="text-sm font-medium text-stone-500 underline-offset-4 hover:underline"
+        >
+          ← 대시보드로
+        </Link>
+        {!paid ? (
+          <DeleteDraftOrderButton
+            compact
+            kind="sticker"
+            orderId={order.id}
+            title={stickerOrderTitle(
+              order.character.label,
+              stickerOrderExtraLabel(order),
+            )}
+            redirectTo="/dashboard"
+          />
+        ) : null}
+      </div>
 
       <div className="mx-auto mt-6 w-full max-w-xl">
         {completed && stickerSrc ? (
           <StickerPreviewViews
             src={stickerSrc}
-            phrase={order.phrase}
+            phrase={stickerPhraseDisplay(order.phrase)}
             quantity={order.sizeOption.quantityPerA4}
             overlayPhrase={false}
             showWatermark={!paid}
@@ -106,7 +123,9 @@ export default async function StickerPreviewPage({
         )}
 
         <div className="mt-5 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-stone-200">
-          <p className="text-lg font-semibold">{order.phrase}</p>
+          <p className="text-lg font-semibold">
+            {stickerPhraseDisplay(order.phrase) || "스티커"}
+          </p>
           <p className="mt-1 text-sm text-stone-500">
             {stickerOrderTitle(
               order.character.label,

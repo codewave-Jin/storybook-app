@@ -10,9 +10,13 @@ import { isStickerSizeSelectable } from "@/lib/templates";
 import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { prisma } from "@/lib/prisma";
 import {
-  MAX_STICKER_BODY_LENGTH,
-  MAX_STICKER_TITLE_LENGTH,
+  attachTokenHoldToOrder,
+  refundTokenHoldsForOrder,
+} from "@/lib/tokens";
+import { readyStickerPreviewPath } from "@/lib/sticker-draft";
+import {
   parseStickerPhrase,
+  stickerPhraseValidationError,
 } from "@/lib/sticker-phrase";
 import { deleteStickerFile } from "@/lib/uploads";
 
@@ -50,26 +54,22 @@ export type PayStickerOrderState = {
   success?: boolean;
 } | undefined;
 
-export async function createStickerOrder(
-  _prevState: CreateStickerOrderState,
+export async function saveStickerDraft(
   formData: FormData,
-): Promise<CreateStickerOrderState> {
+): Promise<{ error?: string; orderId?: string }> {
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/login?callbackUrl=/dashboard/sticker/new");
   }
 
   const userId = session.user.id;
+  const orderId = String(formData.get("orderId") ?? "").trim();
   const characterId = String(formData.get("characterId") ?? "");
   const borderId = String(formData.get("borderId") ?? "").trim();
   const phrase = String(formData.get("phrase") ?? "").trim();
   const sizeOptionId = String(formData.get("sizeOptionId") ?? "");
   const previewImagePath = String(formData.get("previewImagePath") ?? "").trim();
-  const checkout = stickerCheckoutWrite(formData);
-  if ("error" in checkout) {
-    return { error: checkout.error };
-  }
-  const { sheetCount, data: checkoutData } = checkout;
+  const tokenHoldId = String(formData.get("tokenHoldId") ?? "").trim();
   const parts = parseStickerPhrase(phrase);
 
   if (!characterId) {
@@ -78,14 +78,9 @@ export async function createStickerOrder(
   if (!borderId) {
     return { error: "테두리를 선택해 주세요." };
   }
-  if (!parts.title && !parts.body) {
-    return { error: "문구를 입력해 주세요." };
-  }
-  if (parts.title.length > MAX_STICKER_TITLE_LENGTH) {
-    return { error: `제목은 ${MAX_STICKER_TITLE_LENGTH}자 이하로 입력해 주세요.` };
-  }
-  if (parts.body.length > MAX_STICKER_BODY_LENGTH) {
-    return { error: `문구는 ${MAX_STICKER_BODY_LENGTH}자 이하로 입력해 주세요.` };
+  const phraseError = stickerPhraseValidationError(parts, { required: false });
+  if (phraseError) {
+    return { error: phraseError };
   }
   if (!sizeOptionId) {
     return { error: "사이즈를 선택해 주세요." };
@@ -117,9 +112,53 @@ export async function createStickerOrder(
     return { error: "아직 준비 중인 사이즈입니다." };
   }
 
-  const readyPreview =
-    previewImagePath.startsWith("/uploads/stickers/") ||
-    /^https?:\/\//i.test(previewImagePath);
+  const readyPreview = readyStickerPreviewPath(previewImagePath);
+  const previewData = readyPreview
+    ? {
+        previewStatus: "COMPLETED" as const,
+        previewImagePath,
+        compositeImagePath: previewImagePath,
+        errorReason: null,
+      }
+    : {};
+
+  if (orderId) {
+    const existing = await prisma.stickerOrder.findFirst({
+      where: { id: orderId, userId },
+      select: {
+        id: true,
+        paymentStatus: true,
+      },
+    });
+    if (!existing) {
+      return { error: "주문을 찾을 수 없습니다." };
+    }
+    if (existing.paymentStatus === "PAID") {
+      return { error: "결제가 끝난 주문은 수정할 수 없습니다." };
+    }
+
+    await prisma.stickerOrder.update({
+      where: { id: existing.id },
+      data: {
+        characterId: character.id,
+        borderId: border.id,
+        phrase,
+        sizeOptionId: sizeOption.id,
+        quantity: sizeOption.quantityPerA4,
+        ...previewData,
+      },
+    });
+
+    if (tokenHoldId) {
+      await attachTokenHoldToOrder(userId, tokenHoldId, existing.id);
+    }
+
+    revalidatePath("/dashboard");
+    revalidatePath("/mypage");
+    revalidatePath(`/dashboard/sticker/${existing.id}/preview`);
+    return { orderId: existing.id };
+  }
+
   const order = await prisma.stickerOrder.create({
     data: {
       userId,
@@ -130,9 +169,8 @@ export async function createStickerOrder(
       customCostumeHint: "",
       phrase,
       sizeOptionId: sizeOption.id,
-      quantity: sizeOption.quantityPerA4 * sheetCount,
-      paymentStatus: "PAID",
-      ...checkoutData,
+      quantity: sizeOption.quantityPerA4,
+      paymentStatus: "PENDING",
       productionStatus: "WAITING",
       previewStatus: readyPreview ? "COMPLETED" : "IDLE",
       previewImagePath: readyPreview ? previewImagePath : null,
@@ -149,11 +187,29 @@ export async function createStickerOrder(
     orderId: order.id,
     userId,
     step: "sticker.order_created",
-    message: "스티커 주문 생성 및 생성 트리거",
-    detail: { readyPreview, sheetCount },
+    message: "스티커 미리보기 초안 생성",
+    detail: { readyPreview },
   });
 
-  redirect(`/dashboard/sticker/${order.id}/preview`);
+  if (tokenHoldId) {
+    await attachTokenHoldToOrder(userId, tokenHoldId, order.id);
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/mypage");
+  return { orderId: order.id };
+}
+
+export async function createStickerOrder(
+  _prevState: CreateStickerOrderState,
+  formData: FormData,
+): Promise<CreateStickerOrderState> {
+  const result = await saveStickerDraft(formData);
+  if (result.error || !result.orderId) {
+    return { error: result.error ?? "스티커를 저장하지 못했습니다." };
+  }
+
+  redirect(`/dashboard/sticker/${result.orderId}/preview`);
 }
 
 export async function payForStickerOrder(
@@ -206,6 +262,8 @@ export async function payForStickerOrder(
     },
   });
 
+  await refundTokenHoldsForOrder(session.user.id, "STICKER_SPECIAL", orderId);
+
   revalidatePath(`/dashboard/sticker/${orderId}/preview`);
   revalidatePath("/dashboard");
   revalidatePath("/mypage");
@@ -236,6 +294,8 @@ export async function deleteDraftStickerOrder(orderId: string) {
   if (order.paymentStatus === "PAID") {
     return { error: "결제가 끝난 주문은 삭제할 수 없습니다." };
   }
+
+  await refundTokenHoldsForOrder(session.user.id, "STICKER_SPECIAL", orderId);
 
   await deleteStickerFile(order.previewImagePath);
   await deleteStickerFile(order.finalImagePath);

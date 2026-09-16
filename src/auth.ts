@@ -97,7 +97,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: displayName(user.name, email),
           password: null,
           tokenBalance: {
-            create: { freeBalance: 0, paidBalance: 0 },
+            create: { freeBalance: 3, paidBalance: 0 },
+          },
+          tokenTransactions: {
+            create: { amount: 3, type: "SIGNUP_GRANT" },
           },
         },
       });

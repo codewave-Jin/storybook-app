@@ -11,19 +11,29 @@ import {
   RESPONSES_MODEL,
   toImageDataUrl,
 } from "@/lib/openai-illustration";
-import { STICKER_OUTPUT_FORMAT } from "@/lib/image-generation-config";
+import {
+  STICKER_OUTPUT_FORMAT,
+  type ImageGenerationQuality,
+  type ImageOutputFormat,
+} from "@/lib/image-generation-config";
 import { toOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 
 type ResponsesUsage = NonNullable<OpenAI.Responses.Response["usage"]>;
+type ImageGenerationBackground = "transparent" | "opaque" | "auto";
 
 export async function generateStickerImage(opts: {
   openai?: OpenAI;
   prompt: string;
   imageBytes: Buffer;
   imageMime: string;
+  outputFormat?: ImageOutputFormat;
+  quality?: ImageGenerationQuality;
+  model?: string;
+  background?: ImageGenerationBackground;
 }): Promise<{ b64: string; elapsedMs: number; usage?: ResponsesUsage }> {
   const openai = opts.openai ?? createIllustrationOpenAIClient();
-  const quality = IMAGE_QUALITY;
+  const quality = opts.quality ?? IMAGE_QUALITY;
+  const outputFormat = opts.outputFormat ?? STICKER_OUTPUT_FORMAT;
   const startedAt = Date.now();
 
   let result;
@@ -33,10 +43,11 @@ export async function generateStickerImage(opts: {
       tools: [
         {
           type: "image_generation",
-          model: IMAGE_GEN_TOOL_MODEL,
+          model: opts.model ?? IMAGE_GEN_TOOL_MODEL,
           size: IMAGE_GEN_SIZE,
           quality,
-          output_format: STICKER_OUTPUT_FORMAT,
+          output_format: outputFormat,
+          ...(opts.background ? { background: opts.background } : {}),
         },
       ],
       tool_choice: { type: "image_generation" },

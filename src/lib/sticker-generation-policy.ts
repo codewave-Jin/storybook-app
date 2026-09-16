@@ -1,4 +1,5 @@
 import { STALE_PROCESSING_MS, isStaleProcessing } from "@/lib/illustration-generation-policy";
+import { isSpecialStickerHint } from "@/lib/sticker-special";
 
 export { STALE_PROCESSING_MS };
 
@@ -6,7 +7,11 @@ export function shouldKickPendingStickerPreview(order: {
   previewImagePath: string | null;
   previewStatus: string;
   createdAt: Date;
+  customCostumeHint?: string | null;
 }) {
+  if (isSpecialStickerHint(order.customCostumeHint)) {
+    return false;
+  }
   if (order.previewImagePath) {
     return false;
   }

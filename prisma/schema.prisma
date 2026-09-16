@@ -20,6 +20,7 @@ model User {
   characters        Character[]
   tokenBalance      TokenBalance?
   tokenTransactions TokenTransaction[]
+  tokenHolds        TokenHold[]
   orders            StorybookOrder[]
   stickerOrders     StickerOrder[]
   reviews           Review[]
@@ -54,8 +55,31 @@ model TokenTransaction {
 
 enum TokenTransactionType {
   DAILY_FREE
+  SIGNUP_GRANT
   CHARACTER_GENERATION
+  STORYBOOK_PREVIEW
+  STICKER_SPECIAL
   PURCHASE
+  REFUND
+}
+
+enum TokenHoldKind {
+  STORYBOOK_PREVIEW
+  STICKER_SPECIAL
+}
+
+model TokenHold {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        TokenHoldKind
+  spendSource String
+  refunded    Boolean       @default(false)
+  orderId     String?
+  createdAt   DateTime      @default(now())
+
+  @@index([userId, kind, refunded])
+  @@index([orderId])
 }
 
 model Character {

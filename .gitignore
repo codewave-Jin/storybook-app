@@ -45,6 +45,9 @@ yarn-error.log*
 /scripts/test-output
 /scripts/test-assets/*.png
 
+# captured sticker layout from a baked sample
+/sticker-layout-sample.json
+
 .vercel
 .env*
 !.env.example

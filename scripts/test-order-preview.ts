@@ -1,7 +1,7 @@
 /**
  * Create a birthday-template order and run preview generation (pages 1, 2, 4)
  * through the same path as createOrder: PageTemplate substitution +
- * Responses API (gpt-image-2).
+ * Responses API (gpt-image-2.5-sunburst).
  *
  * This script copies real PNG/JPG files onto the demo user as characters.
  *

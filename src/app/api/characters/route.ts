@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { isComfyMockEnabled, postToComfy } from "@/lib/comfy-server";
+import {
+  comfyCallbackPayload,
+  isComfyMockEnabled,
+  postToComfy,
+} from "@/lib/comfy-server";
 import { logGenerationEvent } from "@/lib/generation-events";
 import { prisma } from "@/lib/prisma";
-import { canCreateCharacter, consumeToken, refundToken } from "@/lib/tokens";
+import { canCreateCharacter } from "@/lib/tokens";
 import {
   deletePublicFile,
   saveCharacterPhoto,
@@ -110,15 +114,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const consumed = await consumeToken(userId);
-  if (!consumed.success) {
-    await deletePublicFile(originalPhotoPath);
-    return NextResponse.json(
-      { error: consumed.message ?? "토큰이 부족합니다" },
-      { status: 400 },
-    );
-  }
-
   let characterId: string;
   try {
     const character = await prisma.character.create({
@@ -132,9 +127,6 @@ export async function POST(request: Request) {
     });
     characterId = character.id;
   } catch {
-    if (consumed.used) {
-      await refundToken(userId, consumed.used);
-    }
     await deletePublicFile(originalPhotoPath);
     return NextResponse.json(
       { error: "캐릭터 생성에 실패했습니다. 다시 시도해 주세요." },
@@ -186,6 +178,7 @@ export async function POST(request: Request) {
             seed_secondary: outfitSpec.seedSecondary,
           }
         : {}),
+      ...comfyCallbackPayload(`/api/characters/${characterId}/complete`),
     });
 
     if (!response.ok) {
@@ -217,9 +210,6 @@ export async function POST(request: Request) {
       where: { id: characterId },
       data: { status: "FAILED" },
     });
-    if (consumed.used) {
-      await refundToken(userId, consumed.used);
-    }
     revalidatePath("/dashboard");
     return NextResponse.json(
       {

@@ -4,15 +4,23 @@ import path from "path";
 import { createElement } from "react";
 import satori from "satori";
 import sharp, { type OverlayOptions } from "sharp";
-import {
-  DEFAULT_STICKER_LAYOUT,
-  STICKER_CANVAS_SIZE,
-  clampStickerLayout,
-  type StickerLayoutState,
-} from "@/lib/sticker-layout-constants";
+import { loadImageAsset } from "@/lib/openai-illustration";
+import { stickerDecalByKey } from "@/lib/sticker-decals";
 import { stickerFontByKey } from "@/lib/sticker-fonts";
 import {
-  parseStickerPhrase,
+  DEFAULT_STICKER_LAYOUT,
+  PHRASE_FONT_CANVAS_RATIO,
+  STICKER_CANVAS_SIZE,
+  clampStickerLayout,
+  decalIdFromLayerKey,
+  normalizeStack,
+  phraseIdFromLayerKey,
+  type StickerDecalLayer,
+  type StickerLayoutState,
+  type StickerPhraseLayer,
+} from "@/lib/sticker-layout-constants";
+import {
+  parseStickerPhrases,
   stickerPhraseLines,
 } from "@/lib/sticker-phrase";
 
@@ -56,17 +64,6 @@ async function loadStickerFont(fontKey: string) {
   throw new Error("스티커 한글 폰트 파일을 찾을 수 없습니다.");
 }
 
-function crownDataUri(width: number, height: number) {
-  const stroke = Math.max(2, width * 0.07);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-    <g fill="none" stroke="#E8B84A" stroke-width="${stroke}" stroke-linejoin="round" stroke-linecap="round">
-      <path d="M${width * 0.08} ${height * 0.82} L${width * 0.18} ${height * 0.28} L${width * 0.36} ${height * 0.62} L${width * 0.5} ${height * 0.12} L${width * 0.64} ${height * 0.62} L${width * 0.82} ${height * 0.28} L${width * 0.92} ${height * 0.82}" />
-    </g>
-    <rect x="${width * 0.06}" y="${height * 0.78}" width="${width * 0.88}" height="${height * 0.16}" rx="2" fill="#E8B84A" />
-  </svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-}
-
 export function stickerCharacterBox(
   width: number,
   height: number,
@@ -81,32 +78,48 @@ export function stickerCharacterBox(
   };
 }
 
-async function renderStickerTextOverlay(options: {
-  width: number;
-  height: number;
-  phrase: string;
-  layout: StickerLayoutState;
+async function renderPhraseBox(options: {
+  canvasWidth: number;
+  canvasHeight: number;
+  text: string;
+  box: StickerLayoutState["character"];
+  fontKey: string;
+  scale: number;
 }) {
-  const { title, body } = parseStickerPhrase(options.phrase);
-  const box = options.layout.text;
-  const left = Math.round(options.width * box.leftRatio);
-  const top = Math.round(options.height * box.topRatio);
-  const width = Math.max(1, Math.round(options.width * box.widthRatio));
-  const height = Math.max(1, Math.round(options.height * box.heightRatio));
-  const titleScale = options.layout.textStyle?.titleScale ?? 1;
-  const bodyScale = options.layout.textStyle?.bodyScale ?? 1;
-  const titleSize = Math.max(
-    12,
-    Math.round(Math.min(width * 0.26, height * 0.28) * titleScale),
+  const lines = stickerPhraseLines(options.text);
+  if (lines.length === 0) {
+    return null;
+  }
+  const left = Math.round(options.canvasWidth * options.box.leftRatio);
+  const top = Math.round(options.canvasHeight * options.box.topRatio);
+  const width = Math.max(1, Math.round(options.canvasWidth * options.box.widthRatio));
+  const height = Math.max(1, Math.round(options.canvasHeight * options.box.heightRatio));
+  const fontSize = Math.max(
+    8,
+    Math.round(options.canvasWidth * PHRASE_FONT_CANVAS_RATIO * options.scale),
   );
-  const bodySize = Math.max(
-    10,
-    Math.round(Math.min(width * 0.09, height * 0.1) * bodyScale),
+  const font = await loadStickerFont(options.fontKey);
+  const children = lines.map((line, index) =>
+    createElement(
+      "div",
+      {
+        style: {
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          marginTop: index === 0 ? 0 : Math.round(fontSize * 0.28),
+          color: TEXT_COLOR,
+          fontSize,
+          fontFamily: font.name,
+          lineHeight: 1.2,
+        },
+        key: `${index}-${line}`,
+      },
+      line,
+    ),
   );
-  const crownWidth = Math.max(8, Math.round(titleSize * 0.62));
-  const crownHeight = Math.max(6, Math.round(titleSize * 0.38));
-  const lines = stickerPhraseLines(body);
-  const font = await loadStickerFont(options.layout.textStyle?.fontKey ?? "jua");
 
   const textSvg = await satori(
     createElement(
@@ -118,53 +131,11 @@ async function renderStickerTextOverlay(options: {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "flex-start",
-          paddingTop: Math.round(height * 0.02),
-          paddingBottom: Math.round(height * 0.08),
+          justifyContent: "center",
+          textAlign: "center",
         },
       },
-      createElement("img", {
-        src: crownDataUri(crownWidth, crownHeight),
-        width: crownWidth,
-        height: crownHeight,
-      }),
-      createElement(
-        "div",
-        {
-          style: {
-            display: "flex",
-            width: "100%",
-            justifyContent: "center",
-            marginTop: Math.round(titleSize * 0.12),
-            color: TEXT_COLOR,
-            fontSize: titleSize,
-            fontFamily: font.name,
-            lineHeight: 1,
-          },
-        },
-        title,
-      ),
-      ...lines.map((line, index) =>
-        createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              width: "100%",
-              justifyContent: "center",
-              marginTop:
-                index === 0
-                  ? Math.round(titleSize * 0.28)
-                  : Math.round(bodySize * 0.28),
-              color: TEXT_COLOR,
-              fontSize: bodySize,
-              fontFamily: font.name,
-              lineHeight: 1.2,
-            },
-          },
-          line,
-        ),
-      ),
+      ...children,
     ),
     {
       width,
@@ -174,23 +145,18 @@ async function renderStickerTextOverlay(options: {
   );
 
   const textPng = await sharp(Buffer.from(textSvg)).png().toBuffer();
-  const canvas = await sharp({
-    create: {
-      width: options.width,
-      height: options.height,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .png()
-    .toBuffer();
+  const destLeft = Math.max(0, Math.min(left, options.canvasWidth - 1));
+  const destTop = Math.max(0, Math.min(top, options.canvasHeight - 1));
+  return { input: textPng, left: destLeft, top: destTop };
+}
 
-  const destLeft = Math.max(0, Math.min(left, options.width - 1));
-  const destTop = Math.max(0, Math.min(top, options.height - 1));
-  return sharp(canvas)
-    .composite([{ input: textPng, left: destLeft, top: destTop }])
-    .png()
-    .toBuffer();
+function phrasesForRender(layout: StickerLayoutState, phrase: string): StickerPhraseLayer[] {
+  const fallback = parseStickerPhrases(phrase);
+  return layout.phrases.map((item, index) =>
+    item.text.trim()
+      ? item
+      : { ...item, text: fallback[index] ?? "" },
+  );
 }
 
 async function overlayWithinCanvas(
@@ -252,33 +218,76 @@ async function circularMask(size: number) {
   return Buffer.from(svg);
 }
 
-export async function compositeLayoutSticker(options: {
-  borderBytes: Buffer;
-  characterBytes: Buffer;
-  phrase: string;
-  layout?: StickerLayoutState;
-}): Promise<Buffer> {
-  const layout = clampStickerLayout(options.layout ?? DEFAULT_STICKER_LAYOUT);
-  const size = STICKER_CANVAS_SIZE;
-  const box = stickerCharacterBox(size, size, layout);
-  const character = await sharp(options.characterBytes)
+async function renderDecalLayer(
+  decal: StickerDecalLayer,
+  size: number,
+) {
+  const asset = stickerDecalByKey(decal.assetKey);
+  const image = await loadImageAsset(asset.src);
+  const width = Math.max(1, Math.round(size * decal.box.widthRatio));
+  const height = Math.max(1, Math.round(size * decal.box.heightRatio));
+  const left = Math.round(size * decal.box.leftRatio);
+  const top = Math.round(size * decal.box.topRatio);
+  const resized = await sharp(image.bytes)
     .ensureAlpha()
-    .resize(Math.max(1, box.width), Math.max(1, box.height), {
+    .resize(width, height, {
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     })
     .png()
     .toBuffer();
+  return overlayWithinCanvas(resized, width, height, left, top, size);
+}
 
-  const [textOverlay, borderLayer, characterLayer, mask] = await Promise.all([
-    renderStickerTextOverlay({
-      width: size,
-      height: size,
-      phrase: options.phrase,
-      layout,
-    }),
-    renderBorderLayer(options.borderBytes, size, layout),
-    overlayWithinCanvas(character, box.width, box.height, box.left, box.top, size),
+export async function compositeLayoutSticker(options: {
+  borderBytes?: Buffer | null;
+  characterBytes?: Buffer | null;
+  phrase: string;
+  layout?: StickerLayoutState;
+  transparentCanvas?: boolean;
+}): Promise<Buffer> {
+  const layout = clampStickerLayout(options.layout ?? DEFAULT_STICKER_LAYOUT);
+  const size = STICKER_CANVAS_SIZE;
+  const box = stickerCharacterBox(size, size, layout);
+  const character =
+    layout.characterVisible && options.characterBytes
+      ? await sharp(options.characterBytes)
+          .ensureAlpha()
+          .resize(Math.max(1, box.width), Math.max(1, box.height), {
+            fit: "contain",
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          })
+          .png()
+          .toBuffer()
+      : null;
+
+  const phrases = phrasesForRender(layout, options.phrase);
+  const [borderLayer, characterLayer, phraseLayers, decalLayers, mask] = await Promise.all([
+    layout.borderVisible && options.borderBytes
+      ? renderBorderLayer(options.borderBytes, size, layout)
+      : Promise.resolve(null),
+    character
+      ? overlayWithinCanvas(character, box.width, box.height, box.left, box.top, size)
+      : Promise.resolve(null),
+    Promise.all(
+      phrases.map(async (item) => ({
+        id: item.id,
+        overlay: await renderPhraseBox({
+          canvasWidth: size,
+          canvasHeight: size,
+          text: item.text,
+          box: item.box,
+          fontKey: item.style.fontKey,
+          scale: item.style.scale,
+        }),
+      })),
+    ),
+    Promise.all(
+      layout.decals.map(async (decal) => ({
+        id: decal.id,
+        overlay: await renderDecalLayer(decal, size),
+      })),
+    ),
     circularMask(size),
   ]);
 
@@ -287,19 +296,41 @@ export async function compositeLayoutSticker(options: {
       width: size,
       height: size,
       channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      background: options.transparentCanvas
+        ? { r: 0, g: 0, b: 0, alpha: 0 }
+        : { r: 255, g: 255, b: 255, alpha: 1 },
     },
   })
     .png()
     .toBuffer();
 
+  const phraseById = new Map(phraseLayers.map((item) => [item.id, item.overlay]));
+  const decalById = new Map(decalLayers.map((item) => [item.id, item.overlay]));
   const overlays: OverlayOptions[] = [];
-  if (characterLayer) {
-    overlays.push(characterLayer);
-  }
-  overlays.push({ input: textOverlay, left: 0, top: 0 });
-  if (borderLayer) {
-    overlays.push(borderLayer);
+  for (const key of normalizeStack(layout)) {
+    if (key === "character" && characterLayer) {
+      overlays.push(characterLayer);
+      continue;
+    }
+    if (key === "border" && borderLayer) {
+      overlays.push(borderLayer);
+      continue;
+    }
+    const phraseId = phraseIdFromLayerKey(key);
+    if (phraseId) {
+      const overlay = phraseById.get(phraseId);
+      if (overlay) {
+        overlays.push(overlay);
+      }
+      continue;
+    }
+    const decalId = decalIdFromLayerKey(key);
+    if (decalId) {
+      const overlay = decalById.get(decalId);
+      if (overlay) {
+        overlays.push(overlay);
+      }
+    }
   }
   overlays.push({ input: mask, blend: "dest-in" });
 

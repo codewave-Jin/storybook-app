@@ -1,5 +1,5 @@
 /**
- * Standalone gpt-image-2 expression-diversity test (not wired to order flow).
+ * Standalone gpt-image-2.5-sunburst expression-diversity test (not wired to order flow).
  *
  * Generates one scene per run so identity/art style stay locked while
  * expression and pose can change with the scene.
@@ -24,7 +24,7 @@ import OpenAI from "openai";
 import { buildStyledIllustrationPrompt } from "../src/lib/illustration-prompt";
 
 const RESPONSES_MODEL = "gpt-5.6" as const;
-const IMAGE_GEN_TOOL_MODEL = "gpt-image-2" as const;
+const IMAGE_GEN_TOOL_MODEL = "gpt-image-2.5-sunburst" as const;
 const IMAGE_GEN_SIZE = "1024x1024" as const;
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));

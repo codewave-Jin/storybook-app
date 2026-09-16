@@ -1,3 +1,5 @@
+import { getAppBaseUrl } from "@/lib/app-url";
+
 export function isComfyMockEnabled() {
   const value = process.env.COMFY_MOCK?.trim().toLowerCase();
   if (value === "0" || value === "false" || value === "no") {
@@ -8,6 +10,17 @@ export function isComfyMockEnabled() {
   }
   // Opt-in only. Unset must not silently skip real generation on Vercel.
   return false;
+}
+
+export function comfyCallbackPayload(completePath: string) {
+  const base = getAppBaseUrl();
+  const path = completePath.startsWith("/") ? completePath : `/${completePath}`;
+  const apiKey = process.env.INTERNAL_API_KEY?.trim();
+  return {
+    callback_url: `${base}${path}`,
+    progress_url: `${base}/api/generation-progress`,
+    ...(apiKey ? { api_key: apiKey } : {}),
+  };
 }
 
 function comfyServerBaseUrl() {
