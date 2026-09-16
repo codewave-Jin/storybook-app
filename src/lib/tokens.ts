@@ -1,11 +1,10 @@
-import { Prisma } from "@prisma/client";
+import { TokenTransactionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const SIGNUP_TOKEN_GRANT = 3;
 
 export type TokenSpendSource = "free" | "paid";
 export type TokenHoldKind = "STORYBOOK_PREVIEW" | "STICKER_SPECIAL";
-type TokenTransactionType = (typeof Prisma.TokenTransactionType)[keyof typeof Prisma.TokenTransactionType];
 
 function totalTokens(balance: {
   freeBalance: number;
