@@ -79,7 +79,7 @@ export function CharacterCard({ character }: { character: Character }) {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="absolute inset-0 z-[1] cursor-zoom-in"
+            className="absolute inset-0 z-[1] cursor-zoom-in bg-transparent"
             aria-label={`${character.label} 크게 보기`}
           />
         ) : null}

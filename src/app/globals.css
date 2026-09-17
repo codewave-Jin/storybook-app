@@ -51,13 +51,19 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-input,
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="image"]):not([type="range"]):not([type="color"]),
 textarea,
-select,
-button {
+select {
   color-scheme: light only !important;
   background-color: #ffffff;
   color: #2f4a5f;
+}
+
+button,
+[type="button"],
+[type="submit"],
+[type="reset"] {
+  color-scheme: light only !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -68,13 +74,19 @@ button {
     color: #2f4a5f !important;
   }
 
-  input,
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="image"]):not([type="range"]):not([type="color"]),
   textarea,
-  select,
-  button {
+  select {
     color-scheme: light only !important;
     background-color: #ffffff !important;
     color: #2f4a5f !important;
+  }
+
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"] {
+    color-scheme: light only !important;
   }
 }
 
