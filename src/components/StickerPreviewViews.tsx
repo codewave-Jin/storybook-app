@@ -59,14 +59,13 @@ export function StickerPreviewViews({
   phrase,
   quantity,
   overlayPhrase,
-  showWatermark: _showWatermark,
   variant = "full",
 }: {
   src: string;
   phrase: string;
   quantity: number;
   overlayPhrase: boolean;
-  showWatermark: boolean;
+  showWatermark?: boolean;
   variant?: "full" | "a4";
 }) {
   const { cols, rows } = a4Grid(quantity);

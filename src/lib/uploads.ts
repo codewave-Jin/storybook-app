@@ -26,7 +26,7 @@ function blobStorageEnabled() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
-function useBlobStorage() {
+function shouldUseBlobStorage() {
   return blobStorageEnabled() && process.env.VERCEL === "1";
 }
 
@@ -100,7 +100,7 @@ async function saveBuffer(
     ? `/uploads/${folder}/${ownerUserId}/${filename}`
     : `/uploads/${folder}/${filename}`;
 
-  if (useBlobStorage()) {
+  if (shouldUseBlobStorage()) {
     const blob = await put(`uploads/${folder}/${ownerUserId ?? "shared"}/${filename}`, buffer, {
       access: "public",
       addRandomSuffix: false,
@@ -277,12 +277,12 @@ async function persistGeneratedImage(
   }
 
   if (isRemoteAsset(sourcePath) && sourcePath.includes("blob.vercel-storage.com")) {
-    if (useBlobStorage()) {
+    if (shouldUseBlobStorage()) {
       return sourcePath;
     }
   }
 
-  if (useBlobStorage()) {
+  if (shouldUseBlobStorage()) {
     requireBlobStorage();
   }
 

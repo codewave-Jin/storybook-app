@@ -22,6 +22,7 @@ function shouldSkipOptimizer(src: ImageProps["src"]) {
 
 export function AppImage({
   src,
+  alt = "",
   unoptimized,
   mediaVariant = "preview",
   ...props
@@ -32,6 +33,7 @@ export function AppImage({
   return (
     <Image
       src={resolved}
+      alt={alt}
       unoptimized={unoptimized ?? shouldSkipOptimizer(resolved)}
       {...props}
     />
