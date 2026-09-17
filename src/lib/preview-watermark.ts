@@ -6,6 +6,7 @@ import { createElement } from "react";
 import satori from "satori";
 import sharp from "sharp";
 
+const CACHE_VERSION = "v2-transparent";
 const CACHE_DIR = process.env.VERCEL
   ? "/tmp/panbagi-watermarks"
   : path.join(process.cwd(), "storage", "cache", "watermarks");
@@ -13,7 +14,9 @@ const CACHE_DIR = process.env.VERCEL
 let juaFont: Buffer | null | undefined;
 
 function cachePath(src: string, ext: "png" | "jpg") {
-  const hash = createHash("sha256").update(src).digest("hex");
+  const hash = createHash("sha256")
+    .update(`${CACHE_VERSION}:${src}`)
+    .digest("hex");
   return path.join(CACHE_DIR, `${hash}.${ext}`);
 }
 
@@ -34,6 +37,13 @@ async function loadJuaFont() {
   return juaFont;
 }
 
+function transparentizeSatoriSvg(svg: string) {
+  return svg
+    .replace(/<rect\b[^>]*fill="white"[^>]*\/>/gi, "")
+    .replace(/<rect\b[^>]*fill="#fff(?:fff)?"[^>]*\/>/gi, "")
+    .replace(/\sfill="white"/gi, ' fill="transparent"');
+}
+
 async function watermarkOverlay(width: number, height: number, font: Buffer) {
   const titleSize = Math.max(22, Math.round(width * 0.07));
   const urlSize = Math.max(12, Math.round(width * 0.028));
@@ -41,6 +51,10 @@ async function watermarkOverlay(width: number, height: number, font: Buffer) {
   const stepX = Math.max(120, Math.round(width * 0.36));
   const stepY = Math.max(80, Math.round(height * 0.22));
   const tiles: ReturnType<typeof createElement>[] = [];
+  const transparentText = {
+    display: "flex" as const,
+    backgroundColor: "transparent",
+  };
 
   for (let y = 0; y < height + stepY; y += stepY) {
     for (let x = 0; x < width + stepX; x += stepX) {
@@ -50,7 +64,7 @@ async function watermarkOverlay(width: number, height: number, font: Buffer) {
           {
             key: `${x}-${y}`,
             style: {
-              display: "flex",
+              ...transparentText,
               position: "absolute",
               left: x,
               top: y,
@@ -66,65 +80,76 @@ async function watermarkOverlay(width: number, height: number, font: Buffer) {
     }
   }
 
-  const svg = await satori(
-    createElement(
-      "div",
-      {
-        style: {
-          display: "flex",
-          width: "100%",
-          height: "100%",
-          position: "relative",
-        },
-      },
-      ...tiles,
+  const svg = transparentizeSatoriSvg(
+    await satori(
       createElement(
         "div",
         {
           style: {
-            display: "flex",
-            flexDirection: "column",
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: Math.round(height * 0.16),
-            alignItems: "center",
-            fontFamily: "Jua",
+            ...transparentText,
+            width: "100%",
+            height: "100%",
+            position: "relative",
           },
         },
+        ...tiles,
         createElement(
           "div",
           {
             style: {
-              display: "flex",
-              color: "rgba(47,74,95,0.4)",
-              fontSize: titleSize,
+              ...transparentText,
+              flexDirection: "column",
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: Math.round(height * 0.16),
+              alignItems: "center",
+              fontFamily: "Jua",
             },
           },
-          "판바기",
-        ),
-        createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              marginTop: 6,
-              color: "rgba(47,74,95,0.34)",
-              fontSize: urlSize,
+          createElement(
+            "div",
+            {
+              style: {
+                ...transparentText,
+                color: "rgba(47,74,95,0.4)",
+                fontSize: titleSize,
+              },
             },
-          },
-          "www.panbagi.co.kr",
+            "판바기",
+          ),
+          createElement(
+            "div",
+            {
+              style: {
+                ...transparentText,
+                marginTop: 6,
+                color: "rgba(47,74,95,0.34)",
+                fontSize: urlSize,
+              },
+            },
+            "www.panbagi.co.kr",
+          ),
         ),
       ),
+      {
+        width,
+        height,
+        fonts: [{ name: "Jua", data: font, weight: 400, style: "normal" }],
+      },
     ),
-    {
-      width,
-      height,
-      fonts: [{ name: "Jua", data: font, weight: 400, style: "normal" }],
-    },
   );
 
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  return sharp(Buffer.from(svg)).ensureAlpha().png().toBuffer();
+}
+
+async function overlayIsOpaque(overlay: Buffer) {
+  try {
+    const stats = await sharp(overlay).stats();
+    return stats.isOpaque;
+  } catch {
+    return true;
+  }
 }
 
 async function readCached(cached: string, contentType: string) {
@@ -170,7 +195,14 @@ export async function getWatermarkedPreview(src: string, original: Buffer) {
     const width = meta.width ?? 1024;
     const height = meta.height ?? 1024;
     const overlay = await watermarkOverlay(width, height, font);
-    const composed = image.composite([{ input: overlay, gravity: "northwest" }]);
+    if (await overlayIsOpaque(overlay)) {
+      console.error("[watermark] overlay was opaque; serving original");
+      return { bytes: original, contentType };
+    }
+
+    const composed = image.composite([
+      { input: overlay, gravity: "northwest", blend: "over" },
+    ]);
     const bytes =
       ext === "png"
         ? await composed.png().toBuffer()
