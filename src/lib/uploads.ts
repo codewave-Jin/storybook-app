@@ -54,8 +54,31 @@ export function isRemoteAsset(value: string | null | undefined) {
   return Boolean(value && /^https?:\/\//i.test(value));
 }
 
+export function sniffImageContentType(bytes: Buffer) {
+  if (bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF") {
+    return "image/webp";
+  }
+  if (bytes.length >= 3 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e) {
+    return "image/png";
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (bytes.length >= 3 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return "image/gif";
+  }
+  return "image/png";
+}
+
 export function guessStoredAssetMime(storedPath: string) {
-  const ext = path.extname(storedPath).toLowerCase();
+  const pathname = (() => {
+    try {
+      return isRemoteAsset(storedPath) ? new URL(storedPath).pathname : storedPath;
+    } catch {
+      return storedPath;
+    }
+  })();
+  const ext = path.extname(pathname).toLowerCase();
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
   if (ext === ".webp") return "image/webp";
   if (ext === ".gif") return "image/gif";

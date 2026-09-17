@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getWatermarkedPreview } from "@/lib/preview-watermark";
-import { guessStoredAssetMime, readStoredAsset } from "@/lib/uploads";
+import {
+  guessStoredAssetMime,
+  readStoredAsset,
+  sniffImageContentType,
+} from "@/lib/uploads";
 
 export async function serveStoredMedia(
   storedPath: string | null | undefined,
@@ -22,10 +26,12 @@ export async function serveStoredMedia(
   }
 
   const isAdmin = Boolean(session.user.isAdmin);
+  const contentType = sniffImageContentType(original) || guessStoredAssetMime(storedPath);
+
   if (options?.forceOriginal && isAdmin) {
     return new NextResponse(new Uint8Array(original), {
       headers: {
-        "Content-Type": guessStoredAssetMime(storedPath),
+        "Content-Type": contentType,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
         "Content-Disposition": "inline",
@@ -36,7 +42,7 @@ export async function serveStoredMedia(
   const preview = await getWatermarkedPreview(storedPath, original);
   return new NextResponse(new Uint8Array(preview.bytes), {
     headers: {
-      "Content-Type": preview.contentType,
+      "Content-Type": preview.contentType || contentType,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
       "Content-Disposition": "inline",

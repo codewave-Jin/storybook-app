@@ -1,5 +1,6 @@
 export type MediaVariant = "preview" | "original";
 
+const MEDIA_CACHE_BUST = "4";
 const BLOB_HOST = /\.blob\.vercel-storage\.com\//i;
 
 export function isProtectedMediaSrc(src: string) {
@@ -32,7 +33,9 @@ export function characterMediaSrc(
   variant: MediaVariant = "preview",
 ) {
   const base = `/api/media/character/${id}/${kind}`;
-  return variant === "original" ? `${base}?v=original` : base;
+  return variant === "original"
+    ? `${base}?v=original&cb=${MEDIA_CACHE_BUST}`
+    : `${base}?cb=${MEDIA_CACHE_BUST}`;
 }
 
 export function illustrationMediaSrc(
@@ -40,7 +43,9 @@ export function illustrationMediaSrc(
   variant: MediaVariant = "preview",
 ) {
   const base = `/api/media/illustration/${id}`;
-  return variant === "original" ? `${base}?v=original` : base;
+  return variant === "original"
+    ? `${base}?v=original&cb=${MEDIA_CACHE_BUST}`
+    : `${base}?cb=${MEDIA_CACHE_BUST}`;
 }
 
 export function stickerMediaSrc(
@@ -49,7 +54,9 @@ export function stickerMediaSrc(
   variant: MediaVariant = "preview",
 ) {
   const base = `/api/media/sticker/${id}/${kind}`;
-  return variant === "original" ? `${base}?v=original` : base;
+  return variant === "original"
+    ? `${base}?v=original&cb=${MEDIA_CACHE_BUST}`
+    : `${base}?cb=${MEDIA_CACHE_BUST}`;
 }
 
 export function toClientCharacterImages<
@@ -76,7 +83,11 @@ export function toProtectedMediaSrc(
     return src;
   }
 
-  const params = new URLSearchParams({ src, v: variant });
+  const params = new URLSearchParams({
+    src,
+    v: variant,
+    cb: MEDIA_CACHE_BUST,
+  });
   return `/api/media?${params.toString()}`;
 }
 

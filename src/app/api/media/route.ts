@@ -3,7 +3,11 @@ import { auth } from "@/auth";
 import { userCanAccessMedia } from "@/lib/media-access";
 import { isProtectedMediaSrc } from "@/lib/media-paths";
 import { getWatermarkedPreview } from "@/lib/preview-watermark";
-import { guessStoredAssetMime, readStoredAsset } from "@/lib/uploads";
+import {
+  guessStoredAssetMime,
+  readStoredAsset,
+  sniffImageContentType,
+} from "@/lib/uploads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,10 +41,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const contentType = sniffImageContentType(original) || guessStoredAssetMime(src);
+
   if (requestedOriginal && isAdmin) {
     return new NextResponse(new Uint8Array(original), {
       headers: {
-        "Content-Type": guessStoredAssetMime(src),
+        "Content-Type": contentType,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
         "Content-Disposition": "inline",
@@ -51,7 +57,7 @@ export async function GET(request: Request) {
   const preview = await getWatermarkedPreview(src, original);
   return new NextResponse(new Uint8Array(preview.bytes), {
     headers: {
-      "Content-Type": preview.contentType,
+      "Content-Type": preview.contentType || contentType,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
       "Content-Disposition": "inline",
