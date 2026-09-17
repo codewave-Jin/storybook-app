@@ -6,6 +6,10 @@ const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
   const pathname = req.nextUrl.pathname;
+  if (pathname.startsWith("/uploads/")) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const isOnAdmin = pathname.startsWith("/admin");
   if (!isOnAdmin) {
     return;
@@ -36,5 +40,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/admin", "/admin/:path*"],
+  matcher: ["/admin", "/admin/:path*", "/uploads/:path*"],
 };

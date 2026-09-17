@@ -515,6 +515,10 @@ model StickerOrder {
   errorReason      String?
   paymentStatus    PaymentStatus     @default(PENDING)
   productionStatus ProductionStatus  @default(WAITING)
+  fulfillmentStatus  FulfillmentStatus @default(PREPARING)
+  expectedDeliveryAt DateTime?
+  shippingCarrier    String?
+  trackingNumber     String?
   createdAt        DateTime          @default(now())
   review           Review?
 

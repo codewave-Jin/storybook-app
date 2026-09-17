@@ -36,6 +36,25 @@ export const FULFILLMENT_STATUS_FILTERS: Array<{
   { value: "DELIVERED", label: "배송완료" },
 ];
 
+export const STICKER_FULFILLMENT_STATUS_LABEL: Record<FulfillmentStatus, string> = {
+  PREPARING: "준비중",
+  PRINTING: "인쇄 의뢰",
+  PRINTED: "인쇄중",
+  SHIPPING: "배송중",
+  DELIVERED: "배송완료",
+};
+
+export const STICKER_FULFILLMENT_STATUS_FILTERS: Array<{
+  value: "ALL" | FulfillmentStatus;
+  label: string;
+}> = [
+  { value: "ALL", label: "전체" },
+  { value: "PRINTING", label: "인쇄 의뢰" },
+  { value: "PRINTED", label: "인쇄중" },
+  { value: "SHIPPING", label: "배송중" },
+  { value: "DELIVERED", label: "배송완료" },
+];
+
 export const FULFILLMENT_NEXT: Record<FulfillmentStatus, FulfillmentStatus | null> = {
   PREPARING: "PRINTING",
   PRINTING: "PRINTED",

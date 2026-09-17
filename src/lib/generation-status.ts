@@ -1,3 +1,8 @@
+import {
+  illustrationMediaSrc,
+  type MediaVariant,
+} from "@/lib/media-paths";
+
 export function characterStatusPayload(
   items: Array<{ id: string; status: string }>,
 ) {
@@ -18,6 +23,7 @@ export function illustrationStatusPayload(
     queueAhead?: number;
     progressLabel?: string | null;
   }>,
+  variant: MediaVariant = "preview",
 ) {
   return {
     illustrations: [...items]
@@ -37,16 +43,19 @@ export function illustrationStatusPayload(
           queueStatus,
           queueAhead,
           progressLabel,
-        }) => ({
-          id,
-          status,
-          pageNumber: pageNumber ?? null,
-          imagePath: imagePath ?? null,
-          imageUrl: imagePath ?? null,
-          queueStatus: queueStatus ?? null,
-          queueAhead: queueAhead ?? 0,
-          progressLabel: progressLabel ?? null,
-        }),
+        }) => {
+          const mediaPath = imagePath ? illustrationMediaSrc(id, variant) : null;
+          return {
+            id,
+            status,
+            pageNumber: pageNumber ?? null,
+            imagePath: mediaPath,
+            imageUrl: mediaPath,
+            queueStatus: queueStatus ?? null,
+            queueAhead: queueAhead ?? 0,
+            progressLabel: progressLabel ?? null,
+          };
+        },
       ),
   };
 }

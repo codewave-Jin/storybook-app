@@ -77,6 +77,7 @@ export async function saveAlbumSlotPhoto(
     return { error: found.error };
   }
   const { page } = found;
+  const session = await auth();
 
   if (!(file instanceof File) || file.size < 1) {
     return { error: "사진을 선택해 주세요." };
@@ -84,7 +85,7 @@ export async function saveAlbumSlotPhoto(
 
   let photoPath: string;
   try {
-    photoPath = await saveAlbumPhoto(file);
+    photoPath = await saveAlbumPhoto(file, session?.user?.id);
   } catch (error) {
     return {
       error:

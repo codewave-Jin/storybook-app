@@ -215,6 +215,7 @@ async function runCompositeStickerPreview(options: {
 async function runLegacyStickerPreview(options: {
   order: {
     id: string;
+    userId: string;
     phrase: string;
     customCostumeHint: string;
     costume: { promptHint: string; label: string } | null;
@@ -295,6 +296,7 @@ async function runLegacyStickerPreview(options: {
     const imagePath = await persistGeneratedStickerBuffer(
       Buffer.from(generated.b64, "base64"),
       mimeForOutputFormat(STICKER_OUTPUT_FORMAT),
+      order.userId,
     );
     logSticker("sticker.upload_done", "이미지 저장 완료", { imagePath });
 

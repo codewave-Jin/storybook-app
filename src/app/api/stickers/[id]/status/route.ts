@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
 import { shouldKickPendingStickerPreview } from "@/lib/sticker-generation-policy";
 import { prisma } from "@/lib/prisma";
+import { stickerMediaSrc } from "@/lib/media-paths";
 
 export async function GET(
   _request: Request,
@@ -35,7 +36,9 @@ export async function GET(
   }
 
   return NextResponse.json({
-    previewImagePath: order.previewImagePath,
+    previewImagePath: order.previewImagePath
+      ? stickerMediaSrc(order.id)
+      : null,
     previewStatus: order.previewStatus,
     errorReason: order.errorReason,
     productionStatus: order.productionStatus,

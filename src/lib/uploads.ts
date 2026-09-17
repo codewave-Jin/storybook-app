@@ -2,6 +2,7 @@ import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { del, put } from "@vercel/blob";
+import { deleteWatermarkCache } from "@/lib/preview-watermark";
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -11,30 +12,6 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const CHARACTERS_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "characters",
-);
-const ILLUSTRATIONS_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "illustrations",
-);
-const STICKERS_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "stickers",
-);
-const ALBUMS_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "albums",
-);
 
 type UploadFolder = "characters" | "illustrations" | "stickers" | "albums";
 
@@ -47,6 +24,10 @@ function extensionFromMime(type: string): string {
 
 function blobStorageEnabled() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+function useBlobStorage() {
+  return blobStorageEnabled() && process.env.VERCEL === "1";
 }
 
 function requireBlobStorage() {
@@ -73,16 +54,54 @@ export function isRemoteAsset(value: string | null | undefined) {
   return Boolean(value && /^https?:\/\//i.test(value));
 }
 
+export function guessStoredAssetMime(storedPath: string) {
+  const ext = path.extname(storedPath).toLowerCase();
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  return "image/png";
+}
+
+export function resolveStoredAbsolutePath(storedPath: string) {
+  if (isRemoteAsset(storedPath) || storedPath.includes("..") || !storedPath.startsWith("/")) {
+    return null;
+  }
+
+  const segments = storedPath.split("/").filter(Boolean);
+  const publicPath = path.join(process.cwd(), "public", ...segments);
+  const privatePath = storedPath.startsWith("/uploads/")
+    ? path.join(process.cwd(), "storage", ...segments)
+    : null;
+
+  if (privatePath && existsSync(privatePath)) {
+    return privatePath;
+  }
+  if (existsSync(publicPath)) {
+    return publicPath;
+  }
+  return privatePath ?? publicPath;
+}
+
+function privateUploadDir(folder: UploadFolder, ownerUserId?: string) {
+  return ownerUserId
+    ? path.join(process.cwd(), "storage", "uploads", folder, ownerUserId)
+    : path.join(process.cwd(), "storage", "uploads", folder);
+}
+
 async function saveBuffer(
   buffer: Buffer,
   folder: UploadFolder,
   extension: string,
   contentType?: string,
+  ownerUserId?: string,
 ) {
   const filename = `${crypto.randomUUID()}${extension.startsWith(".") ? extension : `.${extension}`}`;
+  const publicPath = ownerUserId
+    ? `/uploads/${folder}/${ownerUserId}/${filename}`
+    : `/uploads/${folder}/${filename}`;
 
-  if (blobStorageEnabled()) {
-    const blob = await put(`uploads/${folder}/${filename}`, buffer, {
+  if (useBlobStorage()) {
+    const blob = await put(`uploads/${folder}/${ownerUserId ?? "shared"}/${filename}`, buffer, {
       access: "public",
       addRandomSuffix: false,
       contentType: contentType ?? "image/png",
@@ -90,20 +109,13 @@ async function saveBuffer(
     return blob.url;
   }
 
-  const destDir =
-    folder === "characters"
-      ? CHARACTERS_UPLOAD_DIR
-      : folder === "stickers"
-        ? STICKERS_UPLOAD_DIR
-        : folder === "albums"
-          ? ALBUMS_UPLOAD_DIR
-          : ILLUSTRATIONS_UPLOAD_DIR;
+  const destDir = privateUploadDir(folder, ownerUserId);
   await mkdir(destDir, { recursive: true });
   await writeFile(path.join(destDir, filename), buffer);
-  return `/uploads/${folder}/${filename}`;
+  return publicPath;
 }
 
-export async function saveCharacterPhoto(file: File): Promise<string> {
+export async function saveCharacterPhoto(file: File, ownerUserId?: string): Promise<string> {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.");
   }
@@ -118,12 +130,13 @@ export async function saveCharacterPhoto(file: File): Promise<string> {
     "characters",
     extensionFromMime(file.type),
     file.type,
+    ownerUserId,
   );
 }
 
 const ADMIN_ILLUSTRATION_MAX_BYTES = 20 * 1024 * 1024;
 
-export async function saveAdminCharacterFile(file: File): Promise<string> {
+export async function saveAdminCharacterFile(file: File, ownerUserId?: string): Promise<string> {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("JPG, PNG, WEBP 이미지만 올릴 수 있습니다.");
   }
@@ -142,10 +155,11 @@ export async function saveAdminCharacterFile(file: File): Promise<string> {
     "characters",
     extensionFromMime(file.type),
     file.type,
+    ownerUserId,
   );
 }
 
-export async function saveAdminIllustrationFile(file: File): Promise<string> {
+export async function saveAdminIllustrationFile(file: File, ownerUserId?: string): Promise<string> {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("JPG, PNG, WEBP 이미지만 올릴 수 있습니다.");
   }
@@ -164,10 +178,11 @@ export async function saveAdminIllustrationFile(file: File): Promise<string> {
     "illustrations",
     extensionFromMime(file.type),
     file.type,
+    ownerUserId,
   );
 }
 
-export async function saveAlbumPhoto(file: File): Promise<string> {
+export async function saveAlbumPhoto(file: File, ownerUserId?: string): Promise<string> {
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.");
   }
@@ -177,7 +192,7 @@ export async function saveAlbumPhoto(file: File): Promise<string> {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  return saveBuffer(buffer, "albums", extensionFromMime(file.type), file.type);
+  return saveBuffer(buffer, "albums", extensionFromMime(file.type), file.type, ownerUserId);
 }
 
 export function toAbsolutePublicPath(publicPath: string) {
@@ -185,7 +200,7 @@ export function toAbsolutePublicPath(publicPath: string) {
     return publicPath;
   }
 
-  return path.join(
+  return resolveStoredAbsolutePath(publicPath) ?? path.join(
     process.cwd(),
     "public",
     ...publicPath.split("/").filter(Boolean),
@@ -210,51 +225,66 @@ async function downloadRemoteAsset(url: string) {
   return buffer;
 }
 
-export async function persistGeneratedCharacterImage(sourcePath: string) {
-  return persistGeneratedImage(sourcePath, "characters");
+export async function persistGeneratedCharacterImage(
+  sourcePath: string,
+  ownerUserId?: string,
+) {
+  return persistGeneratedImage(sourcePath, "characters", ownerUserId);
 }
 
-export async function persistGeneratedIllustrationImage(sourcePath: string) {
-  return persistGeneratedImage(sourcePath, "illustrations");
+export async function persistGeneratedIllustrationImage(
+  sourcePath: string,
+  ownerUserId?: string,
+) {
+  return persistGeneratedImage(sourcePath, "illustrations", ownerUserId);
 }
 
 export async function persistGeneratedIllustrationBuffer(
   buffer: Buffer,
   contentType = "image/jpeg",
+  ownerUserId?: string,
 ) {
   return saveBuffer(
     buffer,
     "illustrations",
     extensionFromMime(contentType),
     contentType,
+    ownerUserId,
   );
 }
 
 export async function persistGeneratedStickerBuffer(
   buffer: Buffer,
   contentType = "image/jpeg",
+  ownerUserId?: string,
 ) {
   return saveBuffer(
     buffer,
     "stickers",
     extensionFromMime(contentType),
     contentType,
+    ownerUserId,
   );
 }
 
 async function persistGeneratedImage(
   sourcePath: string,
   publicFolder: "characters" | "illustrations",
+  ownerUserId?: string,
 ) {
   if (sourcePath.startsWith("/dummy/")) {
     return sourcePath;
   }
 
   if (isRemoteAsset(sourcePath) && sourcePath.includes("blob.vercel-storage.com")) {
-    return sourcePath;
+    if (useBlobStorage()) {
+      return sourcePath;
+    }
   }
 
-  requireBlobStorage();
+  if (useBlobStorage()) {
+    requireBlobStorage();
+  }
 
   if (sourcePath.startsWith("/uploads/")) {
     const absolute = toAbsolutePublicPath(sourcePath);
@@ -263,13 +293,13 @@ async function persistGeneratedImage(
     }
     const buffer = await readFile(absolute);
     const ext = path.extname(absolute) || ".png";
-    return saveBuffer(buffer, publicFolder, ext);
+    return saveBuffer(buffer, publicFolder, ext, undefined, ownerUserId);
   }
 
   if (isRemoteAsset(sourcePath)) {
     const buffer = await downloadRemoteAsset(sourcePath);
     const ext = path.extname(new URL(sourcePath).pathname) || ".png";
-    return saveBuffer(buffer, publicFolder, ext);
+    return saveBuffer(buffer, publicFolder, ext, undefined, ownerUserId);
   }
 
   const candidates = [
@@ -288,7 +318,7 @@ async function persistGeneratedImage(
 
   const buffer = await readFile(absolute);
   const ext = path.extname(absolute) || ".png";
-  return saveBuffer(buffer, publicFolder, ext);
+  return saveBuffer(buffer, publicFolder, ext, undefined, ownerUserId);
 }
 
 export async function readStoredAsset(storedPath: string | null | undefined) {
@@ -308,13 +338,8 @@ export async function readStoredAsset(storedPath: string | null | undefined) {
     return null;
   }
 
-  const filepath = path.join(
-    process.cwd(),
-    "public",
-    ...storedPath.split("/").filter(Boolean),
-  );
-
-  if (!existsSync(filepath)) {
+  const filepath = resolveStoredAbsolutePath(storedPath);
+  if (!filepath || !existsSync(filepath)) {
     return null;
   }
 
@@ -325,6 +350,8 @@ export async function deletePublicFile(publicPath: string | null | undefined) {
   if (!publicPath) {
     return;
   }
+
+  await deleteWatermarkCache(publicPath);
 
   if (isRemoteAsset(publicPath)) {
     try {
@@ -339,15 +366,17 @@ export async function deletePublicFile(publicPath: string | null | undefined) {
     return;
   }
 
-  const filepath = path.join(
-    process.cwd(),
-    "public",
-    ...publicPath.split("/").filter(Boolean),
-  );
-  try {
-    await unlink(filepath);
-  } catch {
-    // File may already be gone.
+  const segments = publicPath.split("/").filter(Boolean);
+  const candidates = [
+    path.join(process.cwd(), "storage", ...segments),
+    path.join(process.cwd(), "public", ...segments),
+  ];
+  for (const filepath of candidates) {
+    try {
+      await unlink(filepath);
+    } catch {
+      // File may already be gone.
+    }
   }
 }
 

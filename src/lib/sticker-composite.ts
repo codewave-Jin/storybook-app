@@ -83,7 +83,7 @@ export async function persistStickerCompositeBuffer(
     process.env.SUPABASE_URL?.trim();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) {
-    return persistGeneratedStickerBuffer(buffer, "image/png");
+    return persistGeneratedStickerBuffer(buffer, "image/png", options.userId);
   }
 
   const supabase = getSupabaseAdmin();

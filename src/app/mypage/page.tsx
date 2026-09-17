@@ -112,6 +112,7 @@ export default async function MyPage() {
       href: `/dashboard/sticker/${order.id}/preview`,
       paymentStatus: order.paymentStatus,
       productionStatus: order.productionStatus,
+      fulfillmentStatus: order.fulfillmentStatus,
       createdAt: order.createdAt,
       reviewId: order.review?.id ?? null,
     })),
@@ -135,12 +136,14 @@ export default async function MyPage() {
             const fulfillment = getFulfillmentLabel(
               order.paymentStatus,
               order.productionStatus,
-              "fulfillmentStatus" in order ? order.fulfillmentStatus : undefined,
+              order.fulfillmentStatus,
+              order.kind,
             );
             const hint = getFulfillmentHint(
               order.paymentStatus,
               order.productionStatus,
-              "fulfillmentStatus" in order ? order.fulfillmentStatus : undefined,
+              order.fulfillmentStatus,
+              order.kind,
             );
 
             const canWriteReview =

@@ -552,6 +552,7 @@ export async function runIllustrationGeneration(options: {
     const imagePath = await persistGeneratedIllustrationBuffer(
       Buffer.from(generated.b64, "base64"),
       mimeForOutputFormat(ILLUSTRATION_OUTPUT_FORMAT),
+      illustration.order.userId,
     );
 
     logIllustration("illustration.upload_done", "이미지 저장 완료", {

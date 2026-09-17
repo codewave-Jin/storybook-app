@@ -166,6 +166,7 @@ export function UpscaleWorkbench({
                   src={item.imagePath}
                   alt={`${item.pageNumber}페이지 원본`}
                   fill
+                  mediaVariant="original"
                   className="object-cover"
                   sizes="240px"
                 />
@@ -185,6 +186,7 @@ export function UpscaleWorkbench({
                       src={item.upscaledImagePath}
                       alt={`${item.pageNumber}페이지 업스케일`}
                       fill
+                      mediaVariant="original"
                       className="object-cover"
                       sizes="240px"
                     />

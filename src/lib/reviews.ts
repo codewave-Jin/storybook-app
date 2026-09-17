@@ -16,10 +16,10 @@ export const STORYBOOK_REVIEWABLE_WHERE = {
   fulfillmentStatus: "DELIVERED" as const,
 };
 
-/** Stickers have no fulfillment pipeline; production complete is the ship-done signal. */
+/** Sticker reviews open only after admin marks fulfillment as delivered. */
 export const STICKER_REVIEWABLE_WHERE = {
   paymentStatus: "PAID" as const,
-  productionStatus: "COMPLETED" as const,
+  fulfillmentStatus: "DELIVERED" as const,
 };
 
 export function isReviewEditable(updatedAt: Date, now = new Date()) {
@@ -40,13 +40,13 @@ export function canWriteStorybookReview(order: {
 
 export function canWriteStickerReview(order: {
   paymentStatus: string;
-  productionStatus: string;
+  fulfillmentStatus?: string | null;
   reviewId?: string | null;
 }) {
   return (
     !order.reviewId &&
     order.paymentStatus === STICKER_REVIEWABLE_WHERE.paymentStatus &&
-    order.productionStatus === STICKER_REVIEWABLE_WHERE.productionStatus
+    order.fulfillmentStatus === STICKER_REVIEWABLE_WHERE.fulfillmentStatus
   );
 }
 

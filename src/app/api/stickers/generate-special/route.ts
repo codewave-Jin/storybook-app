@@ -14,11 +14,11 @@ import {
   deleteUnpaidStickerDraft,
 } from "@/lib/sticker-draft";
 import {
-  SPECIAL_GENDER_OPTIONS,
   buildSpecialStickerPrompt,
   parseSpecialGenerateBody,
   specialGeneratePhrase,
   specialGenerateTopic,
+  specialGenderLabel,
   specialStickerCostumeHint,
 } from "@/lib/sticker-special";
 import { consumeTokenHold, getCharacterSlotAndTokens, refundTokenHold } from "@/lib/tokens";
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   const character = await prisma.character.findFirst({
     where: { id: characterId, userId },
-    select: { generatedImagePath: true, status: true },
+    select: { generatedImagePath: true, status: true, gender: true },
   });
   if (!character || character.status !== "COMPLETED" || !character.generatedImagePath) {
     return NextResponse.json(
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
   const phrase = specialGeneratePhrase(parsed);
   const genderLabel =
     parsed.kind === "nametag"
-      ? SPECIAL_GENDER_OPTIONS.find((item) => item.key === parsed.gender)?.label
-      : undefined;
+      ? specialGenderLabel(parsed.gender)
+      : specialGenderLabel(character.gender);
   const prompt = buildSpecialStickerPrompt({
     kind: parsed.kind,
     topic,
@@ -110,6 +110,7 @@ export async function POST(request: Request) {
       const rawPath = await persistGeneratedStickerBuffer(
         rawBytes,
         mimeForOutputFormat("png"),
+        userId,
       );
       imageBytes = Buffer.from(
         await clearStickerCharacterBackground(
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
     const imagePath = await persistGeneratedStickerBuffer(
       imageBytes,
       mimeForOutputFormat("png"),
+      userId,
     );
     await completeStickerDraftPreview(orderId, imagePath);
     const { tokens } = await getCharacterSlotAndTokens(userId);

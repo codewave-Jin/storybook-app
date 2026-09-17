@@ -1,5 +1,6 @@
 import type {
   Character,
+  FulfillmentStatus,
   PaymentStatus,
   ProductionStatus,
   StickerPreviewStatus,
@@ -18,9 +19,11 @@ import { characterStatusPayload } from "@/lib/generation-status";
 import {
   FULFILLMENT_STATUS_BADGE,
   FULFILLMENT_STATUS_LABEL,
+  STICKER_FULFILLMENT_STATUS_LABEL,
 } from "@/lib/fulfillment";
 import { PRODUCTION_STATUS_LABEL, PAYMENT_STATUS_LABEL, formatDateTime } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { toClientCharacterImages } from "@/lib/media-paths";
 import { storybookOrderOptionLines, collectOrderCharacterIds, type OrderOptionLine } from "@/lib/storybook-order-summary";
 import { stickerPhraseDisplay } from "@/lib/sticker-phrase";
 
@@ -54,7 +57,7 @@ type RecentWorkItem = {
 function stickerWorkStatus(order: {
   previewStatus: StickerPreviewStatus;
   paymentStatus: PaymentStatus;
-  productionStatus: ProductionStatus;
+  fulfillmentStatus?: FulfillmentStatus | null;
 }): { label: string; badgeClass: string } {
   if (
     order.previewStatus === "IDLE" ||
@@ -71,9 +74,13 @@ function stickerWorkStatus(order: {
       badgeClass: PRODUCTION_BADGE.WAITING,
     };
   }
+  const fulfillment =
+    order.fulfillmentStatus && order.fulfillmentStatus !== "PREPARING"
+      ? order.fulfillmentStatus
+      : "PRINTING";
   return {
-    label: PRODUCTION_STATUS_LABEL[order.productionStatus],
-    badgeClass: PRODUCTION_BADGE[order.productionStatus],
+    label: STICKER_FULFILLMENT_STATUS_LABEL[fulfillment],
+    badgeClass: FULFILLMENT_STATUS_BADGE[fulfillment],
   };
 }
 
@@ -239,7 +246,10 @@ function CharacterGrid({
       <h2 className="text-base font-semibold text-stone-800">내 캐릭터</h2>
       <div className="mt-3 grid grid-cols-4 gap-1.5 sm:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
         {characters.map((character) => (
-          <CharacterCard key={character.id} character={character} />
+          <CharacterCard
+            key={character.id}
+            character={toClientCharacterImages(character)}
+          />
         ))}
         {canCreate ? <AddCharacterSlot href={addHref} /> : null}
       </div>
@@ -310,6 +320,7 @@ export default async function DashboardPage() {
           id: true,
           paymentStatus: true,
           productionStatus: true,
+          fulfillmentStatus: true,
           previewStatus: true,
           previewImagePath: true,
           errorReason: true,

@@ -187,9 +187,14 @@ export async function applyStoryOverlayToScene(options: {
     sceneBuffer,
     lines,
   });
+  const order = await prisma.storybookOrder.findUnique({
+    where: { id: options.orderId },
+    select: { userId: true },
+  });
   const imagePath = await persistGeneratedIllustrationBuffer(
     captioned,
     mimeForOutputFormat(ILLUSTRATION_OUTPUT_FORMAT),
+    order?.userId,
   );
 
   return {

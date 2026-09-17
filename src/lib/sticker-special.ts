@@ -59,6 +59,10 @@ export function specialKindLabel(kind: SpecialStickerKindOrGift | null) {
   return SPECIAL_STICKER_KINDS.find((item) => item.key === kind)?.label ?? null;
 }
 
+export function specialGenderLabel(gender: SpecialGender | null | undefined) {
+  return SPECIAL_GENDER_OPTIONS.find((item) => item.key === gender)?.label;
+}
+
 export function buildSpecialStickerPrompt(input: {
   kind?: SpecialStickerKind;
   topic: string;

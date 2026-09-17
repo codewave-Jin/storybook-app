@@ -319,6 +319,7 @@ export async function uploadIllustrationReplacement(
 
   const illustration = await prisma.illustration.findUnique({
     where: { id: illustrationId },
+    include: { order: { select: { userId: true } } },
   });
 
   if (!illustration) {
@@ -330,7 +331,7 @@ export async function uploadIllustrationReplacement(
   }
 
   try {
-    const imagePath = await saveAdminIllustrationFile(file);
+    const imagePath = await saveAdminIllustrationFile(file, illustration.order.userId);
     await prisma.illustration.update({
       where: { id: illustrationId },
       data: {
@@ -448,6 +449,7 @@ export async function uploadOrderCharacterInput(
       id: true,
       artStyleId: true,
       selectedCharacterIds: true,
+      userId: true,
     },
   });
   if (!order?.artStyleId) {
@@ -461,7 +463,7 @@ export async function uploadOrderCharacterInput(
 
   let imagePath: string;
   try {
-    imagePath = await saveAdminCharacterFile(file);
+    imagePath = await saveAdminCharacterFile(file, order.userId);
   } catch (error) {
     return {
       error:

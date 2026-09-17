@@ -13,6 +13,7 @@ import { stickerPhraseDisplay } from "@/lib/sticker-phrase";
 import { isSpecialStickerHint } from "@/lib/sticker-special";
 import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
+import { stickerMediaSrc } from "@/lib/media-paths";
 
 export default async function StickerPreviewPage({
   params,
@@ -49,7 +50,7 @@ export default async function StickerPreviewPage({
     void enqueueStickerGeneration(order.id);
   }
 
-  const stickerSrc = completed ? order.previewImagePath : null;
+  const stickerSrc = completed ? stickerMediaSrc(order.id) : null;
 
   return (
     <DashboardShell title="스티커 미리보기">
@@ -58,7 +59,7 @@ export default async function StickerPreviewPage({
           active
           href={`/api/stickers/${order.id}/status`}
           initialSignature={JSON.stringify({
-            previewImagePath: order.previewImagePath,
+            previewImagePath: stickerSrc,
             previewStatus: order.previewStatus,
             errorReason: order.errorReason,
           })}

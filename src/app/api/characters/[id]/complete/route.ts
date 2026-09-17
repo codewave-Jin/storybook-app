@@ -69,7 +69,7 @@ export async function POST(
 
   const character = await prisma.character.findUnique({
     where: { id: params.id },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
 
   if (!character) {
@@ -125,7 +125,10 @@ export async function POST(
 
   let generatedImagePath: string;
   try {
-    generatedImagePath = await persistGeneratedCharacterImage(sourcePath);
+    generatedImagePath = await persistGeneratedCharacterImage(
+      sourcePath,
+      character.userId,
+    );
   } catch (error) {
     console.error(
       `[character complete] ${params.id} could not store image`,

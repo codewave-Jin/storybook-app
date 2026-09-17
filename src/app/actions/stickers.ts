@@ -7,6 +7,7 @@ import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
 import { logGenerationEvent } from "@/lib/generation-events";
 import { parseCheckoutForm, parseStickerSheetCount, validateCheckoutInput } from "@/lib/checkout";
 import { isStickerSizeSelectable } from "@/lib/templates";
+import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
 import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { prisma } from "@/lib/prisma";
 import {
@@ -257,6 +258,8 @@ export async function payForStickerOrder(
     where: { id: orderId },
     data: {
       paymentStatus: "PAID",
+      fulfillmentStatus: "PRINTING",
+      expectedDeliveryAt: defaultExpectedDeliveryAt(new Date()),
       quantity: order.sizeOption.quantityPerA4 * checkout.sheetCount,
       ...checkout.data,
     },

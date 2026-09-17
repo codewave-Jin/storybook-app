@@ -83,6 +83,7 @@ export async function POST(
       imagePath: true,
       sceneImagePath: true,
       imageVersions: true,
+      order: { select: { userId: true } },
     },
   });
 
@@ -125,7 +126,10 @@ export async function POST(
 
   let imagePath: string;
   try {
-    imagePath = await persistGeneratedIllustrationImage(sourcePath);
+    imagePath = await persistGeneratedIllustrationImage(
+      sourcePath,
+      illustration.order.userId,
+    );
   } catch (error) {
     console.error(
       `[illustration complete] ${params.id} could not store image`,

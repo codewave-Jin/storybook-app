@@ -39,6 +39,7 @@ yarn-error.log*
 
 # user uploads
 /public/uploads
+/storage
 
 # local illustration smoke-test outputs
 /scripts/output

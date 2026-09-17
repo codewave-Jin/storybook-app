@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppImage } from "@/components/AppImage";
 import { DeleteCharacterButton } from "@/components/DeleteCharacterButton";
-import { PreviewWatermark } from "@/components/PreviewWatermark";
 
 function StatusLabel({ status }: { status: Character["status"] }) {
   if (status === "COMPLETED") {
@@ -96,10 +95,6 @@ export function CharacterCard({ character }: { character: Character }) {
           />
         ) : null}
 
-        {previewImage && !isGenerating && character.status !== "FAILED" ? (
-          <PreviewWatermark compact placement="bottom" />
-        ) : null}
-
         {isGenerating ? (
           <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1 bg-white/70 sm:gap-2">
             <Spinner />
@@ -159,7 +154,6 @@ export function CharacterCard({ character }: { character: Character }) {
                 className="pointer-events-none object-contain"
                 sizes="(max-width: 640px) 100vw, 32rem"
               />
-              <PreviewWatermark placement="bottom" />
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0">

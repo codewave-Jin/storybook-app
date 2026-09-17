@@ -1,5 +1,9 @@
 import type { FulfillmentStatus, PaymentStatus, ProductionStatus } from "@prisma/client";
-import { FULFILLMENT_STATUS_LABEL } from "@/lib/fulfillment";
+import {
+  FULFILLMENT_STATUS_BADGE,
+  FULFILLMENT_STATUS_LABEL,
+  STICKER_FULFILLMENT_STATUS_LABEL,
+} from "@/lib/fulfillment";
 
 export const PRODUCTION_STATUS_LABEL: Record<ProductionStatus, string> = {
   WAITING: "대기중",
@@ -29,7 +33,7 @@ export function isAdminProductFilter(value: string): value is AdminProductFilter
 export function stickerAdminStatus(order: {
   previewStatus: "IDLE" | "PROCESSING" | "COMPLETED" | "FAILED";
   paymentStatus: PaymentStatus;
-  productionStatus: ProductionStatus;
+  fulfillmentStatus?: FulfillmentStatus | null;
 }): { label: string; className: string } {
   if (order.previewStatus === "IDLE" || order.previewStatus === "PROCESSING") {
     return { label: "생성중", className: "bg-amber-50 text-amber-700" };
@@ -40,27 +44,29 @@ export function stickerAdminStatus(order: {
   if (order.paymentStatus !== "PAID") {
     return { label: "미리보기", className: "bg-stone-100 text-stone-600" };
   }
-  switch (order.productionStatus) {
-    case "COMPLETED":
-      return { label: "완료", className: "bg-emerald-50 text-emerald-700" };
-    case "ILLUSTRATING":
-    case "UPSCALING":
-      return {
-        label: PRODUCTION_STATUS_LABEL[order.productionStatus],
-        className: "bg-amber-50 text-amber-700",
-      };
-    default:
-      return { label: "대기중", className: "bg-stone-100 text-stone-600" };
-  }
+  const fulfillment = order.fulfillmentStatus ?? "PRINTING";
+  return {
+    label: STICKER_FULFILLMENT_STATUS_LABEL[fulfillment],
+    className: FULFILLMENT_STATUS_BADGE[fulfillment],
+  };
 }
 
 export function getFulfillmentLabel(
   paymentStatus: PaymentStatus,
   productionStatus: ProductionStatus,
   fulfillmentStatus?: FulfillmentStatus | null,
+  productKind: "storybook" | "sticker" = "storybook",
 ): string {
   if (paymentStatus !== "PAID") {
     return "미리보기";
+  }
+
+  if (productKind === "sticker") {
+    return STICKER_FULFILLMENT_STATUS_LABEL[
+      fulfillmentStatus && fulfillmentStatus !== "PREPARING"
+        ? fulfillmentStatus
+        : "PRINTING"
+    ];
   }
 
   if (fulfillmentStatus && fulfillmentStatus !== "PREPARING") {
@@ -84,9 +90,24 @@ export function getFulfillmentHint(
   paymentStatus: PaymentStatus,
   productionStatus: ProductionStatus,
   fulfillmentStatus?: FulfillmentStatus | null,
+  productKind: "storybook" | "sticker" = "storybook",
 ): string | null {
   if (paymentStatus !== "PAID") {
     return "결제 후 제작·배송이 시작됩니다.";
+  }
+  if (productKind === "sticker") {
+    switch (fulfillmentStatus && fulfillmentStatus !== "PREPARING" ? fulfillmentStatus : "PRINTING") {
+      case "PRINTING":
+        return "인쇄 의뢰가 접수되었어요.";
+      case "PRINTED":
+        return "인쇄가 진행 중이에요.";
+      case "SHIPPING":
+        return "배송이 시작되었어요.";
+      case "DELIVERED":
+        return "배송이 완료되었어요.";
+      default:
+        return null;
+    }
   }
   if (fulfillmentStatus && fulfillmentStatus !== "PREPARING") {
     switch (fulfillmentStatus) {

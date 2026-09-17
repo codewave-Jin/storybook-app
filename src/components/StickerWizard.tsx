@@ -450,11 +450,18 @@ export function StickerWizard({
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="mb-6">
-        <p className="text-sm font-medium text-stone-500">
-          {step}/{STEP_COUNT} · {STEP_LABELS[step - 1]}
-        </p>
-        <div className="mt-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+      <div className={cn(step === 3 ? "mb-2" : "mb-6")}>
+        {step === 3 ? null : (
+          <p className="text-sm font-medium text-stone-500">
+            {step}/{STEP_COUNT} · {STEP_LABELS[step - 1]}
+          </p>
+        )}
+        <div
+          className={cn(
+            "grid grid-cols-4 gap-1.5 sm:gap-2",
+            step === 3 ? "mt-0" : "mt-3",
+          )}
+        >
           {STEP_LABELS.map((label, index) => {
             const number = index + 1;
             const active = number === step;
@@ -464,18 +471,21 @@ export function StickerWizard({
               <div key={label} className="min-w-0">
                 <div
                   className={cn(
-                    "h-1.5 rounded-full",
+                    "rounded-full",
+                    step === 3 ? "h-1" : "h-1.5",
                     active || done ? "bg-sky-400" : "bg-stone-200",
                   )}
                 />
-                <p
-                  className={cn(
-                    "mt-2 truncate text-[11px] sm:text-sm",
-                    active ? "font-medium text-stone-900" : "text-stone-400",
-                  )}
-                >
-                  {number}. {label}
-                </p>
+                {step === 3 ? null : (
+                  <p
+                    className={cn(
+                      "mt-2 truncate text-[11px] sm:text-sm",
+                      active ? "font-medium text-stone-900" : "text-stone-400",
+                    )}
+                  >
+                    {number}. {label}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -666,11 +676,7 @@ export function StickerWizard({
 
       {step === 3 ? (
         <section>
-          <h2 className="text-lg font-semibold">제작하기</h2>
-          <p className="mt-1 text-sm text-stone-500">
-            문구와 위치를 바로 수정할 수 있어요.
-          </p>
-          <div className="mt-4">
+          <div>
             <StickerLayerEditor
               borderSrc={borderPreviewUrl ?? selectedBorder?.imageUrl}
               characterSrc={cutoutPath}
@@ -806,7 +812,12 @@ export function StickerWizard({
       ) : null}
 
       {step !== 4 ? (
-        <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+        <div
+          className={cn(
+            "mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between",
+            step === 3 && "mt-4 sm:mt-8",
+          )}
+        >
           {step > 1 ? (
             <button
               type="button"

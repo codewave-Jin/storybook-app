@@ -130,6 +130,7 @@ export function IllustrationPageEditor({
                 src={previewSrc}
                 alt={pageLabel}
                 fill
+                mediaVariant="original"
                 className="object-contain"
                 sizes={
                   isCover
@@ -200,6 +201,7 @@ export function IllustrationPageEditor({
                         src={version.path}
                         alt={`이전 버전 ${index + 1}`}
                         fill
+                        mediaVariant="original"
                         className="object-contain"
                         sizes="160px"
                       />

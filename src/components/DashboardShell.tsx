@@ -7,12 +7,14 @@ import { BrandLogo } from "@/components/BrandLogo";
 type DashboardShellProps = {
   title: string;
   titleAccessory?: ReactNode;
+  compact?: boolean;
   children: React.ReactNode;
 };
 
 export async function DashboardShell({
   title,
   titleAccessory,
+  compact = false,
   children,
 }: DashboardShellProps) {
   const session = await auth();
@@ -61,7 +63,13 @@ export async function DashboardShell({
             </div>
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <h1 className="shrink-0 text-2xl font-semibold tracking-tight">
+            <h1
+              className={
+                compact
+                  ? "shrink-0 text-lg font-semibold tracking-tight"
+                  : "shrink-0 text-2xl font-semibold tracking-tight"
+              }
+            >
               {title}
             </h1>
             {titleAccessory ? (
@@ -69,7 +77,7 @@ export async function DashboardShell({
             ) : null}
           </div>
         </header>
-        <div className="mt-6">{children}</div>
+        <div className={compact ? "mt-2 sm:mt-3" : "mt-6"}>{children}</div>
       </div>
     </main>
   );

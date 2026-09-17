@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StickerWizard } from "@/components/StickerWizard";
 import { stickerBorderLabel, isStickerSizeSelectable } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
+import { toClientCharacterImages } from "@/lib/media-paths";
 import { getCharacterSlotAndTokens } from "@/lib/tokens";
 
 export default async function NewStickerPage() {
@@ -29,45 +29,40 @@ export default async function NewStickerPage() {
   ]);
 
   return (
-    <DashboardShell title="스티커 만들기">
-      <Link
-        href="/dashboard"
-        className="text-sm font-medium text-stone-500 underline-offset-4 hover:underline"
-      >
-        ← 대시보드로
-      </Link>
-      <div className="mt-4">
-        <StickerWizard
-          tokenBalance={tokens}
-          defaultEmail={session.user.email ?? undefined}
-          defaultName={session.user.name ?? undefined}
-          characters={characters.map((character) => ({
-            id: character.id,
-            label: character.label,
-            gender: character.gender,
-            status: character.status,
-            generatedImagePath: character.generatedImagePath,
-            originalPhotoPath: character.originalPhotoPath,
-          }))}
-          borders={borders.map((border) => ({
-            id: border.id,
-            key: border.key,
-            label: stickerBorderLabel(border.key, border.label),
-            thumbnailPath: border.thumbnailPath ?? border.imageUrl,
-            imageUrl: border.imageUrl,
-            category: border.category,
-            sortOrder: border.sortOrder,
-          }))}
-          sizes={sizes.map((size) => ({
-            id: size.id,
-            label: size.label,
-            widthMm: size.widthMm,
-            heightMm: size.heightMm,
-            quantityPerA4: size.quantityPerA4,
-            available: isStickerSizeSelectable(size.label),
-          }))}
-        />
-      </div>
+    <DashboardShell compact title="스티커 만들기">
+      <StickerWizard
+        tokenBalance={tokens}
+        defaultEmail={session.user.email ?? undefined}
+        defaultName={session.user.name ?? undefined}
+        characters={characters.map((character) => {
+          const redacted = toClientCharacterImages(character);
+          return {
+            id: redacted.id,
+            label: redacted.label,
+            gender: redacted.gender,
+            status: redacted.status,
+            generatedImagePath: redacted.generatedImagePath,
+            originalPhotoPath: redacted.originalPhotoPath,
+          };
+        })}
+        borders={borders.map((border) => ({
+          id: border.id,
+          key: border.key,
+          label: stickerBorderLabel(border.key, border.label),
+          thumbnailPath: border.thumbnailPath ?? border.imageUrl,
+          imageUrl: border.imageUrl,
+          category: border.category,
+          sortOrder: border.sortOrder,
+        }))}
+        sizes={sizes.map((size) => ({
+          id: size.id,
+          label: size.label,
+          widthMm: size.widthMm,
+          heightMm: size.heightMm,
+          quantityPerA4: size.quantityPerA4,
+          available: isStickerSizeSelectable(size.label),
+        }))}
+      />
     </DashboardShell>
   );
 }

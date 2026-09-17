@@ -152,7 +152,7 @@ export default async function AdminIllustrationWorkPage({
         active={waitingForGeneration}
         href={`/api/admin/orders/${order.id}/generation-status`}
         initialSignature={JSON.stringify(
-          illustrationStatusPayload(order.illustrations),
+          illustrationStatusPayload(order.illustrations, "original"),
         )}
       />
       <Link

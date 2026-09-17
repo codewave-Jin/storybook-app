@@ -47,7 +47,7 @@ function ThumbSelectButton({
         selected && "ring-2 ring-sky-400 ring-offset-1",
       )}
     >
-      <AppImage src={src} alt={title} fill className="object-cover" sizes="56px" />
+      <AppImage src={src} alt={title} fill mediaVariant="original" className="object-cover" sizes="56px" />
       {selected ? (
         <span className="absolute inset-x-0 bottom-0 bg-sky-500/90 py-px text-center text-[9px] font-semibold leading-none text-white">
           사용

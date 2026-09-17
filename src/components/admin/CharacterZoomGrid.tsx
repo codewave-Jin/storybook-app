@@ -41,6 +41,7 @@ export function CharacterZoomGrid({
                 src={character.imageSrc}
                 alt={character.label}
                 fill
+                mediaVariant="original"
                 className="object-cover"
                 sizes="200px"
               />
@@ -69,6 +70,7 @@ export function CharacterZoomGrid({
                 src={active.imageSrc}
                 alt={active.label}
                 fill
+                mediaVariant="original"
                 className="object-contain"
                 sizes="800px"
               />
@@ -113,6 +115,7 @@ export function CharacterThumbnails({
               src={character.imageSrc}
               alt={character.label}
               fill
+              mediaVariant="original"
               className="object-cover"
               sizes="40px"
             />
@@ -155,6 +158,7 @@ export function CharacterSelectList({
               src={character.imageSrc}
               alt={character.label}
               fill
+              mediaVariant="original"
               className="object-cover"
               sizes="32px"
             />

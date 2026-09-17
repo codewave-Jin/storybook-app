@@ -1,7 +1,6 @@
 "use client";
 
 import { AppImage } from "@/components/AppImage";
-import { PreviewWatermark } from "@/components/PreviewWatermark";
 
 export function StickerPreviewSheet({
   src,
@@ -24,7 +23,6 @@ export function StickerPreviewSheet({
           className="pointer-events-none object-contain"
           sizes="(max-width: 640px) 100vw, 36rem"
         />
-        <PreviewWatermark />
         <div
           className="absolute inset-0 z-[1]"
           onContextMenu={(event) => event.preventDefault()}

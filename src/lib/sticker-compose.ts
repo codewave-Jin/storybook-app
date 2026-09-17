@@ -38,7 +38,11 @@ export async function composeStickerPreviewImage(options: {
       toAbsolutePublicPath(options.characterImagePath),
       portraitAsset.bytes,
     );
-    cutoutImagePath = await persistGeneratedStickerBuffer(cutoutBytes, "image/png");
+    cutoutImagePath = await persistGeneratedStickerBuffer(
+      cutoutBytes,
+      "image/png",
+      options.userId,
+    );
   }
 
   if (options.cutoutOnly) {
@@ -59,7 +63,11 @@ export async function composeStickerPreviewImage(options: {
     transparentCanvas: options.transparentCanvas,
   });
 
-  const imagePath = await persistGeneratedStickerBuffer(previewBytes, "image/png");
+  const imagePath = await persistGeneratedStickerBuffer(
+    previewBytes,
+    "image/png",
+    options.userId,
+  );
   const compositePath = options.orderId
     ? await persistStickerCompositeBuffer(previewBytes, {
         userId: options.userId,

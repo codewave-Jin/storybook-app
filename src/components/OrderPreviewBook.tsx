@@ -8,7 +8,6 @@ import { AppImage } from "@/components/AppImage";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { OrderPreviewPayButton } from "@/components/OrderPreviewPayButton";
-import { PreviewWatermark } from "@/components/PreviewWatermark";
 import type { OrderOptionLine } from "@/lib/storybook-order-summary";
 import { StoryTextEditor } from "@/components/StoryTextEditor";
 import { StoryTextOverlay } from "@/components/StoryTextOverlay";
@@ -430,7 +429,6 @@ function BookLeaf({
         ) : (
           <GeneratingLeaf page={page} onLiveChange={onLiveChange} />
         )}
-        {page.status === "FAILED" ? null : <PreviewWatermark />}
         {page.status === "FAILED" ? null : (
           <div
             className="absolute inset-0 z-[1]"
@@ -538,7 +536,6 @@ function CoverSpread({
             ) : (
               <GeneratingLeaf page={page} onLiveChange={onLiveChange} />
             )}
-            {page.status === "FAILED" ? null : <PreviewWatermark />}
             {page.status === "FAILED" ? null : (
               <div
                 className="absolute inset-0 z-[1]"

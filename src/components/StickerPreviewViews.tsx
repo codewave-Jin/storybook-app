@@ -1,7 +1,6 @@
 "use client";
 
 import { AppImage } from "@/components/AppImage";
-import { PreviewWatermark } from "@/components/PreviewWatermark";
 
 function a4Grid(count: number) {
   if (count <= 6) return { cols: 2, rows: Math.ceil(count / 2) };
@@ -14,13 +13,11 @@ function StickerFace({
   phrase,
   overlayPhrase,
   compact = false,
-  watermark = false,
 }: {
   src: string;
   phrase: string;
   overlayPhrase: boolean;
   compact?: boolean;
-  watermark?: boolean;
 }) {
   return (
     <div
@@ -53,7 +50,6 @@ function StickerFace({
           </p>
         </div>
       ) : null}
-      {watermark ? <PreviewWatermark size="sm" /> : null}
     </div>
   );
 }
@@ -63,7 +59,7 @@ export function StickerPreviewViews({
   phrase,
   quantity,
   overlayPhrase,
-  showWatermark,
+  showWatermark: _showWatermark,
   variant = "full",
 }: {
   src: string;
@@ -92,7 +88,6 @@ export function StickerPreviewViews({
             src={src}
             phrase={phrase}
             overlayPhrase={overlayPhrase}
-            watermark={showWatermark}
           />
         </div>
       </section>
@@ -127,7 +122,6 @@ export function StickerPreviewViews({
                 </div>
               ))}
             </div>
-            {showWatermark ? <PreviewWatermark /> : null}
           </div>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import type { IllustrationPageType, IllustrationStatus } from "@prisma/client";
+import { illustrationMediaSrc } from "@/lib/media-paths";
 
 /** 결제 전 미리보기: 표지 + 본문 1페이지(기상) + 본문 3페이지(동물). */
 export const PREVIEW_PAGE_NUMBERS = [1, 2, 4] as const;
@@ -37,13 +38,14 @@ function toBookPage(
   pageNumber: number,
 ): PreviewBookPage {
   const isCover = pageNumber === 1 || item?.pageType === "COVER";
+  const storedPath = item?.sceneImagePath || item?.imagePath || null;
   return {
     id: item?.id ?? null,
     kind: isCover ? "cover" : "page",
     pageNumber,
     label: isCover ? "표지" : String(pageNumber - 1),
     status: item?.status ?? "IDLE",
-    imagePath: item?.sceneImagePath || item?.imagePath || null,
+    imagePath: item?.id && storedPath ? illustrationMediaSrc(item.id) : null,
     storyLines: [],
     storyText: "",
   };

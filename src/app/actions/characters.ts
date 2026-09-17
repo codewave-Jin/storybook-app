@@ -45,7 +45,7 @@ export async function createCharacter(
 
   let originalPhotoPath: string;
   try {
-    originalPhotoPath = await saveCharacterPhoto(photo);
+    originalPhotoPath = await saveCharacterPhoto(photo, userId);
   } catch (error) {
     return {
       error:

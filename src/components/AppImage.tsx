@@ -1,18 +1,38 @@
 import Image, { type ImageProps } from "next/image";
+import {
+  toProtectedMediaSrc,
+  type MediaVariant,
+} from "@/lib/media-paths";
+
+type AppImageProps = ImageProps & {
+  mediaVariant?: MediaVariant;
+};
 
 function shouldSkipOptimizer(src: ImageProps["src"]) {
   if (typeof src !== "string") {
     return false;
   }
 
-  return /^https?:\/\//i.test(src) || /\.svg(?:$|\?)/i.test(src);
+  return (
+    src.startsWith("/api/media") ||
+    /^https?:\/\//i.test(src) ||
+    /\.svg(?:$|\?)/i.test(src)
+  );
 }
 
-export function AppImage({ src, unoptimized, ...props }: ImageProps) {
+export function AppImage({
+  src,
+  unoptimized,
+  mediaVariant = "preview",
+  ...props
+}: AppImageProps) {
+  const resolved =
+    typeof src === "string" ? toProtectedMediaSrc(src, mediaVariant) : src;
+
   return (
     <Image
-      src={src}
-      unoptimized={unoptimized ?? shouldSkipOptimizer(src)}
+      src={resolved}
+      unoptimized={unoptimized ?? shouldSkipOptimizer(resolved)}
       {...props}
     />
   );

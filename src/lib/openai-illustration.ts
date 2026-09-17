@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import path from "path";
 import OpenAI from "openai";
+import { resolveStoredAbsolutePath } from "@/lib/uploads";
 import {
   ILLUSTRATION_OUTPUT_FORMAT,
   IMAGE_GEN_SIZE,
@@ -90,6 +91,10 @@ export async function loadImageAsset(
   ];
 
   if (pathOrUrl.startsWith("/")) {
+    const stored = resolveStoredAbsolutePath(pathOrUrl);
+    if (stored) {
+      candidates.push(stored);
+    }
     candidates.push(
       path.join(
         process.cwd(),

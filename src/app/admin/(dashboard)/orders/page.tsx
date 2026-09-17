@@ -5,6 +5,7 @@ import {
   FULFILLMENT_STATUS_FILTERS,
   FULFILLMENT_STATUS_LABEL,
   isFulfillmentStatus,
+  STICKER_FULFILLMENT_STATUS_FILTERS,
 } from "@/lib/fulfillment";
 import {
   ADMIN_PRODUCT_FILTERS,
@@ -58,14 +59,19 @@ export default async function AdminOrdersPage({
     : {};
 
   const includeStorybooks = productFilter !== "STICKER";
-  const includeStickers =
-    productFilter !== "STORYBOOK" &&
-    (productFilter === "STICKER" ||
-      !statusFilter ||
-      statusFilter === "PREPARING");
+  const includeStickers = productFilter !== "STORYBOOK";
+  const stickerStatusFilter =
+    productFilter === "STICKER" && statusFilter === "PREPARING"
+      ? undefined
+      : statusFilter;
 
   const storybookWhere: Prisma.StorybookOrderWhereInput = {
     ...(statusFilter ? { fulfillmentStatus: statusFilter } : {}),
+    ...userSearch,
+  };
+
+  const stickerWhere: Prisma.StickerOrderWhereInput = {
+    ...(stickerStatusFilter ? { fulfillmentStatus: stickerStatusFilter } : {}),
     ...userSearch,
   };
 
@@ -82,7 +88,7 @@ export default async function AdminOrdersPage({
       : Promise.resolve([]),
     includeStickers
       ? prisma.stickerOrder.findMany({
-          where: userSearch,
+          where: stickerWhere,
           include: {
             user: { select: { email: true, name: true } },
             character: { select: { label: true } },
@@ -135,7 +141,9 @@ export default async function AdminOrdersPage({
         statusClass: status.className,
         createdAt: formatDateTime(order.createdAt),
         createdAtMs: order.createdAt.getTime(),
-        expectedDeliveryAt: formatDate(defaultExpectedDeliveryAt(order.createdAt)),
+        expectedDeliveryAt: formatDate(
+          order.expectedDeliveryAt ?? defaultExpectedDeliveryAt(order.createdAt),
+        ),
       };
     }),
   ].sort((a, b) => b.createdAtMs - a.createdAtMs);
@@ -180,11 +188,7 @@ export default async function AdminOrdersPage({
           return (
             <a
               key={filter.value}
-              href={ordersHref(
-                query,
-                filter.value === "STICKER" ? undefined : statusFilter,
-                filter.value,
-              )}
+              href={ordersHref(query, statusFilter, filter.value)}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm font-medium",
                 active
@@ -198,28 +202,29 @@ export default async function AdminOrdersPage({
         })}
       </div>
 
-      {productFilter !== "STICKER" ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {FULFILLMENT_STATUS_FILTERS.map((filter) => {
-            const active =
-              filter.value === "ALL" ? !statusFilter : statusFilter === filter.value;
-            return (
-              <a
-                key={filter.value}
-                href={ordersHref(query, filter.value, productFilter)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-sm font-medium",
-                  active
-                    ? "bg-stone-800 text-white"
-                    : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-100",
-                )}
-              >
-                {filter.label}
-              </a>
-            );
-          })}
-        </div>
-      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(productFilter === "STICKER"
+          ? STICKER_FULFILLMENT_STATUS_FILTERS
+          : FULFILLMENT_STATUS_FILTERS
+        ).map((filter) => {
+          const active =
+            filter.value === "ALL" ? !statusFilter : statusFilter === filter.value;
+          return (
+            <a
+              key={filter.value}
+              href={ordersHref(query, filter.value, productFilter)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-sm font-medium",
+                active
+                  ? "bg-stone-800 text-white"
+                  : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-100",
+              )}
+            >
+              {filter.label}
+            </a>
+          );
+        })}
+      </div>
 
       <AdminOrdersBoard orders={rows} />
     </div>

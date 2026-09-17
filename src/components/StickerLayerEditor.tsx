@@ -428,11 +428,26 @@ export function StickerLayerEditor({
 
   return (
     <div>
-      <p className="text-sm text-stone-500">
-        카테고리를 고르면 미리보기에서 위치를 옮길 수 있어요. 스티커 바깥을
-        누르거나 같은 카테고리를 다시 누르면 점선이 사라져요.
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2" data-sticker-editor-ui>
+      <div
+        ref={canvasRef}
+        className="mx-auto w-full max-w-lg touch-none select-none px-2 py-1 sm:px-6 sm:py-3 [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]"
+        onDragStart={(event) => event.preventDefault()}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div className="mx-auto w-full max-w-[15.5rem] sm:max-w-sm">
+          <StickerLayoutPreview
+            borderSrc={borderSrc}
+            characterSrc={characterSrc}
+            layout={layout}
+            selectedLayer={selectedLayer}
+            transparentCanvas={transparentCanvas}
+          />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 sm:mt-3" data-sticker-editor-ui>
         {layerTabs.map((tab, index) => (
           <div
             key={tab.key}
@@ -464,7 +479,7 @@ export function StickerLayerEditor({
                 selectLayer(selectedLayer === tab.key ? null : tab.key)
               }
               className={cn(
-                "h-10 rounded-full py-0 pl-4 pr-8 text-sm font-medium",
+                "h-8 rounded-full py-0 pl-3 pr-7 text-xs font-medium sm:h-10 sm:pl-4 sm:pr-8 sm:text-sm",
                 selectedLayer === tab.key
                   ? "bg-sky-400 text-white"
                   : "bg-white text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50",
@@ -497,7 +512,7 @@ export function StickerLayerEditor({
           type="button"
           onClick={addPhrase}
           disabled={layout.phrases.length >= MAX_STICKER_PHRASES}
-          className="h-9 rounded-full bg-white px-3 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:text-sm"
         >
           + 문구 추가
         </button>
@@ -505,7 +520,7 @@ export function StickerLayerEditor({
           type="button"
           onClick={addDecal}
           disabled={layout.decals.length >= MAX_STICKER_DECALS}
-          className="h-9 rounded-full bg-white px-3 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:text-sm"
         >
           + 스티커 추가
         </button>
@@ -516,7 +531,7 @@ export function StickerLayerEditor({
               updateLayout({ ...layout, characterVisible: true });
               setSelectedLayer("character");
             }}
-            className="h-9 rounded-full bg-white px-3 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50"
+            className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 sm:h-9 sm:text-sm"
           >
             + 캐릭터 추가
           </button>
@@ -528,35 +543,16 @@ export function StickerLayerEditor({
               updateLayout({ ...layout, borderVisible: true });
               setSelectedLayer("border");
             }}
-            className="h-9 rounded-full bg-white px-3 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50"
+            className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 sm:h-9 sm:text-sm"
           >
             + 테두리 추가
           </button>
         )}
       </div>
-      <div
-        ref={canvasRef}
-        className="mx-auto mt-5 w-full max-w-lg touch-none select-none px-8 py-8 [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]"
-        onDragStart={(event) => event.preventDefault()}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        <div className="mx-auto w-full max-w-sm">
-          <StickerLayoutPreview
-            borderSrc={borderSrc}
-            characterSrc={characterSrc}
-            layout={layout}
-            selectedLayer={selectedLayer}
-            transparentCanvas={transparentCanvas}
-          />
-        </div>
-      </div>
 
       {selectedPhrase ? (
         <div
-          className="mt-5 space-y-2 rounded-xl border border-stone-200 bg-white px-3 py-3"
+          className="mt-3 space-y-2 rounded-xl border border-stone-200 bg-white px-3 py-3 sm:mt-5"
           data-sticker-editor-ui
         >
           <div className="flex items-center justify-between gap-3">
@@ -661,7 +657,7 @@ export function StickerLayerEditor({
         </div>
       ) : selectedDecal ? (
         <div
-          className="mt-5 space-y-3 rounded-2xl border border-stone-200 bg-white px-4 py-4"
+          className="mt-3 space-y-3 rounded-2xl border border-stone-200 bg-white px-3 py-3 sm:mt-5 sm:px-4 sm:py-4"
           data-sticker-editor-ui
         >
           <div className="flex items-center justify-between gap-3">
@@ -767,7 +763,7 @@ export function StickerLayerEditor({
         </div>
       ) : selectedLabel ? (
         <div
-          className="mt-5 rounded-2xl border border-stone-200 bg-white px-4 py-4"
+          className="mt-3 rounded-2xl border border-stone-200 bg-white px-3 py-3 sm:mt-5 sm:px-4 sm:py-4"
           data-sticker-editor-ui
         >
           <div className="flex items-center justify-between gap-3">
