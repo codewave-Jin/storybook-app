@@ -40,23 +40,42 @@
   --foreground: #2f4a5f;
 }
 
-html {
-  color-scheme: light only;
-  background: var(--background);
+html,
+body {
+  color-scheme: light only !important;
+  background: #eaf4fb !important;
+  color: #2f4a5f;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
-  color-scheme: light only;
 }
 
 input,
 textarea,
 select,
 button {
-  color-scheme: light only;
+  color-scheme: light only !important;
+  background-color: #ffffff;
+  color: #2f4a5f;
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    color-scheme: light only !important;
+    background: #eaf4fb !important;
+    color: #2f4a5f !important;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    color-scheme: light only !important;
+    background-color: #ffffff !important;
+    color: #2f4a5f !important;
+  }
 }
 
 @layer utilities {

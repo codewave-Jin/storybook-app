@@ -35,6 +35,10 @@ const nextConfig = {
     },
     outputFileTracingIncludes: {
       "/api/stickers/compose": ["./public/fonts/Jua-Regular.ttf"],
+      "/api/media": ["./public/fonts/Jua-Regular.ttf"],
+      "/api/media/character/[id]/[kind]": ["./public/fonts/Jua-Regular.ttf"],
+      "/api/media/illustration/[id]": ["./public/fonts/Jua-Regular.ttf"],
+      "/api/media/sticker/[id]/[kind]": ["./public/fonts/Jua-Regular.ttf"],
     },
   },
 };

@@ -71,9 +71,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="[color-scheme:light]">
+    <html lang="ko" style={{ colorScheme: "light only" }}>
+      <head>
+        <meta name="color-scheme" content="light only" />
+        <meta name="supported-color-schemes" content="light" />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} bg-[var(--background)] font-[family-name:var(--font-geist-sans)] text-[var(--foreground)] antialiased [color-scheme:light]`}
+        className={`${geistSans.variable} ${geistMono.variable} bg-[#eaf4fb] font-[family-name:var(--font-geist-sans)] text-[#2f4a5f] antialiased`}
+        style={{ colorScheme: "light only" }}
       >
         {children}
       </body>

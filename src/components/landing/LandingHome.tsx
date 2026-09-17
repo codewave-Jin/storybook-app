@@ -41,7 +41,7 @@ const STEPS = [
 
 export function LandingHome() {
   return (
-    <div className="min-h-dvh bg-stone-50 text-stone-800 [color-scheme:light]">
+    <div className="min-h-dvh bg-stone-50 text-stone-800">
       <LandingNav />
 
       <main>
