@@ -1,10 +1,9 @@
 export type MediaVariant = "preview" | "original";
 
 const MEDIA_CACHE_BUST = "4";
-const BLOB_HOST = /\.blob\.vercel-storage\.com\//i;
 
 export function isProtectedMediaSrc(src: string) {
-  if (!src || src.startsWith("/api/media")) {
+  if (!src || src.startsWith("/api/media") || /^https?:\/\//i.test(src)) {
     return false;
   }
 
@@ -16,15 +15,15 @@ export function isProtectedMediaSrc(src: string) {
     return true;
   }
 
-  if (BLOB_HOST.test(src) && src.includes("/uploads/")) {
-    return true;
-  }
-
   if (src.includes("/character-assets/")) {
     return true;
   }
 
   return false;
+}
+
+function keepPublicSrc(src: string, fallback: string) {
+  return /^https?:\/\//i.test(src) ? src : fallback;
 }
 
 export function characterMediaSrc(
@@ -69,9 +68,15 @@ export function toClientCharacterImages<
   return {
     ...character,
     generatedImagePath: character.generatedImagePath
-      ? characterMediaSrc(character.id, "generated")
+      ? keepPublicSrc(
+          character.generatedImagePath,
+          characterMediaSrc(character.id, "generated"),
+        )
       : null,
-    originalPhotoPath: characterMediaSrc(character.id, "photo"),
+    originalPhotoPath: keepPublicSrc(
+      character.originalPhotoPath,
+      characterMediaSrc(character.id, "photo"),
+    ),
   };
 }
 
