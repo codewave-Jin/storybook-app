@@ -20,13 +20,13 @@ export function DeleteCharacterButton({
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteCharacter(characterId);
-      if (result?.error) {
-        setError(result.error);
-        return;
+      try {
+        await deleteCharacter(characterId);
+        router.refresh();
+        setOpen(false);
+      } catch {
+        setError("삭제에 실패했습니다. 다시 시도해 주세요.");
       }
-      router.refresh();
-      setOpen(false);
     });
   }
 

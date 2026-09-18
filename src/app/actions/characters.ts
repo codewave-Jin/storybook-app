@@ -81,7 +81,7 @@ export async function createCharacter(
   redirect("/dashboard");
 }
 
-export async function deleteCharacter(characterId: string) {
+export async function deleteCharacter(characterId: string): Promise<void> {
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/login");
