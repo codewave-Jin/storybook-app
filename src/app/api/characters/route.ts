@@ -86,6 +86,7 @@ export async function POST(request: Request) {
   const inflight = await prisma.character.count({
     where: {
       userId,
+      deletedAt: null,
       status: { in: ["PENDING", "PROCESSING"] },
     },
   });

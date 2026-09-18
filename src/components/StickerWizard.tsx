@@ -571,26 +571,18 @@ export function StickerWizard({
         <section>
           <h2 className="text-lg font-semibold">어떻게 만들까요?</h2>
           <p className="mt-1 text-sm text-stone-500">
-            예시를 고르거나, 직접 만들거나, 특수 제작으로 시작할 수 있어요.
+            간단 제작으로 예시를 고르거나, 특수 제작으로 맞춰 드려요.
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => setMakePath("examples")}
               className="rounded-2xl border border-stone-200 bg-white p-5 text-left shadow-sm hover:border-stone-300"
             >
-              <p className="font-semibold">예시 선택</p>
+              <p className="font-semibold">간단 제작</p>
               <p className="mt-1 text-sm text-stone-500">
                 생일, 감사, 축하 예시로 바로 시작해요.
               </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => applyMakeMode("diy")}
-              className="rounded-2xl border border-stone-200 bg-white p-5 text-left shadow-sm hover:border-stone-300"
-            >
-              <p className="font-semibold">직접 만들기</p>
-              <p className="mt-1 text-sm text-stone-500">빈 원형에서 문구를 넣어요.</p>
             </button>
             <button
               type="button"
@@ -606,7 +598,7 @@ export function StickerWizard({
 
       {step === 2 && makePath === "examples" ? (
         <section>
-          <h2 className="text-lg font-semibold">예시를 골라 주세요</h2>
+          <h2 className="text-lg font-semibold">간단 제작 예시를 골라 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
             문구만 보여 드려요. 고르면 제작하기에서 바로 고칠 수 있어요.
           </p>

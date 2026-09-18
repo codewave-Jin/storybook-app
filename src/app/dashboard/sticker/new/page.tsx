@@ -16,7 +16,7 @@ export default async function NewStickerPage() {
   const [{ tokens }, characters, borders, sizes] = await Promise.all([
     getCharacterSlotAndTokens(session.user.id),
     prisma.character.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, deletedAt: null },
       orderBy: { createdAt: "desc" },
     }),
     prisma.stickerBorder.findMany({

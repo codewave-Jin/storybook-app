@@ -63,7 +63,8 @@ export function DeleteCharacterButton({
             </h2>
             <p className="mt-2 text-sm text-stone-500">
               <span className="font-medium text-stone-800">{label}</span>{" "}
-              캐릭터를 삭제할까요? 삭제하면 되돌릴 수 없습니다.
+              캐릭터를 삭제할까요? 슬롯이 비워지고, 되돌릴 수 없습니다. 결제한
+              스티커 주문과 저장된 이미지는 그대로 남습니다.
             </p>
             {error ? (
               <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

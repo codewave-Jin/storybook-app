@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   const characters = await prisma.character.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, deletedAt: null },
     select: { id: true, status: true },
     orderBy: { id: "asc" },
   });

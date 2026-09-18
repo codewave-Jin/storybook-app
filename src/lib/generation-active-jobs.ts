@@ -29,7 +29,7 @@ export async function loadActiveGenerationJobs(): Promise<ActiveGenerationJob[]>
       take: 20,
     }),
     prisma.character.findMany({
-      where: { status: "PROCESSING" },
+      where: { status: "PROCESSING", deletedAt: null },
       select: { id: true, label: true, createdAt: true },
       orderBy: { createdAt: "asc" },
       take: 20,

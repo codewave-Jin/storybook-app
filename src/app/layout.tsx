@@ -61,7 +61,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "light",
+  colorScheme: "only light",
   themeColor: "#eaf4fb",
 };
 
@@ -71,14 +71,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" style={{ colorScheme: "light only" }}>
+    <html lang="ko" style={{ colorScheme: "only light" }}>
       <head>
-        <meta name="color-scheme" content="light only" />
+        <meta name="color-scheme" content="only light" />
         <meta name="supported-color-schemes" content="light" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'document.documentElement.style.colorScheme="only light";',
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} bg-[#eaf4fb] font-[family-name:var(--font-geist-sans)] text-[#2f4a5f] antialiased`}
-        style={{ colorScheme: "light only" }}
+        style={{ colorScheme: "only light" }}
       >
         {children}
       </body>

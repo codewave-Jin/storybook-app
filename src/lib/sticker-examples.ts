@@ -225,7 +225,7 @@ export function layoutForMakeMode(mode: StickerMakeMode, characterLabel = "") {
 
 export function makeModeLabel(mode: StickerMakeMode | null) {
   if (mode === "diy") {
-    return "직접 만들기";
+    return "간단 제작";
   }
   if (mode === "special") {
     return "특수 제작";

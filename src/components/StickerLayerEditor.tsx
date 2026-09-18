@@ -447,112 +447,127 @@ export function StickerLayerEditor({
           />
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap gap-2 sm:mt-3" data-sticker-editor-ui>
-        {layerTabs.map((tab, index) => (
-          <div
-            key={tab.key}
-            draggable
-            onDragStart={(event) => {
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", tab.key);
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              const fromKey = event.dataTransfer.getData("text/plain");
-              if (!fromKey || fromKey === tab.key) {
-                return;
-              }
-              updateLayout({
-                ...layout,
-                stack: moveStackItem(stack, fromKey, index),
-              });
-            }}
-            className="relative cursor-grab active:cursor-grabbing"
-          >
-            <button
-              type="button"
-              onClick={() =>
-                selectLayer(selectedLayer === tab.key ? null : tab.key)
-              }
-              className={cn(
-                "h-8 rounded-full py-0 pl-3 pr-7 text-xs font-medium sm:h-10 sm:pl-4 sm:pr-8 sm:text-sm",
-                selectedLayer === tab.key
-                  ? "bg-sky-400 text-white"
-                  : "bg-white text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50",
-              )}
-            >
-              {tab.label}
-            </button>
-            <button
-              type="button"
-              aria-label={`${tab.label} 삭제`}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                deleteLayer(tab.key);
-              }}
-              className={cn(
-                "absolute -right-0.5 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold leading-none shadow-sm",
-                selectedLayer === tab.key
-                  ? "bg-white text-red-500"
-                  : "bg-stone-100 text-stone-500 ring-1 ring-stone-200 hover:bg-red-50 hover:text-red-500",
-              )}
-            >
-              ×
-            </button>
+      <p className="mx-auto mt-2 max-w-lg px-4 text-center text-xs leading-relaxed text-stone-600 sm:mt-3 sm:text-sm">
+        위치·문구·크기를 자유롭게 수정할 수 있어요. 미리보기를 끌어 옮겨 보세요.
+      </p>
+      <div
+        className="mx-auto mt-3 w-full max-w-lg rounded-2xl border border-stone-200/80 bg-white p-3 shadow-sm sm:mt-4 sm:p-4"
+        data-sticker-editor-ui
+      >
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-stone-800">레이어</p>
+            <p className="mt-0.5 text-[11px] text-stone-400">
+              눌러 선택하고, 끌어 순서를 바꿔요
+            </p>
           </div>
-        ))}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-2" data-sticker-editor-ui>
-        <button
-          type="button"
-          onClick={addPhrase}
-          disabled={layout.phrases.length >= MAX_STICKER_PHRASES}
-          className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:text-sm"
-        >
-          + 문구 추가
-        </button>
-        <button
-          type="button"
-          onClick={addDecal}
-          disabled={layout.decals.length >= MAX_STICKER_DECALS}
-          className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:text-sm"
-        >
-          + 스티커 추가
-        </button>
-        {layout.characterVisible ? null : (
-          <button
-            type="button"
-            onClick={() => {
-              updateLayout({ ...layout, characterVisible: true });
-              setSelectedLayer("character");
-            }}
-            className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 sm:h-9 sm:text-sm"
-          >
-            + 캐릭터 추가
-          </button>
-        )}
-        {layout.borderVisible ? null : (
-          <button
-            type="button"
-            onClick={() => {
-              updateLayout({ ...layout, borderVisible: true });
-              setSelectedLayer("border");
-            }}
-            className="h-8 rounded-full bg-white px-3 text-xs font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50 sm:h-9 sm:text-sm"
-          >
-            + 테두리 추가
-          </button>
-        )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {layerTabs.map((tab, index) => {
+            const selected = selectedLayer === tab.key;
+            return (
+              <div
+                key={tab.key}
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", tab.key);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const fromKey = event.dataTransfer.getData("text/plain");
+                  if (!fromKey || fromKey === tab.key) {
+                    return;
+                  }
+                  updateLayout({
+                    ...layout,
+                    stack: moveStackItem(stack, fromKey, index),
+                  });
+                }}
+                className="shrink-0 cursor-grab active:cursor-grabbing"
+              >
+                <div
+                  className={cn(
+                    "inline-flex h-9 items-center rounded-full pl-3 pr-1 sm:h-10",
+                    selected
+                      ? "bg-sky-400 text-white shadow-sm shadow-sky-200"
+                      : "bg-stone-50 text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      selectLayer(selected ? null : tab.key)
+                    }
+                    className="pr-1 text-xs font-medium sm:text-sm"
+                  >
+                    {tab.label}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${tab.label} 삭제`}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      deleteLayer(tab.key);
+                    }}
+                    className={cn(
+                      "flex h-6 w-6 items-center justify-center rounded-full text-sm leading-none",
+                      selected
+                        ? "text-white/85 hover:bg-white/20"
+                        : "text-stone-400 hover:bg-red-50 hover:text-red-500",
+                    )}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 border-t border-stone-100 pt-3">
+          <p className="text-sm font-semibold text-stone-800">추가하기</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <AddToolButton
+              label="문구 추가"
+              onClick={addPhrase}
+              disabled={layout.phrases.length >= MAX_STICKER_PHRASES}
+            />
+            <AddToolButton
+              label="스티커 추가"
+              onClick={addDecal}
+              disabled={layout.decals.length >= MAX_STICKER_DECALS}
+            />
+            {layout.characterVisible ? null : (
+              <AddToolButton
+                label="캐릭터 추가"
+                onClick={() => {
+                  updateLayout({ ...layout, characterVisible: true });
+                  setSelectedLayer("character");
+                }}
+              />
+            )}
+            {layout.borderVisible ? null : (
+              <AddToolButton
+                label="테두리 추가"
+                onClick={() => {
+                  updateLayout({ ...layout, borderVisible: true });
+                  setSelectedLayer("border");
+                }}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       {selectedPhrase ? (
         <div
-          className="mt-3 space-y-2 rounded-xl border border-stone-200 bg-white px-3 py-3 sm:mt-5"
+          className="mx-auto mt-3 w-full max-w-lg space-y-2 rounded-2xl border border-stone-200/80 bg-white px-3 py-3 shadow-sm sm:mt-4 sm:px-4"
           data-sticker-editor-ui
         >
           <div className="flex items-center justify-between gap-3">
@@ -657,7 +672,7 @@ export function StickerLayerEditor({
         </div>
       ) : selectedDecal ? (
         <div
-          className="mt-3 space-y-3 rounded-2xl border border-stone-200 bg-white px-3 py-3 sm:mt-5 sm:px-4 sm:py-4"
+          className="mx-auto mt-3 w-full max-w-lg space-y-3 rounded-2xl border border-stone-200/80 bg-white px-3 py-3 shadow-sm sm:mt-4 sm:px-4 sm:py-4"
           data-sticker-editor-ui
         >
           <div className="flex items-center justify-between gap-3">
@@ -763,7 +778,7 @@ export function StickerLayerEditor({
         </div>
       ) : selectedLabel ? (
         <div
-          className="mt-3 rounded-2xl border border-stone-200 bg-white px-3 py-3 sm:mt-5 sm:px-4 sm:py-4"
+          className="mx-auto mt-3 w-full max-w-lg rounded-2xl border border-stone-200/80 bg-white px-3 py-3 shadow-sm sm:mt-4 sm:px-4 sm:py-4"
           data-sticker-editor-ui
         >
           <div className="flex items-center justify-between gap-3">
@@ -884,6 +899,30 @@ export function StickerLayerEditor({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function AddToolButton({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-sky-200 bg-gradient-to-b from-sky-50 to-white text-sm font-medium text-sky-800 shadow-sm hover:border-sky-300 hover:from-sky-100 disabled:cursor-not-allowed disabled:opacity-45"
+    >
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-400 text-[13px] font-semibold leading-none text-white">
+        +
+      </span>
+      {label}
+    </button>
   );
 }
 

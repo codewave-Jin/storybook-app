@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
   const [character, border] = await Promise.all([
     prisma.character.findFirst({
-      where: { id: characterId, userId: session.user.id },
+      where: { id: characterId, userId: session.user.id, deletedAt: null },
       select: { generatedImagePath: true, status: true },
     }),
     prisma.stickerBorder.findFirst({

@@ -292,7 +292,10 @@ export default async function DashboardPage() {
     select: {
       characterSlotLimit: true,
       tokenBalance: { select: { freeBalance: true, paidBalance: true } },
-      characters: { orderBy: { createdAt: "desc" } },
+      characters: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+      },
       orders: {
         orderBy: { createdAt: "desc" },
         take: RECENT_WORK_LIMIT,

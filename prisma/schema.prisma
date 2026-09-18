@@ -97,11 +97,14 @@ model Character {
   progressPercent    Int              @default(0)
   progressLabel      String?
   createdAt          DateTime         @default(now())
+  /// Hidden from dashboard/slots. Paid sticker orders keep this row and images.
+  deletedAt          DateTime?
 
   stickerOrders      StickerOrder[]
   characterAssets    CharacterAsset[]
 
   @@index([email])
+  @@index([userId, deletedAt])
 }
 
 enum Gender {

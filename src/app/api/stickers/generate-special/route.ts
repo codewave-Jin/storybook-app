@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   }
 
   const character = await prisma.character.findFirst({
-    where: { id: characterId, userId },
+    where: { id: characterId, userId, deletedAt: null },
     select: { generatedImagePath: true, status: true, gender: true },
   });
   if (!character || character.status !== "COMPLETED" || !character.generatedImagePath) {

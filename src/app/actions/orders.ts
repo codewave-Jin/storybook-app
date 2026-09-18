@@ -125,6 +125,7 @@ export async function createOrder(
     where: {
       id: { in: characterIds },
       userId,
+      deletedAt: null,
     },
   });
 

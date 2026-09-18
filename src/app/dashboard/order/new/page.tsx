@@ -45,7 +45,7 @@ export default async function NewOrderPage() {
       },
     }),
     prisma.character.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, deletedAt: null },
       orderBy: { createdAt: "desc" },
     }),
   ]);

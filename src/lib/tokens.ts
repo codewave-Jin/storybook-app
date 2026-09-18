@@ -258,7 +258,9 @@ export async function getCharacterSlotAndTokens(userId: string): Promise<{
       tokenBalance: {
         select: { freeBalance: true, paidBalance: true },
       },
-      _count: { select: { characters: true } },
+      _count: {
+        select: { characters: { where: { deletedAt: null } } },
+      },
     },
   });
 
@@ -277,7 +279,7 @@ export async function getCharacterSlotAndTokens(userId: string): Promise<{
 
 export async function getCharacterCount(userId: string): Promise<number> {
   return prisma.character.count({
-    where: { userId },
+    where: { userId, deletedAt: null },
   });
 }
 

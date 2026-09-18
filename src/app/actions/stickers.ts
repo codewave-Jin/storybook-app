@@ -89,7 +89,7 @@ export async function saveStickerDraft(
 
   const [character, border, sizeOption] = await Promise.all([
     prisma.character.findFirst({
-      where: { id: characterId, userId },
+      where: { id: characterId, userId, deletedAt: null },
     }),
     prisma.stickerBorder.findFirst({
       where: { id: borderId, isActive: true },

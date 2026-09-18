@@ -91,6 +91,7 @@ export async function deleteCharacter(characterId: string) {
     where: {
       id: characterId,
       userId: session.user.id,
+      deletedAt: null,
     },
   });
 
@@ -109,32 +110,51 @@ export async function deleteCharacter(characterId: string) {
     },
   });
 
-  if (stickerOrders.some((order) => order.paymentStatus === "PAID")) {
-    return { error: "이 캐릭터로 결제한 스티커 주문이 있어 삭제할 수 없습니다." };
-  }
+  const unpaidOrders = stickerOrders.filter(
+    (order) => order.paymentStatus !== "PAID",
+  );
+  const hasPaidSticker = stickerOrders.some(
+    (order) => order.paymentStatus === "PAID",
+  );
 
-  for (const order of stickerOrders) {
+  for (const order of unpaidOrders) {
     await deleteStickerFile(order.previewImagePath);
     await deleteStickerFile(order.finalImagePath);
     await deleteStickerFile(order.compositeImagePath);
   }
 
-  const stickerOrderIds = stickerOrders.map((order) => order.id);
+  const unpaidOrderIds = unpaidOrders.map((order) => order.id);
+  const unpaidCleanup =
+    unpaidOrderIds.length > 0
+      ? [
+          prisma.review.deleteMany({
+            where: { stickerOrderId: { in: unpaidOrderIds } },
+          }),
+          prisma.stickerOrder.deleteMany({
+            where: { id: { in: unpaidOrderIds } },
+          }),
+        ]
+      : [];
 
-  await prisma.$transaction([
-    prisma.review.deleteMany({
-      where: { stickerOrderId: { in: stickerOrderIds } },
-    }),
-    prisma.stickerOrder.deleteMany({
-      where: { id: { in: stickerOrderIds } },
-    }),
-    prisma.character.delete({
-      where: { id: character.id },
-    }),
-  ]);
+  if (hasPaidSticker) {
+    await prisma.$transaction([
+      ...unpaidCleanup,
+      prisma.character.update({
+        where: { id: character.id },
+        data: { deletedAt: new Date() },
+      }),
+    ]);
+  } else {
+    await prisma.$transaction([
+      ...unpaidCleanup,
+      prisma.character.delete({
+        where: { id: character.id },
+      }),
+    ]);
 
-  await deletePublicFile(character.originalPhotoPath);
-  await deletePublicFile(character.generatedImagePath);
+    await deletePublicFile(character.originalPhotoPath);
+    await deletePublicFile(character.generatedImagePath);
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/mypage");
