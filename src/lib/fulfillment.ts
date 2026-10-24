@@ -72,6 +72,49 @@ export const SHIPPING_CARRIERS = [
   "대신택배",
 ] as const;
 
+export function visibleShippingInfo(order: {
+  fulfillmentStatus?: FulfillmentStatus | null;
+  shippingCarrier?: string | null;
+  trackingNumber?: string | null;
+}): { carrier: string; trackingNumber: string } | null {
+  if (
+    order.fulfillmentStatus !== "SHIPPING" &&
+    order.fulfillmentStatus !== "DELIVERED"
+  ) {
+    return null;
+  }
+  const carrier = order.shippingCarrier?.trim() ?? "";
+  const trackingNumber = order.trackingNumber?.trim() ?? "";
+  if (!carrier || !trackingNumber) {
+    return null;
+  }
+  return { carrier, trackingNumber };
+}
+
+export function shippingTrackingUrl(carrier: string, trackingNumber: string) {
+  const invoice = encodeURIComponent(trackingNumber.trim());
+  if (!invoice) {
+    return null;
+  }
+
+  switch (carrier.trim()) {
+    case "CJ대한통운":
+      return `https://trace.cjlogistics.com/next/tracking.html?wblNo=${invoice}`;
+    case "우체국택배":
+      return `https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=${invoice}`;
+    case "한진택배":
+      return `https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=${invoice}`;
+    case "롯데택배":
+      return `https://www.lotteglogis.com/home/reservation/tracking/index?InvNo=${invoice}`;
+    case "로젠택배":
+      return `https://www.ilogen.com/web/personal/trace/${invoice}`;
+    case "대신택배":
+      return `https://www.ds3211.co.kr/freight/internalFreightSearch.ht?billno=${invoice}`;
+    default:
+      return null;
+  }
+}
+
 export function isFulfillmentStatus(value: string): value is FulfillmentStatus {
   return (FULFILLMENT_STATUSES as readonly string[]).includes(value);
 }

@@ -9,6 +9,7 @@ import {
   resolveStoryCopyText,
   storyCopyLines,
 } from "@/lib/storybook-copy";
+import { resolveCoverComment } from "@/lib/cover-comment";
 import { storybookOrderOptionLines } from "@/lib/storybook-order-summary";
 import { isBirthdayStorybookTitle } from "@/lib/templates";
 import {
@@ -145,14 +146,15 @@ export default async function OrderPreviewPage({
           variables: storyVariables,
         })
       : "";
-    const storyText = resolveFinalStoryText(
-      savedStoryByNumber.get(page.pageNumber),
-      fallback,
-    );
+    const saved = savedStoryByNumber.get(page.pageNumber);
+    const storyText =
+      page.kind === "cover"
+        ? resolveCoverComment(saved)
+        : resolveFinalStoryText(saved, fallback);
     return {
       ...page,
       storyText,
-      storyLines: storyCopyLines(storyText),
+      storyLines: page.kind === "cover" ? [] : storyCopyLines(storyText),
     };
   });
   const optionLines = storybookOrderOptionLines({
@@ -175,7 +177,7 @@ export default async function OrderPreviewPage({
     <>
       <OrderPreviewBook
         title={order.template.title}
-        backHref="/dashboard"
+        backHref="/mypage"
         pages={pagesWithStory}
         paid={paid}
         ready={!paid && bookComplete}
@@ -185,6 +187,9 @@ export default async function OrderPreviewPage({
         optionLines={optionLines}
         defaultEmail={session.user.email ?? undefined}
         defaultName={session.user.name ?? undefined}
+        fulfillmentStatus={order.fulfillmentStatus}
+        shippingCarrier={order.shippingCarrier}
+        trackingNumber={order.trackingNumber}
       />
     </>
   );

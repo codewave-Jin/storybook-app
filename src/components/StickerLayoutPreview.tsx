@@ -1,4 +1,7 @@
+"use client";
+
 import { AppImage } from "@/components/AppImage";
+import { SlotLoadingBar, useImageReady } from "@/components/SlotLoadingBar";
 import { stickerDecalByKey } from "@/lib/sticker-decals";
 import { stickerFontByKey } from "@/lib/sticker-fonts";
 import {
@@ -129,12 +132,14 @@ function DecalLayer({
 export function StickerLayoutPreview({
   borderSrc,
   characterSrc,
+  characterLoading = false,
   layout = DEFAULT_STICKER_LAYOUT,
   selectedLayer,
   transparentCanvas = false,
 }: {
   borderSrc?: string | null;
   characterSrc?: string | null;
+  characterLoading?: boolean;
   phrase?: string;
   layout?: StickerLayoutState;
   selectedLayer?: StickerLayerKey | null;
@@ -143,6 +148,12 @@ export function StickerLayoutPreview({
   const character = layout.character;
   const border = layout.border;
   const stack = normalizeStack(layout);
+  const characterReady = useImageReady(characterSrc);
+
+  const showCharacterSlot =
+    layout.characterVisible && Boolean(characterSrc || characterLoading);
+  const showCharacterLoader =
+    showCharacterSlot && (characterLoading || !characterSrc || !characterReady);
 
   return (
     <div
@@ -164,7 +175,7 @@ export function StickerLayoutPreview({
       {stack.map((key, order) => {
         const zIndex = 10 + order;
         if (key === "character") {
-          if (!layout.characterVisible || !characterSrc) {
+          if (!showCharacterSlot) {
             return null;
           }
           return (
@@ -174,7 +185,7 @@ export function StickerLayoutPreview({
               aria-label="캐릭터"
               className={cn(
                 "absolute overflow-visible",
-                selectedLayer === "character"
+                selectedLayer === "character" && characterReady
                   ? "cursor-grab active:cursor-grabbing"
                   : "pointer-events-none",
               )}
@@ -186,16 +197,28 @@ export function StickerLayoutPreview({
                 height: `${character.heightRatio * 100}%`,
               }}
             >
-              <AppImage
-                src={characterSrc}
-                alt="캐릭터"
-                fill
-                unoptimized
-                draggable={false}
-                className="pointer-events-none object-contain"
-                sizes="(max-width: 640px) 50vw, 16rem"
-              />
-              {selectedLayer === "character" ? <DashedFrame /> : null}
+              {characterSrc ? (
+                <AppImage
+                  src={characterSrc}
+                  alt="캐릭터"
+                  fill
+                  unoptimized
+                  draggable={false}
+                  className={cn(
+                    "pointer-events-none object-contain transition-opacity duration-300",
+                    characterReady && !characterLoading ? "opacity-100" : "opacity-40",
+                  )}
+                  sizes="(max-width: 640px) 50vw, 16rem"
+                />
+              ) : null}
+              {showCharacterLoader ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                  <SlotLoadingBar compact />
+                </div>
+              ) : null}
+              {selectedLayer === "character" && characterReady && !characterLoading ? (
+                <DashedFrame />
+              ) : null}
             </div>
           );
         }

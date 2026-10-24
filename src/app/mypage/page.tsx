@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { OrderOptionSummary } from "@/components/OrderOptionSummary";
+import { ShippingTrackingInfo } from "@/components/ShippingTrackingInfo";
 import { MyPageShell } from "@/components/mypage/MyPageShell";
+import { visibleShippingInfo } from "@/lib/fulfillment";
 import {
   formatDateTime,
   getFulfillmentHint,
@@ -101,6 +103,7 @@ export default async function MyPage() {
         characterLabelsById,
       }),
       reviewId: order.review?.id ?? null,
+      shipping: visibleShippingInfo(order),
     })),
     ...stickerOrders.map((order) => ({
       id: order.id,
@@ -115,6 +118,7 @@ export default async function MyPage() {
       fulfillmentStatus: order.fulfillmentStatus,
       createdAt: order.createdAt,
       reviewId: order.review?.id ?? null,
+      shipping: visibleShippingInfo(order),
     })),
   ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
@@ -154,55 +158,65 @@ export default async function MyPage() {
             return (
               <li
                 key={`${order.kind}-${order.id}`}
-                className="flex items-start rounded-[24px] bg-white shadow-sm ring-1 ring-stone-200 transition hover:ring-[#E07A5F]/30"
+                className="rounded-[24px] bg-white shadow-sm ring-1 ring-stone-200 transition hover:ring-[#E07A5F]/30"
               >
-                <Link
-                  href={order.href}
-                  className="min-w-0 flex-1 p-4 sm:p-5"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                        order.kind === "storybook"
-                          ? "bg-sky-100 text-sky-700"
-                          : "bg-[#FDE8E0] text-[#E07A5F]",
-                      )}
-                    >
-                      {order.kind === "storybook" ? "동화책" : "스티커"}
-                    </span>
-                    <span className="rounded-full bg-[#FFF6F3] px-2.5 py-0.5 text-[11px] font-medium text-[#E07A5F]">
-                      {fulfillment}
-                    </span>
-                  </div>
-                  <p className="mt-2 font-semibold text-stone-800">{order.title}</p>
-                  {"optionLines" in order && order.optionLines ? (
-                    <OrderOptionSummary lines={order.optionLines} />
+                <div className="flex items-start">
+                  <Link
+                    href={order.href}
+                    className="min-w-0 flex-1 p-4 sm:p-5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                          order.kind === "storybook"
+                            ? "bg-sky-100 text-sky-700"
+                            : "bg-[#FDE8E0] text-[#E07A5F]",
+                        )}
+                      >
+                        {order.kind === "storybook" ? "동화책" : "스티커"}
+                      </span>
+                      <span className="rounded-full bg-[#FFF6F3] px-2.5 py-0.5 text-[11px] font-medium text-[#E07A5F]">
+                        {fulfillment}
+                      </span>
+                    </div>
+                    <p className="mt-2 font-semibold text-stone-800">{order.title}</p>
+                    {"optionLines" in order && order.optionLines ? (
+                      <OrderOptionSummary lines={order.optionLines} />
+                    ) : null}
+                    <p className="mt-1 text-xs text-stone-500">
+                      {formatDateTime(order.createdAt)}
+                      <span className="mx-1.5 text-stone-300">·</span>
+                      {PAYMENT_STATUS_LABEL[order.paymentStatus]}
+                    </p>
+                    {hint ? (
+                      <p className="mt-2 text-sm text-stone-600">{hint}</p>
+                    ) : null}
+                  </Link>
+                  {canWriteReview ? (
+                    <div className="shrink-0 pr-3 pt-3">
+                      <Link
+                        href={reviewWriteHref(order.kind, order.id)}
+                        className="inline-flex h-10 items-center rounded-full bg-[#E07A5F] px-4 text-sm font-semibold text-white hover:bg-[#d56c51]"
+                      >
+                        리뷰 쓰기
+                      </Link>
+                    </div>
+                  ) : order.paymentStatus !== "PAID" ? (
+                    <div className="shrink-0 pr-3 pt-3">
+                      <DeleteDraftOrderButton
+                        kind={order.kind}
+                        orderId={order.id}
+                        title={order.title}
+                      />
+                    </div>
                   ) : null}
-                  <p className="mt-1 text-xs text-stone-500">
-                    {formatDateTime(order.createdAt)}
-                    <span className="mx-1.5 text-stone-300">·</span>
-                    {PAYMENT_STATUS_LABEL[order.paymentStatus]}
-                  </p>
-                  {hint ? (
-                    <p className="mt-2 text-sm text-stone-600">{hint}</p>
-                  ) : null}
-                </Link>
-                {canWriteReview ? (
-                  <div className="shrink-0 pr-3 pt-3">
-                    <Link
-                      href={reviewWriteHref(order.kind, order.id)}
-                      className="inline-flex h-10 items-center rounded-full bg-[#E07A5F] px-4 text-sm font-semibold text-white hover:bg-[#d56c51]"
-                    >
-                      리뷰 쓰기
-                    </Link>
-                  </div>
-                ) : order.paymentStatus !== "PAID" ? (
-                  <div className="shrink-0 pr-3 pt-3">
-                    <DeleteDraftOrderButton
-                      kind={order.kind}
-                      orderId={order.id}
-                      title={order.title}
+                </div>
+                {order.shipping ? (
+                  <div className="border-t border-stone-100 px-4 py-3 sm:px-5">
+                    <ShippingTrackingInfo
+                      carrier={order.shipping.carrier}
+                      trackingNumber={order.shipping.trackingNumber}
                     />
                   </div>
                 ) : null}

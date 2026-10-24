@@ -14,6 +14,12 @@ import { isSpecialStickerHint } from "@/lib/sticker-special";
 import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 import { stickerMediaSrc } from "@/lib/media-paths";
+import { getFulfillmentHint } from "@/lib/orders";
+import {
+  STICKER_FULFILLMENT_STATUS_LABEL,
+  visibleShippingInfo,
+} from "@/lib/fulfillment";
+import { ShippingTrackingInfo } from "@/components/ShippingTrackingInfo";
 
 export default async function StickerPreviewPage({
   params,
@@ -51,6 +57,13 @@ export default async function StickerPreviewPage({
   }
 
   const stickerSrc = completed ? stickerMediaSrc(order.id) : null;
+  const shipping = visibleShippingInfo(order);
+  const fulfillmentHint = getFulfillmentHint(
+    order.paymentStatus,
+    order.productionStatus,
+    order.fulfillmentStatus,
+    "sticker",
+  );
 
   return (
     <DashboardShell title="스티커 미리보기">
@@ -67,10 +80,10 @@ export default async function StickerPreviewPage({
       ) : null}
       <div className="flex items-center justify-between gap-3">
         <Link
-          href="/dashboard"
+          href="/mypage"
           className="text-sm font-medium text-stone-500 underline-offset-4 hover:underline"
         >
-          ← 대시보드로
+          ← 마이페이지로
         </Link>
         {!paid ? (
           <DeleteDraftOrderButton
@@ -92,6 +105,7 @@ export default async function StickerPreviewPage({
             src={stickerSrc}
             phrase={stickerPhraseDisplay(order.phrase)}
             quantity={order.sizeOption.quantityPerA4}
+            sizeLabel={order.sizeOption.label}
             overlayPhrase={false}
             showWatermark={!paid}
           />
@@ -147,20 +161,48 @@ export default async function StickerPreviewPage({
 
         <div className="mt-6">
           {paid ? (
-            <div className="rounded-2xl bg-[#FDE8E0] px-5 py-8 text-center ring-1 ring-[#E07A5F]/20">
-              <p className="text-lg font-semibold text-stone-800">
-                결제가 완료되었어요
-              </p>
-              <p className="mt-2 text-sm text-[#E07A5F]">
-                실제 스티커 파일을 준비하고 있습니다.
-              </p>
-              <Link
-                href="/dashboard"
-                className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
-              >
-                대시보드로 돌아가기
-              </Link>
-            </div>
+            shipping ? (
+              <div className="rounded-2xl bg-white px-5 py-5 shadow-sm ring-1 ring-stone-200">
+                <p className="text-sm font-semibold text-stone-800">
+                  {
+                    STICKER_FULFILLMENT_STATUS_LABEL[
+                      order.fulfillmentStatus !== "PREPARING"
+                        ? order.fulfillmentStatus
+                        : "PRINTING"
+                    ]
+                  }
+                </p>
+                {fulfillmentHint ? (
+                  <p className="mt-1 text-sm text-stone-500">{fulfillmentHint}</p>
+                ) : null}
+                <ShippingTrackingInfo
+                  carrier={shipping.carrier}
+                  trackingNumber={shipping.trackingNumber}
+                  className="mt-4"
+                />
+                <Link
+                  href="/mypage"
+                  className="mt-4 flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-600 hover:bg-stone-50"
+                >
+                  마이페이지로
+                </Link>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-[#FDE8E0] px-5 py-8 text-center ring-1 ring-[#E07A5F]/20">
+                <p className="text-lg font-semibold text-stone-800">
+                  결제가 완료되었어요
+                </p>
+                <p className="mt-2 text-sm text-[#E07A5F]">
+                  {fulfillmentHint ?? "실제 스티커 파일을 준비하고 있습니다."}
+                </p>
+                <Link
+                  href="/dashboard"
+                  className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
+                >
+                  대시보드로 돌아가기
+                </Link>
+              </div>
+            )
           ) : completed ? (
             <StickerPreviewPayButton
               orderId={order.id}

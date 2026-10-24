@@ -3,9 +3,11 @@
 import { cn } from "@/lib/utils";
 import {
   CLOTHING_TOPICS,
+  GIFT_TOPICS,
   SPECIAL_GENDER_OPTIONS,
   SPECIAL_STICKER_KINDS,
   type ClothingTopicKey,
+  type GiftTopicKey,
   type SpecialGender,
   type SpecialStickerKind,
 } from "@/lib/sticker-special";
@@ -13,6 +15,7 @@ import {
 export function SpecialStickerPanel({
   kind,
   clothingTopic,
+  giftTopic,
   name,
   gender,
   phrase,
@@ -21,6 +24,7 @@ export function SpecialStickerPanel({
   error,
   onKindChange,
   onClothingTopicChange,
+  onGiftTopicChange,
   onNameChange,
   onGenderChange,
   onPhraseChange,
@@ -28,6 +32,7 @@ export function SpecialStickerPanel({
 }: {
   kind: SpecialStickerKind | null;
   clothingTopic: ClothingTopicKey | null;
+  giftTopic: GiftTopicKey | null;
   name: string;
   gender: SpecialGender | "";
   phrase: string;
@@ -36,6 +41,7 @@ export function SpecialStickerPanel({
   error: string | null;
   onKindChange: (kind: SpecialStickerKind) => void;
   onClothingTopicChange: (topic: ClothingTopicKey) => void;
+  onGiftTopicChange: (topic: GiftTopicKey) => void;
   onNameChange: (value: string) => void;
   onGenderChange: (value: SpecialGender) => void;
   onPhraseChange: (value: string) => void;
@@ -46,7 +52,7 @@ export function SpecialStickerPanel({
       <section>
         <h2 className="text-lg font-semibold">특수 제작을 골라 주세요</h2>
         <p className="mt-1 text-sm text-stone-500">
-          이름표나 의류 스티커를 선택하면 입력란이 나와요.
+          이름표, 의류 스티커, 답례품 중에서 골라 주세요.
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {SPECIAL_STICKER_KINDS.map((item) => (
@@ -55,7 +61,7 @@ export function SpecialStickerPanel({
               type="button"
               disabled={item.disabled}
               onClick={() => {
-                if (item.key === "nametag" || item.key === "clothing") {
+                if (!item.disabled) {
                   onKindChange(item.key);
                 }
               }}
@@ -73,6 +79,29 @@ export function SpecialStickerPanel({
               ) : null}
               <p className="font-semibold">{item.label}</p>
               <p className="mt-1 text-sm text-stone-500">{item.description}</p>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (kind === "gift" && !giftTopic) {
+    return (
+      <section>
+        <h2 className="text-lg font-semibold">주제를 골라 주세요</h2>
+        <p className="mt-1 text-sm text-stone-500">
+          고른 주제에 맞는 문구가 먼저 들어가요. 다음에서 고칠 수 있어요.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {GIFT_TOPICS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onGiftTopicChange(item.key)}
+              className="rounded-2xl border border-stone-200 bg-white p-5 text-left shadow-sm hover:border-stone-300"
+            >
+              <p className="font-semibold">{item.label}</p>
             </button>
           ))}
         </div>
@@ -103,16 +132,17 @@ export function SpecialStickerPanel({
     );
   }
 
+  const topicLabel = kind === "gift" ? giftTopic : clothingTopic;
   const canGenerate =
     kind === "nametag"
       ? Boolean(name.trim() && gender)
-      : Boolean(clothingTopic && phrase.trim());
+      : Boolean(topicLabel && phrase.trim());
   const noTokens = tokenBalance < 1;
 
   return (
     <section>
       <h2 className="text-lg font-semibold">
-        {kind === "nametag" ? "이름표" : clothingTopic}
+        {kind === "nametag" ? "이름표" : topicLabel}
       </h2>
       <p className="mt-1 text-sm text-stone-500">
         {kind === "nametag"

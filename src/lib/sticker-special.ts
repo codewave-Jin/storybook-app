@@ -1,6 +1,7 @@
-export type SpecialStickerKind = "nametag" | "clothing";
-export type SpecialStickerKindOrGift = SpecialStickerKind | "gift";
+export type SpecialStickerKind = "nametag" | "clothing" | "gift";
+export type SpecialStickerKindOrGift = SpecialStickerKind;
 export type ClothingTopicKey = "스승의날" | "어버이날" | "명절";
+export type GiftTopicKey = "백일답례품";
 export type SpecialGender = "FEMALE" | "MALE";
 
 export const SPECIAL_STICKER_KINDS = [
@@ -20,7 +21,7 @@ export const SPECIAL_STICKER_KINDS = [
     key: "gift" as const,
     label: "답례품",
     description: "고마운 마음을 전하는 답례품이에요.",
-    disabled: true,
+    disabled: false,
   },
 ] as const;
 
@@ -42,6 +43,14 @@ export const CLOTHING_TOPICS = [
   },
 ] as const;
 
+export const GIFT_TOPICS = [
+  {
+    key: "백일답례품" as const,
+    label: "백일답례품",
+    defaultPhrase: "백일을 축하해주셔서 감사합니다♥",
+  },
+] as const;
+
 export const SPECIAL_GENDER_OPTIONS = [
   { key: "FEMALE" as const, label: "여자" },
   { key: "MALE" as const, label: "남자" },
@@ -51,8 +60,16 @@ export function clothingTopicByKey(key: string) {
   return CLOTHING_TOPICS.find((item) => item.key === key) ?? null;
 }
 
+export function giftTopicByKey(key: string) {
+  return GIFT_TOPICS.find((item) => item.key === key) ?? null;
+}
+
 export function defaultPhraseForClothingTopic(topic: ClothingTopicKey) {
   return clothingTopicByKey(topic)?.defaultPhrase ?? "";
+}
+
+export function defaultPhraseForGiftTopic(topic: GiftTopicKey) {
+  return giftTopicByKey(topic)?.defaultPhrase ?? "";
 }
 
 export function specialKindLabel(kind: SpecialStickerKindOrGift | null) {
@@ -88,7 +105,12 @@ export function buildSpecialStickerPrompt(input: {
   const parts = [
     "투명 배경의 다이컷 캐릭터 스티커를 만들어라. 배경, 바닥, 스튜디오, 네모난 캔버스 채우기는 절대 그리지 말 것.",
     "입력된 이미지의 캐릭터 정체성을 유지해야함.",
-    "의상 및 헤어스타일은 변형 가능.",
+    ...(input.kind === "gift"
+      ? [
+          "옷은 성별에 맞는 아기 한복으로 바꾼다. 얼굴과 이목구비는 입력 이미지 그대로 유지한다.",
+          "분위기는 생일 파티. 풍선이나 리본 같은 작은 장식은 있어도 된다.",
+        ]
+      : ["의상 및 헤어스타일은 변형 가능."]),
     "그림체는 수채화 스타일로.",
     `주제 : ${input.topic} 문구 : ${input.phrase}`,
   ];
@@ -108,6 +130,11 @@ export type SpecialGenerateInput =
       kind: "clothing";
       topic: ClothingTopicKey;
       phrase: string;
+    }
+  | {
+      kind: "gift";
+      topic: GiftTopicKey;
+      phrase: string;
     };
 
 export function specialGenerateTopic(input: SpecialGenerateInput) {
@@ -121,9 +148,10 @@ export function specialGeneratePhrase(input: SpecialGenerateInput) {
 export const SPECIAL_STICKER_HINT_PREFIX = "special:";
 
 export function specialStickerCostumeHint(input: SpecialGenerateInput) {
-  return input.kind === "nametag"
-    ? `${SPECIAL_STICKER_HINT_PREFIX}nametag`
-    : `${SPECIAL_STICKER_HINT_PREFIX}clothing:${input.topic}`;
+  if (input.kind === "nametag") {
+    return `${SPECIAL_STICKER_HINT_PREFIX}nametag`;
+  }
+  return `${SPECIAL_STICKER_HINT_PREFIX}${input.kind}:${input.topic}`;
 }
 
 export function isSpecialStickerHint(hint: string | null | undefined) {
@@ -169,6 +197,18 @@ export function parseSpecialGenerateBody(
       return { error: "문구를 입력해 주세요." };
     }
     return { kind: "clothing", topic, phrase };
+  }
+
+  if (data.kind === "gift") {
+    const topic = typeof data.topic === "string" ? giftTopicByKey(data.topic)?.key : null;
+    const phrase = typeof data.phrase === "string" ? data.phrase.trim() : "";
+    if (!topic) {
+      return { error: "주제를 선택해 주세요." };
+    }
+    if (!phrase) {
+      return { error: "문구를 입력해 주세요." };
+    }
+    return { kind: "gift", topic, phrase };
   }
 
   return { error: "특수 제작 종류를 선택해 주세요." };

@@ -18,6 +18,4 @@ export function revalidateAdminOrderViews(orderId: string) {
   safeRevalidate(`/admin/orders/${orderId}`);
   safeRevalidate("/admin/illustrations");
   safeRevalidate(`/admin/illustrations/${orderId}`);
-  safeRevalidate("/admin/upscale");
-  safeRevalidate(`/admin/upscale/${orderId}`);
 }

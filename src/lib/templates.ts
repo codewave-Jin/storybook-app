@@ -256,9 +256,7 @@ export function isStickerTemplateSelectable(key: string) {
   return key === ACTIVE_STICKER_TEMPLATE_KEY;
 }
 
-export function isStickerSizeSelectable(label: string) {
-  return label.startsWith("중형");
-}
+export { isStickerSizeSelectable } from "@/lib/sticker-sheet";
 
 export function stickerTemplateLabel(key: string, fallback: string) {
   return STICKER_TEMPLATE_LABELS[key] ?? fallback;

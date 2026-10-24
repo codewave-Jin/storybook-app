@@ -37,11 +37,11 @@ export async function resolveDefaultArtStyleId(
   const withReference = links.filter(
     (link) => Boolean(link.artStyle.referenceImageUrl),
   );
-  const watercolor = withReference.find(
-    (link) => link.artStyle.key === "watercolor",
+  const basic = withReference.find(
+    (link) => link.artStyle.key === BASIC_ART_STYLE_KEY || link.artStyle.label === "기본",
   );
 
-  return (watercolor ?? withReference[0])?.artStyle.id ?? null;
+  return (basic ?? withReference[0])?.artStyle.id ?? null;
 }
 
 export async function resolveOrderArtStyleId(options: {

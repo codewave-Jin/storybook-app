@@ -46,6 +46,7 @@ export type StickerEditorBorderOption = {
 export function StickerLayerEditor({
   borderSrc,
   characterSrc,
+  characterLoading = false,
   layout,
   onChange,
   borders = [],
@@ -55,6 +56,7 @@ export function StickerLayerEditor({
 }: {
   borderSrc?: string | null;
   characterSrc?: string | null;
+  characterLoading?: boolean;
   phrase?: string;
   phrase1?: string;
   phrase2?: string;
@@ -441,6 +443,7 @@ export function StickerLayerEditor({
           <StickerLayoutPreview
             borderSrc={borderSrc}
             characterSrc={characterSrc}
+            characterLoading={characterLoading}
             layout={layout}
             selectedLayer={selectedLayer}
             transparentCanvas={transparentCanvas}
@@ -705,7 +708,7 @@ export function StickerLayerEditor({
           </div>
           <div>
             <p className="text-[11px] text-stone-500">스티커</p>
-            <div className="mt-1.5 flex flex-wrap gap-2">
+            <div className="mt-1.5 grid grid-cols-4 gap-2">
               {STICKER_DECAL_OPTIONS.map((option) => {
                 const active = selectedDecal.assetKey === option.key;
                 return (
@@ -723,18 +726,20 @@ export function StickerLayerEditor({
                       })
                     }
                     className={cn(
-                      "flex h-16 w-16 flex-col items-center justify-center rounded-xl border bg-white p-1.5",
+                      "flex flex-col items-center justify-center rounded-xl border bg-white px-1 py-1.5",
                       active
                         ? "border-sky-400 ring-2 ring-sky-300"
                         : "border-stone-200 hover:border-stone-300",
                     )}
                   >
                     <img
-                      src={option.src}
+                      src={option.thumbSrc}
                       alt={option.label}
-                      className="h-8 w-8 object-contain"
+                      className="h-10 w-10 object-contain"
                     />
-                    <span className="mt-1 text-[11px] text-stone-600">{option.label}</span>
+                    <span className="mt-1 text-[10px] leading-tight text-stone-600">
+                      {option.label}
+                    </span>
                   </button>
                 );
               })}

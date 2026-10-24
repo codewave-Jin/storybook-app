@@ -291,7 +291,7 @@ export default async function AdminIllustrationWorkPage({
           />
         </form>
         <p className="mt-2 text-sm text-stone-400">
-          완료 처리하면 제작상태가 업스케일중으로 바뀝니다.
+          완료 처리하면 제작상태가 완료로 바뀝니다.
         </p>
       </div>
     </div>

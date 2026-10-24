@@ -11,7 +11,9 @@ import {
 } from "@/app/actions/stickers";
 import { AppImage } from "@/components/AppImage";
 import { GenerationProgress } from "@/components/GenerationProgress";
+import { SlotLoadingBar, useImageReady } from "@/components/SlotLoadingBar";
 import { PaymentComingSoon } from "@/components/PaymentComingSoon";
+import { PhotoFaceStickerPanel } from "@/components/PhotoFaceStickerPanel";
 import { SpecialStickerPanel } from "@/components/SpecialStickerPanel";
 import { StickerCheckoutDialog } from "@/components/StickerCheckoutDialog";
 import { StickerLayerEditor } from "@/components/StickerLayerEditor";
@@ -33,8 +35,15 @@ import {
 } from "@/lib/sticker-layout-constants";
 import { serializeStickerPhrases } from "@/lib/sticker-phrase";
 import {
+  isDefaultStickerSize,
+  stickerSheetSpec,
+  stickerSizeDisplayMm,
+} from "@/lib/sticker-sheet";
+import {
   defaultPhraseForClothingTopic,
+  defaultPhraseForGiftTopic,
   type ClothingTopicKey,
+  type GiftTopicKey,
   type SpecialGender,
   type SpecialStickerKind,
 } from "@/lib/sticker-special";
@@ -92,10 +101,11 @@ export function StickerWizard({
 }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [makePath, setMakePath] = useState<"path" | "examples" | "special">("path");
+  const [makePath, setMakePath] = useState<"path" | "examples" | "special" | "photo">("path");
   const [makeMode, setMakeMode] = useState<StickerMakeMode | null>(null);
   const [specialKind, setSpecialKind] = useState<SpecialStickerKind | null>(null);
   const [clothingTopic, setClothingTopic] = useState<ClothingTopicKey | null>(null);
+  const [giftTopic, setGiftTopic] = useState<GiftTopicKey | null>(null);
   const [specialName, setSpecialName] = useState("");
   const [specialGender, setSpecialGender] = useState<SpecialGender | "">("");
   const [specialPhrase, setSpecialPhrase] = useState("");
@@ -175,6 +185,7 @@ export function StickerWizard({
     setMakePath("special");
     setSpecialKind(null);
     setClothingTopic(null);
+    setGiftTopic(null);
     setSpecialError(null);
   }
 
@@ -187,6 +198,7 @@ export function StickerWizard({
       return;
     }
     setClothingTopic(null);
+    setGiftTopic(null);
     setSpecialPhrase("");
   }
 
@@ -194,6 +206,27 @@ export function StickerWizard({
     setClothingTopic(topic);
     setSpecialPhrase(defaultPhraseForClothingTopic(topic));
     setSpecialError(null);
+  }
+
+  function selectGiftTopic(topic: GiftTopicKey) {
+    setGiftTopic(topic);
+    setSpecialPhrase(defaultPhraseForGiftTopic(topic));
+    setSpecialError(null);
+  }
+
+  function applyPhotoFace(imagePath: string) {
+    const characterLabel = selectedCharacter?.label ?? "";
+    const config = configForMakeMode("photo", characterLabel);
+    const border = borders.find((item) => item.key === config.borderKey);
+    setMakeMode("photo");
+    setBorderId(border?.id ?? null);
+    setBorderPreviewUrl(border?.imageUrl ?? null);
+    setLayout(layoutForMakeMode("photo", characterLabel));
+    setCutoutPath(imagePath);
+    composedKeyRef.current = characterId ?? "";
+    setPreviewPath(null);
+    setLayoutDirty(true);
+    setStep(3);
   }
 
   function applySpecialGenerated(imagePath: string) {
@@ -230,12 +263,19 @@ export function StickerWizard({
                 name: specialName.trim(),
                 gender: specialGender,
               }
-            : {
-                characterId,
-                kind: "clothing",
-                topic: clothingTopic,
-                phrase: specialPhrase.trim(),
-              },
+            : specialKind === "gift"
+              ? {
+                  characterId,
+                  kind: "gift",
+                  topic: giftTopic,
+                  phrase: specialPhrase.trim(),
+                }
+              : {
+                  characterId,
+                  kind: "clothing",
+                  topic: clothingTopic,
+                  phrase: specialPhrase.trim(),
+                },
         ),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -358,16 +398,22 @@ export function StickerWizard({
     }
   }
 
+  function preferredSizeId() {
+    return (
+      sizes.find((item) => item.available && isDefaultStickerSize(item.label))
+        ?.id ?? sizes.find((item) => item.available)?.id ?? null
+    );
+  }
+
   function ensureSizeSelected() {
     if (sizeOptionId) {
       return sizeOptionId;
     }
-    const firstAvailable = sizes.find((item) => item.available);
-    if (firstAvailable) {
-      setSizeOptionId(firstAvailable.id);
-      return firstAvailable.id;
+    const nextId = preferredSizeId();
+    if (nextId) {
+      setSizeOptionId(nextId);
     }
-    return null;
+    return nextId;
   }
 
   async function persistDraft(options?: {
@@ -432,10 +478,20 @@ export function StickerWizard({
   }, [tokenBalance]);
 
   useEffect(() => {
+    if (sizeOptionId) {
+      return;
+    }
+    const nextId = preferredSizeId();
+    if (nextId) {
+      setSizeOptionId(nextId);
+    }
+  }, [sizeOptionId, sizes]);
+
+  useEffect(() => {
     if (step !== 3 || !characterId || !borderId) {
       return;
     }
-    if (makeMode === "special") {
+    if (makeMode === "special" || makeMode === "photo") {
       setBorderPreviewUrl((current) => current ?? selectedBorder?.imageUrl ?? null);
       return;
     }
@@ -525,16 +581,10 @@ export function StickerWizard({
                     )}
                   >
                     <div className="no-image-save relative aspect-square bg-stone-100">
-                      <AppImage
+                      <CharacterPickImage
                         src={imageSrc}
                         alt={character.label}
-                        fill
-                        draggable={false}
-                        className={cn(
-                          "pointer-events-none object-cover",
-                          !selectable && "grayscale",
-                        )}
-                        sizes="(max-width: 640px) 50vw, 33vw"
+                        grayscale={!selectable}
                       />
                       {!selectable ? (
                         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45">
@@ -571,9 +621,9 @@ export function StickerWizard({
         <section>
           <h2 className="text-lg font-semibold">어떻게 만들까요?</h2>
           <p className="mt-1 text-sm text-stone-500">
-            간단 제작으로 예시를 고르거나, 특수 제작으로 맞춰 드려요.
+            간단 제작, 특수 제작, 실사 얼굴 중에서 골라 주세요.
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <button
               type="button"
               onClick={() => setMakePath("examples")}
@@ -591,6 +641,19 @@ export function StickerWizard({
             >
               <p className="font-semibold">특수 제작</p>
               <p className="mt-1 text-sm text-stone-500">원하는 디자인을 따로 맞춰 드려요.</p>
+            </button>
+            <button
+              type="button"
+              disabled
+              className="relative cursor-not-allowed rounded-2xl border border-stone-200 bg-white p-5 text-left opacity-55 shadow-sm"
+            >
+              <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-medium text-stone-500 ring-1 ring-stone-200">
+                준비 중
+              </span>
+              <p className="font-semibold">실사 얼굴</p>
+              <p className="mt-1 text-sm text-stone-500">
+                사진 속 머리만 남기고 문구와 장식을 올려요.
+              </p>
             </button>
           </div>
         </section>
@@ -641,10 +704,18 @@ export function StickerWizard({
         </section>
       ) : null}
 
+      {step === 2 && makePath === "photo" && selectedCharacter ? (
+        <PhotoFaceStickerPanel
+          characterPhotoSrc={selectedCharacter.originalPhotoPath}
+          onUseCutout={applyPhotoFace}
+        />
+      ) : null}
+
       {step === 2 && makePath === "special" ? (
         <SpecialStickerPanel
           kind={specialKind}
           clothingTopic={clothingTopic}
+          giftTopic={giftTopic}
           name={specialName}
           gender={specialGender}
           phrase={specialPhrase}
@@ -653,6 +724,7 @@ export function StickerWizard({
           error={specialError}
           onKindChange={selectSpecialKind}
           onClothingTopicChange={selectClothingTopic}
+          onGiftTopicChange={selectGiftTopic}
           onNameChange={setSpecialName}
           onGenderChange={setSpecialGender}
           onPhraseChange={setSpecialPhrase}
@@ -672,6 +744,13 @@ export function StickerWizard({
             <StickerLayerEditor
               borderSrc={borderPreviewUrl ?? selectedBorder?.imageUrl}
               characterSrc={cutoutPath}
+              characterLoading={
+                previewing ||
+                (!cutoutPath &&
+                  !previewError &&
+                  makeMode !== "special" &&
+                  makeMode !== "photo")
+              }
               layout={layout}
               borders={borders}
               borderId={borderId}
@@ -694,7 +773,7 @@ export function StickerWizard({
             />
             {previewing ? (
               <p className="mt-3 text-center text-sm text-stone-500">
-                캐릭터 배경을 지우고 있어요. 예시는 바로 고칠 수 있어요.
+                선택한 캐릭터를 스티커에 올리고 있어요. 잠시만 기다려 주세요.
               </p>
             ) : null}
             {previewError ? (
@@ -727,6 +806,7 @@ export function StickerWizard({
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {sizes.map((option) => {
               const selected = option.id === sizeOptionId;
+              const spec = stickerSheetSpec(option.label);
               return (
                 <button
                   key={option.id}
@@ -755,10 +835,13 @@ export function StickerWizard({
                   )}
                   <p className="font-semibold">{option.label}</p>
                   <p className="mt-1 text-sm text-stone-500">
-                    {option.widthMm} × {option.heightMm}mm
+                    지름 {stickerSizeDisplayMm(option.label, option.widthMm)}mm
                   </p>
                   <p className="mt-3 rounded-lg bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800">
                     A4 한 장에 {option.quantityPerA4}개
+                    {spec && spec.cols * spec.rows > 1
+                      ? ` · ${spec.cols}×${spec.rows}`
+                      : ""}
                   </p>
                 </button>
               );
@@ -770,6 +853,7 @@ export function StickerWizard({
                 src={previewPath}
                 phrase={phrase}
                 quantity={selectedSize.quantityPerA4}
+                sizeLabel={selectedSize.label}
                 overlayPhrase={false}
                 showWatermark
                 variant="a4"
@@ -821,9 +905,17 @@ export function StickerWizard({
                   setMakePath("path");
                   return;
                 }
+                if (step === 2 && makePath === "photo") {
+                  setMakePath("path");
+                  return;
+                }
                 if (step === 2 && makePath === "special") {
                   if (specialKind === "clothing" && clothingTopic) {
                     setClothingTopic(null);
+                    return;
+                  }
+                  if (specialKind === "gift" && giftTopic) {
+                    setGiftTopic(null);
                     return;
                   }
                   if (specialKind) {
@@ -839,7 +931,9 @@ export function StickerWizard({
                       ? "path"
                       : makeMode === "special"
                         ? "special"
-                        : "examples",
+                        : makeMode === "photo"
+                          ? "photo"
+                          : "examples",
                   );
                   setStep(2);
                   return;
@@ -955,6 +1049,42 @@ export function StickerWizard({
         />
       ) : null}
     </div>
+  );
+}
+
+function CharacterPickImage({
+  src,
+  alt,
+  grayscale,
+}: {
+  src: string | null | undefined;
+  alt: string;
+  grayscale: boolean;
+}) {
+  const loaded = useImageReady(src);
+
+  return (
+    <>
+      {src ? (
+        <AppImage
+          src={src}
+          alt={alt}
+          fill
+          draggable={false}
+          className={cn(
+            "pointer-events-none object-cover transition-opacity duration-300",
+            grayscale && "grayscale",
+            loaded ? "opacity-100" : "opacity-0",
+          )}
+          sizes="(max-width: 640px) 50vw, 33vw"
+        />
+      ) : null}
+      {!loaded ? (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <SlotLoadingBar compact label="캐릭터 불러오는 중" />
+        </div>
+      ) : null}
+    </>
   );
 }
 

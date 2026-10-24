@@ -8,7 +8,6 @@ import { PRODUCTION_STATUS_LABEL } from "@/lib/orders";
 const OPTIONS: ProductionStatus[] = [
   "WAITING",
   "ILLUSTRATING",
-  "UPSCALING",
   "COMPLETED",
 ];
 
@@ -20,6 +19,7 @@ export function ProductionStatusSelect({
   value: ProductionStatus;
 }) {
   const router = useRouter();
+  const options = OPTIONS.includes(value) ? OPTIONS : [value, ...OPTIONS];
 
   return (
     <select
@@ -33,7 +33,7 @@ export function ProductionStatusSelect({
       }}
       className="h-10 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm sm:w-auto"
     >
-      {OPTIONS.map((status) => (
+      {options.map((status) => (
         <option key={status} value={status}>
           {PRODUCTION_STATUS_LABEL[status]}
         </option>

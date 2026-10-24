@@ -292,8 +292,6 @@ export async function deleteOrder(orderId: string) {
   revalidatePath("/admin/orders");
   revalidatePath("/admin/illustrations");
   revalidatePath(`/admin/illustrations/${orderId}`);
-  revalidatePath("/admin/upscale");
-  revalidatePath(`/admin/upscale/${orderId}`);
   revalidatePath("/dashboard");
   revalidatePath("/mypage");
   return { success: true };

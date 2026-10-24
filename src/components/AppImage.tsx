@@ -1,3 +1,5 @@
+"use client";
+
 import Image, { type ImageProps } from "next/image";
 import {
   toProtectedMediaSrc,
@@ -7,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 type AppImageProps = ImageProps & {
   mediaVariant?: MediaVariant;
+  onReady?: () => void;
 };
 
 function shouldSkipOptimizer(src: ImageProps["src"]) {
@@ -34,17 +37,31 @@ export function AppImage({
   height,
   style,
   onContextMenu,
+  onLoad,
+  onError,
+  onReady,
   ...props
 }: AppImageProps) {
   const resolved =
     typeof src === "string" ? toProtectedMediaSrc(src, mediaVariant) : src;
   const skipOptimizer = unoptimized ?? shouldSkipOptimizer(resolved);
 
+  function handleReady() {
+    onReady?.();
+  }
+
+  function handleImgRef(element: HTMLImageElement | null) {
+    if (element?.complete) {
+      handleReady();
+    }
+  }
+
   if (typeof resolved === "string" && skipOptimizer) {
     return (
       // Cookie-authenticated and remote blob images must not go through /_next/image.
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        ref={handleImgRef}
         src={resolved}
         alt={alt}
         width={typeof width === "number" ? width : undefined}
@@ -52,6 +69,11 @@ export function AppImage({
         draggable={draggable ?? false}
         style={style}
         onContextMenu={onContextMenu}
+        onLoad={(event) => {
+          handleReady();
+          onLoad?.(event);
+        }}
+        onError={onError}
         className={cn(fill ? "absolute inset-0 h-full w-full" : null, className)}
       />
     );
@@ -70,6 +92,11 @@ export function AppImage({
       onContextMenu={onContextMenu}
       className={className}
       unoptimized={skipOptimizer}
+      onLoad={(event) => {
+        handleReady();
+        onLoad?.(event);
+      }}
+      onError={onError}
       {...props}
     />
   );

@@ -396,34 +396,10 @@ export async function markOrderIllustrationsComplete(orderId: string) {
 
   await prisma.storybookOrder.update({
     where: { id: orderId },
-    data: { productionStatus: "UPSCALING" },
+    data: { productionStatus: "COMPLETED" },
   });
 
   revalidateAdminOrderViews(orderId);
-}
-
-export async function copyOriginalToUpscaled(illustrationId: string) {
-  await requireAdmin();
-
-  const illustration = await prisma.illustration.findUnique({
-    where: { id: illustrationId },
-  });
-
-  if (!illustration?.imagePath) {
-    return { error: "원본 이미지가 없습니다." };
-  }
-
-  // TODO: 실제 업스케일 워크플로우 연동 시 이 부분을 교체하세요.
-  // 지금은 원본 imagePath를 upscaledImagePath에 그대로 복사합니다.
-  await prisma.illustration.update({
-    where: { id: illustrationId },
-    data: {
-      upscaledImagePath: illustration.imagePath,
-    },
-  });
-
-  revalidateIllustrationWork(illustration.orderId);
-  return { success: true };
 }
 
 export async function uploadOrderCharacterInput(

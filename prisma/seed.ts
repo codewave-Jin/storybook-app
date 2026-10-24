@@ -251,22 +251,25 @@ const stickerPhrasePresets = [
 
 const stickerSizeOptions = [
   {
-    label: "소형 (3cm)",
-    widthMm: 30,
-    heightMm: 30,
+    key: "소형",
+    label: "소형 (38.1mm)",
+    widthMm: 38,
+    heightMm: 38,
     quantityPerA4: 24,
   },
   {
-    label: "중형 (5cm)",
+    key: "중형",
+    label: "중형 (50mm)",
     widthMm: 50,
     heightMm: 50,
     quantityPerA4: 12,
   },
   {
-    label: "대형 (8cm)",
-    widthMm: 80,
-    heightMm: 80,
-    quantityPerA4: 6,
+    key: "대형",
+    label: "대형 (200mm)",
+    widthMm: 200,
+    heightMm: 200,
+    quantityPerA4: 1,
   },
 ];
 
@@ -712,13 +715,16 @@ async function seedStickerCatalog() {
 
   for (const option of stickerSizeOptions) {
     const existing = await prisma.stickerSizeOption.findFirst({
-      where: { label: option.label },
+      where: {
+        OR: [{ label: option.label }, { label: { startsWith: option.key } }],
+      },
     });
 
     if (existing) {
       await prisma.stickerSizeOption.update({
         where: { id: existing.id },
         data: {
+          label: option.label,
           widthMm: option.widthMm,
           heightMm: option.heightMm,
           quantityPerA4: option.quantityPerA4,
@@ -727,7 +733,14 @@ async function seedStickerCatalog() {
       continue;
     }
 
-    await prisma.stickerSizeOption.create({ data: option });
+    await prisma.stickerSizeOption.create({
+      data: {
+        label: option.label,
+        widthMm: option.widthMm,
+        heightMm: option.heightMm,
+        quantityPerA4: option.quantityPerA4,
+      },
+    });
   }
 }
 

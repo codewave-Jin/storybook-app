@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AppImage } from "@/components/AppImage";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { createOrder, type CreateOrderState } from "@/app/actions/orders";
@@ -64,11 +64,28 @@ const STEP_CHARACTERS = 3;
 const STEP_FIELDS = 4;
 const STEP_CONFIRM = 5;
 
+function isBasicStyle(style: OrderArtStyleOption) {
+  return style.key === "basic" || style.label === "기본";
+}
+
 function defaultArtStyleId(styles: OrderArtStyleOption[]) {
+  return styles.find(isBasicStyle)?.id ?? styles[0]?.id ?? null;
+}
+
+function RecommendBubble() {
   return (
-    styles.find((style) => style.key === "watercolor")?.id ??
-    styles[0]?.id ??
-    null
+    <span className="pointer-events-none absolute right-1 top-1 z-10">
+      <span className="block rounded-full bg-[#E07A5F] px-2.5 py-1.5 text-xs font-bold leading-none tracking-tight text-white shadow-[0_3px_10px_rgba(160,50,24,0.55)] ring-2 ring-white sm:px-3 sm:text-sm">
+        추천
+      </span>
+      <svg
+        aria-hidden
+        viewBox="0 0 14 9"
+        className="absolute -bottom-1.5 right-3 h-2.5 w-3.5 text-[#E07A5F] drop-shadow-[0_2px_1px_rgba(160,50,24,0.25)]"
+      >
+        <path d="M1 0h12L8 9H5z" fill="currentColor" />
+      </svg>
+    </span>
   );
 }
 
@@ -133,6 +150,16 @@ export function OrderWizard({
     (character) =>
       character.status === "COMPLETED" && !usedCharacterIds.has(character.id),
   );
+
+  useEffect(() => {
+    if (!artStyles.length) {
+      return;
+    }
+    if (artStyles.some((style) => style.id === artStyleId)) {
+      return;
+    }
+    setArtStyleId(defaultArtStyleId(artStyles));
+  }, [artStyleId, artStyles]);
 
   const canSkipArtStyle = artStyles.length === 0;
   const canSkipFields = customFields.length === 0;
@@ -311,6 +338,7 @@ export function OrderWizard({
                       className="pointer-events-none object-cover"
                       sizes="(max-width: 640px) 33vw, 160px"
                     />
+                    {isBasicStyle(style) ? <RecommendBubble /> : null}
                   </div>
                   <div className="px-1 py-1.5">
                     <p className="truncate text-center text-xs font-medium sm:text-sm">

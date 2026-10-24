@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { logGenerationEvent } from "@/lib/generation-events";
-import { isStickerSizeSelectable } from "@/lib/templates";
+import { isDefaultStickerSize, isStickerSizeSelectable } from "@/lib/sticker-sheet";
 import { attachTokenHoldToOrder, refundTokenHoldsForOrder } from "@/lib/tokens";
 import { isAllowedStickerAssetPath } from "@/lib/sticker-layout-constants";
 import { deleteStickerFile } from "@/lib/uploads";
@@ -17,7 +17,9 @@ async function defaultStickerDraftOptions() {
       select: { id: true, label: true, quantityPerA4: true },
     }),
   ]);
-  const size = sizes.find((item) => isStickerSizeSelectable(item.label));
+  const size =
+    sizes.find((item) => isDefaultStickerSize(item.label)) ??
+    sizes.find((item) => isStickerSizeSelectable(item.label));
   if (!border) {
     return { ok: false as const, error: "기본 테두리를 찾을 수 없습니다." };
   }

@@ -150,7 +150,6 @@ export const PRODUCTION_STATUS_FILTERS: Array<{
   { value: "ALL", label: "전체" },
   { value: "WAITING", label: "대기중" },
   { value: "ILLUSTRATING", label: "삽화작업중" },
-  { value: "UPSCALING", label: "업스케일중" },
   { value: "COMPLETED", label: "완료" },
 ];
 

@@ -1,12 +1,7 @@
 "use client";
 
 import { AppImage } from "@/components/AppImage";
-
-function a4Grid(count: number) {
-  if (count <= 6) return { cols: 2, rows: Math.ceil(count / 2) };
-  if (count <= 12) return { cols: 3, rows: Math.ceil(count / 3) };
-  return { cols: 4, rows: Math.ceil(count / 4) };
-}
+import { stickerSheetCells } from "@/lib/sticker-sheet";
 
 function StickerFace({
   src,
@@ -58,18 +53,19 @@ export function StickerPreviewViews({
   src,
   phrase,
   quantity,
+  sizeLabel,
   overlayPhrase,
   variant = "full",
 }: {
   src: string;
   phrase: string;
   quantity: number;
+  sizeLabel?: string;
   overlayPhrase: boolean;
   showWatermark?: boolean;
   variant?: "full" | "a4";
 }) {
-  const { cols, rows } = a4Grid(quantity);
-  const cells = Array.from({ length: quantity }, (_, index) => index);
+  const cells = stickerSheetCells(sizeLabel ?? "", quantity);
 
   return (
     <div className="space-y-5">
@@ -101,26 +97,26 @@ export function StickerPreviewViews({
           className="no-image-save relative mx-auto mt-4 w-full max-w-md overflow-hidden rounded-xl bg-[#f7f4ef] shadow-sm ring-1 ring-stone-200"
           onContextMenu={(event) => event.preventDefault()}
         >
-          <div className="relative aspect-[210/297] p-[6%]">
-            <div
-              className="grid h-full w-full"
-              style={{
-                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-                gap: "4%",
-              }}
-            >
-              {cells.map((cell) => (
-                <div key={cell} className="min-h-0 min-w-0 p-[6%]">
-                  <StickerFace
-                    src={src}
-                    phrase={phrase}
-                    overlayPhrase={overlayPhrase}
-                    compact
-                  />
-                </div>
-              ))}
-            </div>
+          <div className="relative aspect-[210/297]">
+            {cells.map((cell, index) => (
+              <div
+                key={`${cell.leftPct}-${cell.topPct}-${index}`}
+                className="absolute"
+                style={{
+                  left: `${cell.leftPct}%`,
+                  top: `${cell.topPct}%`,
+                  width: `${cell.widthPct}%`,
+                  height: `${cell.heightPct}%`,
+                }}
+              >
+                <StickerFace
+                  src={src}
+                  phrase={phrase}
+                  overlayPhrase={overlayPhrase}
+                  compact
+                />
+              </div>
+            ))}
           </div>
         </div>
       </section>

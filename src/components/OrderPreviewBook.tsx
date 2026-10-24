@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
-import type { IllustrationStatus } from "@prisma/client";
+import { useEffect, useRef, useState, useTransition } from "react";
+import type { FulfillmentStatus, IllustrationStatus } from "@prisma/client";
 import { retryFailedIllustrations } from "@/app/actions/retry-generation";
+import { saveCoverComment } from "@/app/actions/story-text";
 import { AppImage } from "@/components/AppImage";
 import { DeleteDraftOrderButton } from "@/components/DeleteDraftOrderButton";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { OrderPreviewPayButton } from "@/components/OrderPreviewPayButton";
-import type { OrderOptionLine } from "@/lib/storybook-order-summary";
+import { ShippingTrackingInfo } from "@/components/ShippingTrackingInfo";
 import { StoryTextEditor } from "@/components/StoryTextEditor";
 import { StoryTextOverlay } from "@/components/StoryTextOverlay";
+import { MAX_COVER_COMMENT } from "@/lib/cover-comment";
+import { visibleShippingInfo } from "@/lib/fulfillment";
 import type { PreviewBookPage } from "@/lib/preview-pages";
+import type { OrderOptionLine } from "@/lib/storybook-order-summary";
 
 type OrderStatusPayload = {
   illustrations?: Array<{
@@ -74,6 +78,9 @@ export function OrderPreviewBook({
   optionLines = [],
   defaultEmail,
   defaultName,
+  fulfillmentStatus,
+  shippingCarrier,
+  trackingNumber,
 }: {
   title: string;
   backHref: string;
@@ -86,6 +93,9 @@ export function OrderPreviewBook({
   optionLines?: OrderOptionLine[];
   defaultEmail?: string;
   defaultName?: string;
+  fulfillmentStatus?: FulfillmentStatus | null;
+  shippingCarrier?: string | null;
+  trackingNumber?: string | null;
 }) {
   const [index, setIndex] = useState(0);
   const [livePages, setLivePages] = useState(pages);
@@ -186,6 +196,11 @@ export function OrderPreviewBook({
   );
   const counterLabel = `${safeIndex + 1} / ${livePages.length}`;
   const payReady = ready || bookComplete || (!paid && liveComplete);
+  const shipping = visibleShippingInfo({
+    fulfillmentStatus,
+    shippingCarrier,
+    trackingNumber,
+  });
 
   return (
     <div className="flex min-h-dvh flex-col bg-[#eaf4fb] text-stone-800">
@@ -226,7 +241,7 @@ export function OrderPreviewBook({
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-64 pt-4 sm:px-4 sm:pt-6">
+      <main className={`mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pt-4 sm:px-4 sm:pt-6 ${shipping ? "pb-80 sm:pb-96" : "pb-64"}`}>
         {optionLines.length > 0 ? (
           <section
             aria-label="선택한 옵션"
@@ -351,29 +366,34 @@ export function OrderPreviewBook({
             </div>
           ) : null}
           {paid ? (
-            liveComplete && includePhotoAlbum && safeIndex === lastIndex ? (
-              <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
+              {shipping ? (
+                <ShippingTrackingInfo
+                  carrier={shipping.carrier}
+                  trackingNumber={shipping.trackingNumber}
+                  className="rounded-xl bg-white px-3 py-3 ring-1 ring-sky-100"
+                />
+              ) : null}
+              {liveComplete && includePhotoAlbum && safeIndex === lastIndex ? (
                 <Link
                   href={`/dashboard/orders/${orderId}/album`}
                   className="flex h-12 items-center justify-center rounded-xl bg-[#E07A5F] text-sm font-semibold text-white hover:bg-[#d56c51]"
                 >
                   사진첩 진행하기
                 </Link>
-                <Link
-                  href="/dashboard"
-                  className="flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-600 hover:bg-stone-50"
-                >
-                  대시보드로 돌아가기
-                </Link>
-              </div>
-            ) : (
+              ) : null}
               <Link
-                href="/dashboard"
-                className="flex h-12 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500"
+                href={shipping ? "/mypage" : "/dashboard"}
+                className={
+                  shipping ||
+                  (liveComplete && includePhotoAlbum && safeIndex === lastIndex)
+                    ? "flex h-11 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-600 hover:bg-stone-50"
+                    : "flex h-12 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500"
+                }
               >
-                대시보드로 돌아가기
+                {shipping ? "마이페이지로" : "대시보드로 돌아가기"}
               </Link>
-            )
+            </div>
           ) : (
             <OrderPreviewPayButton
               orderId={orderId}
@@ -452,6 +472,26 @@ function BookLeaf({
   );
 }
 
+function CoverCornerMarks() {
+  return (
+    <>
+      {[
+        "left-3 top-3",
+        "right-3 top-3",
+        "left-3 bottom-3",
+        "right-3 bottom-3",
+      ].map((position) => (
+        <span
+          key={position}
+          className={`absolute ${position} text-[11px] leading-none text-[#d7a35a] sm:text-xs`}
+        >
+          ✦
+        </span>
+      ))}
+    </>
+  );
+}
+
 function CoverSpread({
   page,
   onLiveChange,
@@ -463,7 +503,16 @@ function CoverSpread({
   }) => void;
 }) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [comment, setComment] = useState(page.storyText);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const savedComment = useRef(page.storyText);
   const showImage = page.status === "COMPLETED" && page.imagePath;
+
+  useEffect(() => {
+    savedComment.current = page.storyText;
+    setComment(page.storyText);
+    setCommentError(null);
+  }, [page.id]);
 
   useEffect(() => {
     return () => {
@@ -473,29 +522,68 @@ function CoverSpread({
     };
   }, [photoUrl]);
 
+  useEffect(() => {
+    if (!page.id || comment.trim() === savedComment.current.trim()) {
+      return;
+    }
+
+    const illustrationId = page.id;
+    const timer = window.setTimeout(() => {
+      void saveCoverComment({
+        illustrationId,
+        comment,
+      }).then((result) => {
+        if (!result.error) {
+          savedComment.current = result.comment ?? comment.trim();
+        }
+        setCommentError(result.error ?? null);
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [comment, page.id]);
+
   return (
     <figure className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-sky-100">
       <div className="no-image-save relative aspect-[2/1] bg-stone-100">
         <div className="absolute inset-0 grid grid-cols-2">
-          <div className="relative flex items-center justify-center bg-[#f3eee6]">
-            <label className="relative z-10 flex aspect-[3/4] w-[56%] max-h-[78%] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[2px] bg-white p-[7px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-stone-400/70">
-              <span className="relative flex h-full w-full items-center justify-center overflow-hidden bg-stone-100">
-                {photoUrl ? (
-                  <img
-                    src={photoUrl}
-                    alt="표지 왼쪽 사진"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="px-2 text-center">
-                    <span className="block text-sm font-medium text-stone-600">
-                      사진 추가
+          <div className="relative flex h-full flex-col items-center justify-center gap-2 overflow-hidden px-3 py-3 sm:gap-3 sm:px-4">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[#f6efe4]"
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,#fff8ee,transparent_36%),radial-gradient(circle_at_84%_88%,#f6d7c4,transparent_42%)]" />
+              <div
+                className="absolute inset-0 opacity-50"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(#e7c8a4 0.7px, transparent 0.7px)",
+                  backgroundSize: "12px 12px",
+                }}
+              />
+              <div className="absolute inset-2 rounded-md border border-[#e4c9a8]/90 sm:inset-2.5" />
+              <CoverCornerMarks />
+            </div>
+            <label className="relative z-10 aspect-square w-[68%] max-w-[15rem] cursor-pointer">
+              <span className="flex h-full w-full items-center justify-center rounded-[3px] bg-[#f3e6d4] p-[7px] shadow-[0_8px_18px_rgba(120,78,40,0.16)] ring-1 ring-[#c4a574]">
+                <span className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#fffaf4] ring-1 ring-white">
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt="표지 왼쪽 사진"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="px-2 text-center">
+                      <span className="block text-xs font-medium text-stone-600 sm:text-sm">
+                        사진 추가
+                      </span>
+                      <span className="mt-0.5 block text-[10px] text-stone-400 sm:text-[11px]">
+                        정사각 액자
+                      </span>
                     </span>
-                    <span className="mt-0.5 block text-[11px] text-stone-400">
-                      액자에 넣을 사진을 골라 주세요
-                    </span>
-                  </span>
-                )}
+                  )}
+                </span>
               </span>
               <input
                 type="file"
@@ -516,6 +604,20 @@ function CoverSpread({
                 }}
               />
             </label>
+            <textarea
+              value={comment}
+              maxLength={MAX_COVER_COMMENT}
+              rows={3}
+              aria-label="표지 문구"
+              placeholder="표지 문구를 적어 주세요"
+              onChange={(event) => setComment(event.target.value)}
+              className="font-story relative z-10 w-[78%] shrink-0 resize-none rounded-lg border border-[#e4c9a8] bg-white/90 px-2 py-1.5 text-center text-[11px] leading-snug text-stone-800 outline-none select-text placeholder:text-stone-400 focus:ring-2 focus:ring-[#e7c8a4] sm:text-xs"
+            />
+            {commentError ? (
+              <p className="relative z-10 text-center text-[10px] text-red-600">
+                {commentError}
+              </p>
+            ) : null}
           </div>
           <div className="relative bg-stone-100">
             {showImage && page.imagePath ? (

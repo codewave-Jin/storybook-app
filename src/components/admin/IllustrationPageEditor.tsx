@@ -79,6 +79,7 @@ export function IllustrationPageEditor({
   const [isDeleting, startDelete] = useTransition();
   const generateLockRef = useRef(false);
   const [generateLocked, setGenerateLocked] = useState(false);
+  const [prompt, setPrompt] = useState(illustration.prompt);
 
   const generateFormId = `illustration-generate-${illustration.id}`;
   const processing = illustration.status === "PROCESSING";
@@ -94,7 +95,11 @@ export function IllustrationPageEditor({
   const previousVersions = (illustration.imageVersions ?? []).filter(
     (item) => item.path && item.path !== previewSrc,
   );
-  const canRegenerate = Boolean(illustration.prompt.trim()) && !generateBusy;
+  const canRegenerate = Boolean(prompt.trim()) && !generateBusy;
+
+  useEffect(() => {
+    setPrompt(illustration.prompt);
+  }, [illustration.id, illustration.prompt]);
 
   useEffect(() => {
     if (processing) {
@@ -298,29 +303,28 @@ export function IllustrationPageEditor({
               name="keepImage"
               value={illustration.imagePath ? "1" : "0"}
             />
-            <input type="hidden" name="prompt" value={illustration.prompt} />
             {illustration.selectedCharacterIds.map((id) => (
               <input key={id} type="hidden" name="characterIds" value={id} />
             ))}
 
-            <div>
-              <p className="mb-2 text-sm font-medium text-stone-600">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-stone-600">
                 기존 프롬프트
-              </p>
-              {illustration.prompt.trim() ? (
-                <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-700">
-                  {illustration.prompt}
-                </pre>
-              ) : (
-                <p className="rounded-xl border border-dashed border-stone-300 px-4 py-3 text-sm text-stone-400">
-                  저장된 프롬프트가 없습니다.
-                </p>
-              )}
-            </div>
+              </span>
+              <textarea
+                name="prompt"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                disabled={generateBusy}
+                rows={Math.min(16, Math.max(6, prompt.split("\n").length + 1))}
+                placeholder="재생성에 사용할 프롬프트를 입력해 주세요."
+                className="w-full resize-y rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm leading-6 text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-300 disabled:bg-stone-50 disabled:text-stone-500"
+              />
+            </label>
 
             <p className="text-sm text-stone-500">
-              이미지가 이상하면 같은 프롬프트로 다시 만들어 사용자 삽화를
-              고칩니다.
+              프롬프트를 수정한 뒤 재생성하면 바꾼 내용으로 삽화를 다시
+              만듭니다.
             </p>
 
             <ActionButton

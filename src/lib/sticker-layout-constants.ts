@@ -61,9 +61,9 @@ export const DEFAULT_PHRASE_BOXES: StickerLayerBox[] = [
 ];
 
 export const DEFAULT_DECAL_BOXES: StickerLayerBox[] = [
-  { leftRatio: 0.14, topRatio: 0.56, widthRatio: 0.12, heightRatio: 0.12 },
-  { leftRatio: 0.74, topRatio: 0.56, widthRatio: 0.12, heightRatio: 0.12 },
-  { leftRatio: 0.44, topRatio: 0.1, widthRatio: 0.12, heightRatio: 0.12 },
+  { leftRatio: 0.11, topRatio: 0.53, widthRatio: 0.18, heightRatio: 0.18 },
+  { leftRatio: 0.71, topRatio: 0.53, widthRatio: 0.18, heightRatio: 0.18 },
+  { leftRatio: 0.41, topRatio: 0.07, widthRatio: 0.18, heightRatio: 0.18 },
 ];
 
 export const DEFAULT_DECAL_BASE = DEFAULT_DECAL_BOXES[0];
@@ -264,7 +264,7 @@ export const STICKER_CHARACTER_SCALE_MIN = 0.5;
 export const STICKER_CHARACTER_SCALE_MAX = 2.5;
 export const STICKER_LAYER_SCALE_MIN = 0.7;
 export const STICKER_LAYER_SCALE_MAX = 1.5;
-export const STICKER_DECAL_SCALE_MAX = 2;
+export const STICKER_DECAL_SCALE_MAX = 2.5;
 
 function clampBox(
   box: StickerLayerBox,
@@ -321,7 +321,7 @@ export function clampStickerLayout(layout: StickerLayoutState): StickerLayoutSta
       box: clampBox(decal.box, {
         left: [-0.15, 0.9],
         top: [-0.15, 0.9],
-        size: [0.06, 0.55],
+        size: [0.06, 0.5],
       }),
     })),
     stack: layout.stack ?? [],

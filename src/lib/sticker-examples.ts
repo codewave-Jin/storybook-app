@@ -9,7 +9,7 @@ import {
 } from "@/lib/sticker-layout-constants";
 
 export type StickerExampleKey = "birthday" | "thanks" | "congrats";
-export type StickerMakeMode = StickerExampleKey | "diy" | "special";
+export type StickerMakeMode = StickerExampleKey | "diy" | "special" | "photo";
 
 export const STICKER_EXAMPLES = [
   {
@@ -69,7 +69,7 @@ export function configForMakeMode(
   borderKey: string;
   phrases: string[];
 } {
-  if (mode === "diy" || mode === "special") {
+  if (mode === "diy" || mode === "special" || mode === "photo") {
     return { borderKey: "none", phrases: [] };
   }
   const example = STICKER_EXAMPLES.find((item) => item.key === mode);
@@ -110,10 +110,10 @@ function birthdayLayout(characterLabel: string): StickerLayoutState {
 
   const heart = createDecalLayer(0, "heart");
   heart.box = {
-    leftRatio: 0.5703385416666666,
-    topRatio: 0.159702380952381,
-    widthRatio: 0.12,
-    heightRatio: 0.12,
+    leftRatio: 0.5403385416666666,
+    topRatio: 0.129702380952381,
+    widthRatio: 0.18,
+    heightRatio: 0.18,
   };
 
   return clampStickerLayout({
@@ -165,10 +165,10 @@ function thanksLayout(): StickerLayoutState {
 
   const heart = createDecalLayer(0, "heart");
   heart.box = {
-    leftRatio: 0.44859375,
-    topRatio: 0.15821428571428575,
-    widthRatio: 0.12,
-    heightRatio: 0.12,
+    leftRatio: 0.41859375,
+    topRatio: 0.12821428571428575,
+    widthRatio: 0.18,
+    heightRatio: 0.18,
   };
 
   return clampStickerLayout({
@@ -198,7 +198,7 @@ function thanksLayout(): StickerLayoutState {
 }
 
 export function layoutForMakeMode(mode: StickerMakeMode, characterLabel = "") {
-  if (mode === "special") {
+  if (mode === "special" || mode === "photo") {
     return clampStickerLayout({
       character: {
         leftRatio: 0.05,
@@ -229,6 +229,9 @@ export function makeModeLabel(mode: StickerMakeMode | null) {
   }
   if (mode === "special") {
     return "특수 제작";
+  }
+  if (mode === "photo") {
+    return "실사 얼굴";
   }
   return STICKER_EXAMPLES.find((item) => item.key === mode)?.label ?? null;
 }
