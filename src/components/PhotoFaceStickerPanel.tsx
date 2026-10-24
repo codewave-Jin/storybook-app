@@ -57,7 +57,7 @@ export function PhotoFaceStickerPanel({
     }
   }
 
-  async function useCharacterPhoto() {
+  async function loadCharacterPhoto() {
     setBusy(true);
     setError(null);
     try {
@@ -172,7 +172,7 @@ export function PhotoFaceStickerPanel({
       </p>
       <button
         type="button"
-        onClick={() => void useCharacterPhoto()}
+        onClick={() => void loadCharacterPhoto()}
         disabled={busy}
         className="mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
