@@ -7,6 +7,8 @@ import { STICKER_FONT_OPTIONS } from "@/lib/sticker-fonts";
 import {
   DEFAULT_DECAL_BASE,
   DEFAULT_STICKER_LAYOUT,
+  STICKER_TEXT_COLORS,
+  stickerTextColor,
   MAX_STICKER_DECALS,
   MAX_STICKER_PHRASES,
   STICKER_CHARACTER_SCALE_MAX,
@@ -20,7 +22,6 @@ import {
   createPhraseLayer,
   decalIdFromLayerKey,
   decalLayerKey,
-  firstSelectableLayer,
   layerBoxScale,
   moveStackItem,
   normalizeStack,
@@ -53,6 +54,7 @@ export function StickerLayerEditor({
   borderId = null,
   onBorderChange,
   transparentCanvas = false,
+  clipCharacterCircle = false,
 }: {
   borderSrc?: string | null;
   characterSrc?: string | null;
@@ -67,11 +69,10 @@ export function StickerLayerEditor({
   borderId?: string | null;
   onBorderChange?: (borderId: string) => void;
   transparentCanvas?: boolean;
+  clipCharacterCircle?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [selectedLayer, setSelectedLayer] = useState<StickerLayerKey | null>(
-    () => firstSelectableLayer(layout),
-  );
+  const [selectedLayer, setSelectedLayer] = useState<StickerLayerKey | null>(null);
   const dragRef = useRef<{
     layer: StickerLayerKey;
     startX: number;
@@ -134,11 +135,7 @@ export function StickerLayerEditor({
     if (selectedLayer === "character") {
       updateLayout({
         ...layout,
-        character: scaleLayerBox(
-          layout.character,
-          DEFAULT_STICKER_LAYOUT.character,
-          scale,
-        ),
+        character: scaleLayerBox(layout.character, characterScaleBase, scale),
       });
       return;
     }
@@ -361,26 +358,38 @@ export function StickerLayerEditor({
     deleteLayer(selectedLayer);
   }
 
-  function moveSelected(delta: number) {
-    if (!selectedLayer) {
+  function moveLayer(key: StickerLayerKey, delta: number) {
+    const current = normalizeStack(layout);
+    const from = current.indexOf(key);
+    if (from < 0) {
       return;
     }
-    const stack = normalizeStack(layout);
-    const from = stack.indexOf(selectedLayer);
-    if (from < 0) {
+    const to = from + delta;
+    if (to < 0 || to >= current.length) {
       return;
     }
     updateLayout({
       ...layout,
-      stack: moveStackItem(stack, selectedLayer, from + delta),
+      stack: moveStackItem(current, key, to),
     });
   }
+
+  function moveSelected(delta: number) {
+    if (!selectedLayer) {
+      return;
+    }
+    moveLayer(selectedLayer, delta);
+  }
+
+  const characterScaleBase = clipCharacterCircle
+    ? { leftRatio: 0, topRatio: 0, widthRatio: 1, heightRatio: 1 }
+    : DEFAULT_STICKER_LAYOUT.character;
 
   const selectedScale =
     selectedLayer === "border"
       ? layout.border.scale / DEFAULT_STICKER_LAYOUT.border.scale
       : selectedLayer === "character"
-        ? layerBoxScale(layout.character, DEFAULT_STICKER_LAYOUT.character)
+        ? layerBoxScale(layout.character, characterScaleBase)
         : selectedDecal
           ? layerBoxScale(selectedDecal.box, DEFAULT_DECAL_BASE)
           : 1;
@@ -430,42 +439,12 @@ export function StickerLayerEditor({
 
   return (
     <div>
-      <div
-        ref={canvasRef}
-        className="mx-auto w-full max-w-lg touch-none select-none px-2 py-1 sm:px-6 sm:py-3 [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]"
-        onDragStart={(event) => event.preventDefault()}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        <div className="mx-auto w-full max-w-[15.5rem] sm:max-w-sm">
-          <StickerLayoutPreview
-            borderSrc={borderSrc}
-            characterSrc={characterSrc}
-            characterLoading={characterLoading}
-            layout={layout}
-            selectedLayer={selectedLayer}
-            transparentCanvas={transparentCanvas}
-          />
-        </div>
-      </div>
-      <p className="mx-auto mt-2 max-w-lg px-4 text-center text-xs leading-relaxed text-stone-600 sm:mt-3 sm:text-sm">
-        위치·문구·크기를 자유롭게 수정할 수 있어요. 미리보기를 끌어 옮겨 보세요.
-      </p>
-      <div
-        className="mx-auto mt-3 w-full max-w-lg rounded-2xl border border-stone-200/80 bg-white p-3 shadow-sm sm:mt-4 sm:p-4"
-        data-sticker-editor-ui
-      >
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-stone-800">레이어</p>
-            <p className="mt-0.5 text-[11px] text-stone-400">
-              눌러 선택하고, 끌어 순서를 바꿔요
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mx-auto flex w-full max-w-lg items-start gap-2">
+        <div className="flex w-[5.6rem] shrink-0 flex-col gap-1.5 pt-1" data-sticker-editor-ui>
+          <p className="px-0.5 text-[10px] font-medium leading-tight text-stone-500">
+            레이어 순서
+            <span className="mt-0.5 block font-normal">아래가 앞</span>
+          </p>
           {layerTabs.map((tab, index) => {
             const selected = selectedLayer === tab.key;
             return (
@@ -491,22 +470,37 @@ export function StickerLayerEditor({
                     stack: moveStackItem(stack, fromKey, index),
                   });
                 }}
-                className="shrink-0 cursor-grab active:cursor-grabbing"
+                className="cursor-grab active:cursor-grabbing"
               >
                 <div
                   className={cn(
-                    "inline-flex h-9 items-center rounded-full pl-3 pr-1 sm:h-10",
+                    "flex h-8 items-center rounded-lg pl-0.5 pr-0.5",
                     selected
-                      ? "bg-sky-400 text-white shadow-sm shadow-sky-200"
-                      : "bg-stone-50 text-stone-700 ring-1 ring-stone-200 hover:bg-sky-50",
+                      ? "bg-sky-400 text-white"
+                      : "bg-white text-stone-700 ring-1 ring-stone-200",
                   )}
                 >
                   <button
                     type="button"
-                    onClick={() =>
-                      selectLayer(selected ? null : tab.key)
-                    }
-                    className="pr-1 text-xs font-medium sm:text-sm"
+                    aria-label={`${tab.label} 뒤로 보내기`}
+                    title="뒤로 보내기"
+                    disabled={index <= 0}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      moveLayer(tab.key, -1);
+                    }}
+                    className={cn(
+                      "flex h-6 w-4 shrink-0 items-center justify-center rounded text-[11px] leading-none disabled:opacity-30",
+                      selected ? "text-white" : "text-stone-500",
+                    )}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectLayer(selected ? null : tab.key)}
+                    className="min-w-0 flex-1 truncate text-left text-[11px] font-medium"
                   >
                     {tab.label}
                   </button>
@@ -519,54 +513,89 @@ export function StickerLayerEditor({
                       deleteLayer(tab.key);
                     }}
                     className={cn(
-                      "flex h-6 w-6 items-center justify-center rounded-full text-sm leading-none",
-                      selected
-                        ? "text-white/85 hover:bg-white/20"
-                        : "text-stone-400 hover:bg-red-50 hover:text-red-500",
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-sm leading-none",
+                      selected ? "text-white/85" : "text-stone-400",
                     )}
                   >
                     ×
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${tab.label} 앞으로 가져오기`}
+                    title="앞으로 가져오기"
+                    disabled={index >= stack.length - 1}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      moveLayer(tab.key, 1);
+                    }}
+                    className={cn(
+                      "flex h-6 w-4 shrink-0 items-center justify-center rounded text-[11px] leading-none disabled:opacity-30",
+                      selected ? "text-white" : "text-stone-500",
+                    )}
+                  >
+                    ↓
                   </button>
                 </div>
               </div>
             );
           })}
+          <AddToolButton
+            compact
+            label="문구"
+            onClick={addPhrase}
+            disabled={layout.phrases.length >= MAX_STICKER_PHRASES}
+          />
+          <AddToolButton
+            compact
+            label="스티커"
+            onClick={addDecal}
+            disabled={layout.decals.length >= MAX_STICKER_DECALS}
+          />
+          {layout.characterVisible ? null : (
+            <AddToolButton
+              compact
+              label="캐릭터"
+              onClick={() => {
+                updateLayout({ ...layout, characterVisible: true });
+                setSelectedLayer("character");
+              }}
+            />
+          )}
+          {layout.borderVisible ? null : (
+            <AddToolButton
+              compact
+              label="테두리"
+              onClick={() => {
+                updateLayout({ ...layout, borderVisible: true });
+                setSelectedLayer("border");
+              }}
+            />
+          )}
         </div>
-
-        <div className="mt-4 border-t border-stone-100 pt-3">
-          <p className="text-sm font-semibold text-stone-800">추가하기</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <AddToolButton
-              label="문구 추가"
-              onClick={addPhrase}
-              disabled={layout.phrases.length >= MAX_STICKER_PHRASES}
-            />
-            <AddToolButton
-              label="스티커 추가"
-              onClick={addDecal}
-              disabled={layout.decals.length >= MAX_STICKER_DECALS}
-            />
-            {layout.characterVisible ? null : (
-              <AddToolButton
-                label="캐릭터 추가"
-                onClick={() => {
-                  updateLayout({ ...layout, characterVisible: true });
-                  setSelectedLayer("character");
-                }}
-              />
-            )}
-            {layout.borderVisible ? null : (
-              <AddToolButton
-                label="테두리 추가"
-                onClick={() => {
-                  updateLayout({ ...layout, borderVisible: true });
-                  setSelectedLayer("border");
-                }}
-              />
-            )}
-          </div>
+        <div
+          ref={canvasRef}
+          className="min-w-0 flex-1 touch-none select-none py-1 [&_img]:pointer-events-none [&_img]:[-webkit-user-drag:none]"
+          onDragStart={(event) => event.preventDefault()}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <StickerLayoutPreview
+            borderSrc={borderSrc}
+            characterSrc={characterSrc}
+            characterLoading={characterLoading}
+            layout={layout}
+            selectedLayer={selectedLayer}
+            transparentCanvas={transparentCanvas}
+            clipCharacterCircle={clipCharacterCircle}
+          />
         </div>
       </div>
+      <p className="mx-auto mt-2 max-w-lg text-center text-[11px] leading-relaxed text-stone-500">
+        왼쪽 화살표로 앞뒤 순서를 바꾸고, 미리보기를 끌어 옮겨 보세요.
+      </p>
 
       {selectedPhrase ? (
         <div
@@ -582,7 +611,7 @@ export function StickerLayerEditor({
                 onClick={() => moveSelected(-1)}
                 className="text-sm font-medium text-stone-500 hover:underline disabled:opacity-40"
               >
-                뒤로
+                뒤로 보내기
               </button>
               <button
                 type="button"
@@ -590,7 +619,7 @@ export function StickerLayerEditor({
                 onClick={() => moveSelected(1)}
                 className="text-sm font-medium text-stone-500 hover:underline disabled:opacity-40"
               >
-                앞으로
+                앞으로 가져오기
               </button>
               <button
                 type="button"
@@ -654,6 +683,38 @@ export function StickerLayerEditor({
               ))}
             </select>
           </label>
+          <div>
+            <p className="text-[11px] text-stone-500">글자색</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {STICKER_TEXT_COLORS.map((color) => {
+                const active = stickerTextColor(selectedPhrase.style.color) === color.value;
+                return (
+                  <button
+                    key={color.value}
+                    type="button"
+                    aria-label={color.label}
+                    title={color.label}
+                    onClick={() =>
+                      updateLayout({
+                        ...layout,
+                        phrases: layout.phrases.map((item) =>
+                          item.id === selectedPhrase.id
+                            ? { ...item, style: { ...item.style, color: color.value } }
+                            : item,
+                        ),
+                      })
+                    }
+                    className={cn(
+                      "h-7 w-7 rounded-full border",
+                      color.value === "#FFFFFF" ? "border-stone-300" : "border-white",
+                      active && "ring-2 ring-sky-400 ring-offset-1",
+                    )}
+                    style={{ backgroundColor: color.value }}
+                  />
+                );
+              })}
+            </div>
+          </div>
           <SizeStepper
             label="크기"
             value={selectedPhrase.style.scale}
@@ -687,7 +748,7 @@ export function StickerLayerEditor({
                 onClick={() => moveSelected(-1)}
                 className="text-sm font-medium text-stone-500 hover:underline disabled:opacity-40"
               >
-                뒤로
+                뒤로 보내기
               </button>
               <button
                 type="button"
@@ -695,7 +756,7 @@ export function StickerLayerEditor({
                 onClick={() => moveSelected(1)}
                 className="text-sm font-medium text-stone-500 hover:underline disabled:opacity-40"
               >
-                앞으로
+                앞으로 가져오기
               </button>
               <button
                 type="button"
@@ -708,42 +769,17 @@ export function StickerLayerEditor({
           </div>
           <div>
             <p className="text-[11px] text-stone-500">스티커</p>
-            <div className="mt-1.5 grid grid-cols-4 gap-2">
-              {STICKER_DECAL_OPTIONS.map((option) => {
-                const active = selectedDecal.assetKey === option.key;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() =>
-                      updateLayout({
-                        ...layout,
-                        decals: layout.decals.map((item) =>
-                          item.id === selectedDecal.id
-                            ? { ...item, assetKey: option.key }
-                            : item,
-                        ),
-                      })
-                    }
-                    className={cn(
-                      "flex flex-col items-center justify-center rounded-xl border bg-white px-1 py-1.5",
-                      active
-                        ? "border-sky-400 ring-2 ring-sky-300"
-                        : "border-stone-200 hover:border-stone-300",
-                    )}
-                  >
-                    <img
-                      src={option.thumbSrc}
-                      alt={option.label}
-                      className="h-10 w-10 object-contain"
-                    />
-                    <span className="mt-1 text-[10px] leading-tight text-stone-600">
-                      {option.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <DecalOptionCarousel
+              activeKey={selectedDecal.assetKey}
+              onSelect={(key) =>
+                updateLayout({
+                  ...layout,
+                  decals: layout.decals.map((item) =>
+                    item.id === selectedDecal.id ? { ...item, assetKey: key } : item,
+                  ),
+                })
+              }
+            />
           </div>
           <div>
             <div className="flex items-center justify-between gap-3">
@@ -800,7 +836,7 @@ export function StickerLayerEditor({
                 onClick={() => moveSelected(-1)}
                 className="text-sm font-medium text-stone-500 hover:underline disabled:opacity-40"
               >
-                뒤로
+                뒤로 보내기
               </button>
               <button
                 type="button"
@@ -808,7 +844,7 @@ export function StickerLayerEditor({
                 onClick={() => moveSelected(1)}
                 className="text-sm font-medium text-stone-500 hover:underline disabled:opacity-40"
               >
-                앞으로
+                앞으로 가져오기
               </button>
               {canDelete ? (
                 <button
@@ -911,23 +947,161 @@ function AddToolButton({
   label,
   onClick,
   disabled,
+  compact = false,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-sky-200 bg-gradient-to-b from-sky-50 to-white text-sm font-medium text-sky-800 shadow-sm hover:border-sky-300 hover:from-sky-100 disabled:cursor-not-allowed disabled:opacity-45"
+      className={cn(
+        "flex items-center justify-center border border-dashed border-sky-200 bg-sky-50 font-medium text-sky-800 hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-45",
+        compact
+          ? "h-8 w-full gap-1 rounded-lg text-[11px]"
+          : "h-11 gap-2 rounded-xl text-sm shadow-sm",
+      )}
     >
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-400 text-[13px] font-semibold leading-none text-white">
+      <span
+        className={cn(
+          "flex items-center justify-center rounded-full bg-sky-400 font-semibold leading-none text-white",
+          compact ? "h-4 w-4 text-[11px]" : "h-5 w-5 text-[13px]",
+        )}
+      >
         +
       </span>
       {label}
     </button>
+  );
+}
+
+function DecalOptionCarousel({
+  activeKey,
+  onSelect,
+}: {
+  activeKey: string;
+  onSelect: (key: string) => void;
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [canPrev, setCanPrev] = useState(false);
+  const [canNext, setCanNext] = useState(false);
+
+  function updateArrows() {
+    const el = scrollerRef.current;
+    if (!el) {
+      return;
+    }
+    setCanPrev(el.scrollLeft > 4);
+    setCanNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) {
+      return;
+    }
+    const active = el.querySelector<HTMLElement>('[data-active="true"]');
+    if (active) {
+      const frame = el.getBoundingClientRect();
+      const item = active.getBoundingClientRect();
+      if (item.left < frame.left) {
+        el.scrollBy({ left: item.left - frame.left, behavior: "smooth" });
+      } else if (item.right > frame.right) {
+        el.scrollBy({ left: item.right - frame.right, behavior: "smooth" });
+      }
+    }
+    updateArrows();
+    const onScroll = () => updateArrows();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [activeKey]);
+
+  function scrollByDirection(direction: -1 | 1) {
+    const el = scrollerRef.current;
+    if (!el) {
+      return;
+    }
+    el.scrollBy({
+      left: direction * Math.max(el.clientWidth * 0.72, 128),
+      behavior: "smooth",
+    });
+  }
+
+  return (
+    <div className="mt-1.5 flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="이전 스티커"
+        disabled={!canPrev}
+        onClick={() => scrollByDirection(-1)}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 disabled:opacity-30"
+      >
+        <CarouselChevron direction="left" />
+      </button>
+      <div
+        ref={scrollerRef}
+        className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {STICKER_DECAL_OPTIONS.map((option) => {
+          const active = activeKey === option.key;
+          return (
+            <button
+              key={option.key}
+              type="button"
+              data-active={active ? "true" : "false"}
+              onClick={() => onSelect(option.key)}
+              className={cn(
+                "flex w-[4.25rem] shrink-0 snap-start flex-col items-center justify-center rounded-xl border bg-white px-1 py-1.5",
+                active
+                  ? "border-sky-400 ring-2 ring-sky-300"
+                  : "border-stone-200 hover:border-stone-300",
+              )}
+            >
+              <img
+                src={option.thumbSrc}
+                alt=""
+                className="h-10 w-10 object-contain"
+              />
+              <span className="mt-1 text-[10px] leading-tight text-stone-600">
+                {option.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        aria-label="다음 스티커"
+        disabled={!canNext}
+        onClick={() => scrollByDirection(1)}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 disabled:opacity-30"
+      >
+        <CarouselChevron direction="right" />
+      </button>
+    </div>
+  );
+}
+
+function CarouselChevron({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true">
+      <path
+        d={direction === "left" ? "M12.5 4.5 7 10l5.5 5.5" : "M7.5 4.5 13 10l-5.5 5.5"}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

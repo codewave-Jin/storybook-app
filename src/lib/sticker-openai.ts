@@ -26,6 +26,7 @@ export async function generateStickerImage(opts: {
   prompt: string;
   imageBytes: Buffer;
   imageMime: string;
+  extraImages?: { imageBytes: Buffer; imageMime: string }[];
   outputFormat?: ImageOutputFormat;
   quality?: ImageGenerationQuality;
   model?: string;
@@ -35,6 +36,10 @@ export async function generateStickerImage(opts: {
   const quality = opts.quality ?? IMAGE_QUALITY;
   const outputFormat = opts.outputFormat ?? STICKER_OUTPUT_FORMAT;
   const startedAt = Date.now();
+  const images = [
+    { imageBytes: opts.imageBytes, imageMime: opts.imageMime },
+    ...(opts.extraImages ?? []),
+  ];
 
   let result;
   try {
@@ -56,11 +61,11 @@ export async function generateStickerImage(opts: {
           role: "user",
           content: [
             { type: "input_text", text: opts.prompt },
-            {
-              type: "input_image",
-              image_url: toImageDataUrl(opts.imageBytes, opts.imageMime),
-              detail: "high",
-            },
+            ...images.map((image) => ({
+              type: "input_image" as const,
+              image_url: toImageDataUrl(image.imageBytes, image.imageMime),
+              detail: "high" as const,
+            })),
           ],
         },
       ],

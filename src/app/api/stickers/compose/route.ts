@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     layout?: unknown;
     cutoutImagePath?: unknown;
     bake?: unknown;
+    circularCharacter?: unknown;
   } | null;
 
   const characterId = typeof body?.characterId === "string" ? body.characterId : "";
@@ -101,6 +102,7 @@ export async function POST(request: Request) {
       cutoutImagePath,
       cutoutOnly: !bake,
       transparentCanvas: border.category === "NONE" || border.key === "none",
+      circularCharacter: body?.circularCharacter === true,
     });
     if (bake) {
       await persistStickerLayoutSample(composed.layout);

@@ -7,6 +7,7 @@ import { stickerFontByKey } from "@/lib/sticker-fonts";
 import {
   DEFAULT_STICKER_LAYOUT,
   PHRASE_FONT_CANVAS_RATIO,
+  stickerTextColor,
   decalIdFromLayerKey,
   decalLayerKey,
   normalizeStack,
@@ -20,12 +21,13 @@ import {
 import { stickerPhraseLines } from "@/lib/sticker-phrase";
 import { cn } from "@/lib/utils";
 
-function DashedFrame({ tight = false }: { tight?: boolean }) {
+function DashedFrame({ tight = false, round = false }: { tight?: boolean; round?: boolean }) {
   return (
     <div
       className={cn(
-        "pointer-events-none absolute rounded-xl border-2 border-dashed border-sky-400",
-        tight ? "inset-0" : "inset-[6%]",
+        "pointer-events-none absolute border-2 border-dashed border-sky-400",
+        round ? "inset-0 rounded-full" : "rounded-xl",
+        !round && (tight ? "inset-0" : "inset-[6%]"),
       )}
     />
   );
@@ -59,7 +61,7 @@ function PhraseLayer({
         top: `${phrase.box.topRatio * 100}%`,
         width: `${phrase.box.widthRatio * 100}%`,
         height: `${phrase.box.heightRatio * 100}%`,
-        color: "#3D2A1C",
+        color: stickerTextColor(phrase.style.color),
         fontFamily: font.cssFamily,
         fontWeight: font.cssWeight,
         wordBreak: "keep-all",
@@ -136,6 +138,7 @@ export function StickerLayoutPreview({
   layout = DEFAULT_STICKER_LAYOUT,
   selectedLayer,
   transparentCanvas = false,
+  clipCharacterCircle = false,
 }: {
   borderSrc?: string | null;
   characterSrc?: string | null;
@@ -144,6 +147,7 @@ export function StickerLayoutPreview({
   layout?: StickerLayoutState;
   selectedLayer?: StickerLayerKey | null;
   transparentCanvas?: boolean;
+  clipCharacterCircle?: boolean;
 }) {
   const character = layout.character;
   const border = layout.border;
@@ -184,7 +188,8 @@ export function StickerLayoutPreview({
               data-sticker-layer="character"
               aria-label="캐릭터"
               className={cn(
-                "absolute overflow-visible",
+                "absolute",
+                clipCharacterCircle ? "overflow-hidden rounded-full" : "overflow-visible",
                 selectedLayer === "character" && characterReady
                   ? "cursor-grab active:cursor-grabbing"
                   : "pointer-events-none",
@@ -217,7 +222,7 @@ export function StickerLayoutPreview({
                 </div>
               ) : null}
               {selectedLayer === "character" && characterReady && !characterLoading ? (
-                <DashedFrame />
+                <DashedFrame round={clipCharacterCircle} />
               ) : null}
             </div>
           );

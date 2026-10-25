@@ -1,9 +1,12 @@
 "use client";
 
+import { AppImage } from "@/components/AppImage";
 import { cn } from "@/lib/utils";
 import {
   CLOTHING_TOPICS,
   GIFT_TOPICS,
+  defaultPhraseForClothingTopic,
+  defaultPhraseForGiftTopic,
   SPECIAL_GENDER_OPTIONS,
   SPECIAL_STICKER_KINDS,
   type ClothingTopicKey,
@@ -16,6 +19,8 @@ export function SpecialStickerPanel({
   kind,
   clothingTopic,
   giftTopic,
+  twoCharacters,
+  outfitFields,
   name,
   gender,
   phrase,
@@ -25,6 +30,7 @@ export function SpecialStickerPanel({
   onKindChange,
   onClothingTopicChange,
   onGiftTopicChange,
+  onOutfitChange,
   onNameChange,
   onGenderChange,
   onPhraseChange,
@@ -33,6 +39,8 @@ export function SpecialStickerPanel({
   kind: SpecialStickerKind | null;
   clothingTopic: ClothingTopicKey | null;
   giftTopic: GiftTopicKey | null;
+  twoCharacters: boolean;
+  outfitFields: { id: string; label: string; imageSrc: string; value: string }[];
   name: string;
   gender: SpecialGender | "";
   phrase: string;
@@ -42,6 +50,7 @@ export function SpecialStickerPanel({
   onKindChange: (kind: SpecialStickerKind) => void;
   onClothingTopicChange: (topic: ClothingTopicKey) => void;
   onGiftTopicChange: (topic: GiftTopicKey) => void;
+  onOutfitChange: (characterId: string, value: string) => void;
   onNameChange: (value: string) => void;
   onGenderChange: (value: SpecialGender) => void;
   onPhraseChange: (value: string) => void;
@@ -91,7 +100,7 @@ export function SpecialStickerPanel({
       <section>
         <h2 className="text-lg font-semibold">주제를 골라 주세요</h2>
         <p className="mt-1 text-sm text-stone-500">
-          고른 주제에 맞는 문구가 먼저 들어가요. 다음에서 고칠 수 있어요.
+          다음 칸에 문구 예시가 회색으로 보여요. 그대로 쓰려면 입력해 주세요.
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {GIFT_TOPICS.map((item) => (
@@ -114,7 +123,7 @@ export function SpecialStickerPanel({
       <section>
         <h2 className="text-lg font-semibold">주제를 골라 주세요</h2>
         <p className="mt-1 text-sm text-stone-500">
-          고른 주제에 맞는 문구가 먼저 들어가요. 다음에서 고칠 수 있어요.
+          다음 칸에 문구 예시가 회색으로 보여요. 그대로 쓰려면 입력해 주세요.
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {CLOTHING_TOPICS.map((item) => (
@@ -133,10 +142,16 @@ export function SpecialStickerPanel({
   }
 
   const topicLabel = kind === "gift" ? giftTopic : clothingTopic;
+  const phrasePlaceholder =
+    kind === "gift" && giftTopic
+      ? defaultPhraseForGiftTopic(giftTopic)
+      : kind === "clothing" && clothingTopic
+        ? defaultPhraseForClothingTopic(clothingTopic)
+        : "";
   const canGenerate =
     kind === "nametag"
       ? Boolean(name.trim() && gender)
-      : Boolean(topicLabel && phrase.trim());
+      : Boolean(topicLabel);
   const noTokens = tokenBalance < 1;
 
   return (
@@ -147,7 +162,9 @@ export function SpecialStickerPanel({
       <p className="mt-1 text-sm text-stone-500">
         {kind === "nametag"
           ? "이름과 성별을 고른 뒤 생성해 주세요."
-          : "문구를 확인하고 필요하면 고친 뒤 생성해 주세요."}
+          : kind === "gift" && twoCharacters
+            ? "두 캐릭터가 함께 나와요. 문구를 확인하고 필요하면 고친 뒤 생성해 주세요."
+            : "문구를 확인하고 필요하면 고친 뒤 생성해 주세요."}
       </p>
 
       {kind === "nametag" ? (
@@ -189,18 +206,55 @@ export function SpecialStickerPanel({
       ) : (
         <div className="mt-4">
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-stone-700">
-              문구
+            <span className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-sm font-medium text-stone-700">문구</span>
+              <span className="text-xs text-stone-500">
+                입력하지 않아도 나중에 직접 넣을 수 있어요.
+              </span>
             </span>
             <textarea
               value={phrase}
               onChange={(event) => onPhraseChange(event.target.value)}
+              placeholder={phrasePlaceholder}
               rows={4}
               className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
             />
           </label>
         </div>
       )}
+
+      <div className="mt-4 space-y-3">
+        <p className="text-sm font-medium text-stone-700">입을 옷</p>
+        <p className="text-sm text-stone-500">
+          캐릭터마다 입고 나왔으면 하는 옷을 적어 주세요. 비워 두면 기본 옷으로 만들어요.
+        </p>
+        {outfitFields.map((field) => (
+          <label key={field.id} className="block">
+            <span className="mb-1.5 block text-sm text-stone-600">{field.label}</span>
+            <span className="flex items-center gap-2">
+              <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-stone-100">
+                {field.imageSrc ? (
+                  <AppImage
+                    src={field.imageSrc}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                  />
+                ) : null}
+              </span>
+              <input
+                type="text"
+                value={field.value}
+                maxLength={80}
+                onChange={(event) => onOutfitChange(field.id, event.target.value)}
+                placeholder="예: 노란 아기 한복"
+                className="h-12 min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+              />
+            </span>
+          </label>
+        ))}
+      </div>
 
       {error ? (
         <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

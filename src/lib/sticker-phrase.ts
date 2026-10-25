@@ -31,7 +31,7 @@ export function defaultStickerPhraseTexts(): Record<StickerPhraseKey, string> {
 
 export function serializeStickerPhrases(texts: string[]) {
   const slots = texts
-    .slice(0, 3)
+    .slice(0, 6)
     .map((text) => text.replace(/\r\n/g, "\n").trim());
   while (slots.length > 0 && !slots[slots.length - 1]) {
     slots.pop();
@@ -50,7 +50,7 @@ export function serializeStickerPhrase(parts: StickerPhraseParts) {
 export function parseStickerPhrases(phrase: string): string[] {
   const normalized = phrase.replace(/\r\n/g, "\n");
   if (normalized.includes(PHRASE_SLOT_SEPARATOR)) {
-    return normalized.split(PHRASE_SLOT_SEPARATOR).slice(0, 3);
+    return normalized.split(PHRASE_SLOT_SEPARATOR).slice(0, 6);
   }
   const lines = normalized.split("\n");
   const phrase1 = (lines[0] ?? "").trim();

@@ -3,8 +3,8 @@ import { DEFAULT_STICKER_FONT_KEY } from "@/lib/sticker-fonts";
 import { stickerPhraseLines } from "@/lib/sticker-phrase";
 
 export const STICKER_CANVAS_SIZE = 1536;
-export const MAX_STICKER_PHRASES = 3;
-export const MAX_STICKER_DECALS = 3;
+export const MAX_STICKER_PHRASES = 6;
+export const MAX_STICKER_DECALS = 6;
 
 export type StickerLayerBox = {
   leftRatio: number;
@@ -19,9 +19,32 @@ export type StickerBorderTransform = {
   offsetYRatio: number;
 };
 
+export const DEFAULT_STICKER_TEXT_COLOR = "#3D2A1C";
+
+export const STICKER_TEXT_COLORS = [
+  { label: "검정", value: "#111111" },
+  { label: "흰색", value: "#FFFFFF" },
+  { label: "빨강", value: "#E53935" },
+  { label: "주황", value: "#FB8C00" },
+  { label: "노랑", value: "#FBC02D" },
+  { label: "초록", value: "#43A047" },
+  { label: "파랑", value: "#1E88E5" },
+  { label: "보라", value: "#8E24AA" },
+  { label: "분홍", value: "#EC407A" },
+  { label: "갈색", value: "#3D2A1C" },
+] as const;
+
+export function stickerTextColor(value: string | null | undefined) {
+  const match = STICKER_TEXT_COLORS.find(
+    (item) => item.value.toLowerCase() === (value ?? "").toLowerCase(),
+  );
+  return match?.value ?? DEFAULT_STICKER_TEXT_COLOR;
+}
+
 export type StickerPhraseStyle = {
   fontKey: string;
   scale: number;
+  color: string;
 };
 
 export type StickerPhraseLayer = {
@@ -52,18 +75,25 @@ export type StickerLayerKey = string;
 const DEFAULT_PHRASE_STYLE: StickerPhraseStyle = {
   fontKey: DEFAULT_STICKER_FONT_KEY,
   scale: 1.1,
+  color: DEFAULT_STICKER_TEXT_COLOR,
 };
 
 export const DEFAULT_PHRASE_BOXES: StickerLayerBox[] = [
-  { leftRatio: 0.4, topRatio: 0.2, widthRatio: 0.56, heightRatio: 0.24 },
-  { leftRatio: 0.4, topRatio: 0.4, widthRatio: 0.56, heightRatio: 0.34 },
-  { leftRatio: 0.4, topRatio: 0.66, widthRatio: 0.56, heightRatio: 0.22 },
+  { leftRatio: 0.4, topRatio: 0.12, widthRatio: 0.56, heightRatio: 0.18 },
+  { leftRatio: 0.4, topRatio: 0.32, widthRatio: 0.56, heightRatio: 0.18 },
+  { leftRatio: 0.4, topRatio: 0.52, widthRatio: 0.56, heightRatio: 0.18 },
+  { leftRatio: 0.08, topRatio: 0.16, widthRatio: 0.34, heightRatio: 0.16 },
+  { leftRatio: 0.08, topRatio: 0.4, widthRatio: 0.34, heightRatio: 0.16 },
+  { leftRatio: 0.22, topRatio: 0.74, widthRatio: 0.56, heightRatio: 0.16 },
 ];
 
 export const DEFAULT_DECAL_BOXES: StickerLayerBox[] = [
-  { leftRatio: 0.11, topRatio: 0.53, widthRatio: 0.18, heightRatio: 0.18 },
-  { leftRatio: 0.71, topRatio: 0.53, widthRatio: 0.18, heightRatio: 0.18 },
-  { leftRatio: 0.41, topRatio: 0.07, widthRatio: 0.18, heightRatio: 0.18 },
+  { leftRatio: 0.08, topRatio: 0.18, widthRatio: 0.16, heightRatio: 0.16 },
+  { leftRatio: 0.76, topRatio: 0.18, widthRatio: 0.16, heightRatio: 0.16 },
+  { leftRatio: 0.08, topRatio: 0.42, widthRatio: 0.16, heightRatio: 0.16 },
+  { leftRatio: 0.76, topRatio: 0.42, widthRatio: 0.16, heightRatio: 0.16 },
+  { leftRatio: 0.08, topRatio: 0.68, widthRatio: 0.16, heightRatio: 0.16 },
+  { leftRatio: 0.76, topRatio: 0.68, widthRatio: 0.16, heightRatio: 0.16 },
 ];
 
 export const DEFAULT_DECAL_BASE = DEFAULT_DECAL_BOXES[0];
@@ -206,7 +236,7 @@ export function createPhraseLayer(index: number, text = ""): StickerPhraseLayer 
   const fallback = DEFAULT_PHRASE_BOXES[Math.min(Math.max(index, 0), DEFAULT_PHRASE_BOXES.length - 1)];
   const style =
     index === 0
-      ? { fontKey: DEFAULT_STICKER_FONT_KEY, scale: 1.5 }
+      ? { fontKey: DEFAULT_STICKER_FONT_KEY, scale: 1.5, color: DEFAULT_STICKER_TEXT_COLOR }
       : { ...DEFAULT_PHRASE_STYLE };
   return {
     id: newLayerId("phrase"),
@@ -286,6 +316,7 @@ function clampPhraseStyle(style: StickerPhraseStyle): StickerPhraseStyle {
   return {
     fontKey: style.fontKey || DEFAULT_STICKER_FONT_KEY,
     scale: clamp(style.scale, 0.5, 2.4),
+    color: stickerTextColor(style.color),
   };
 }
 
@@ -356,6 +387,9 @@ function parsePhraseStyle(
   return {
     fontKey,
     scale: asFiniteNumber(raw?.scale ?? legacyScale, fallback.scale),
+    color: stickerTextColor(
+      typeof raw?.color === "string" ? raw.color : fallback.color,
+    ),
   };
 }
 
@@ -417,7 +451,7 @@ export function parseStickerLayout(value: unknown): StickerLayoutState {
           box: parseBox(nested.text1 ?? nested.text, DEFAULT_PHRASE_BOXES[0]),
           style: parsePhraseStyle(
             legacyTextStyle?.phrase1 as Record<string, unknown> | undefined,
-            { fontKey: DEFAULT_STICKER_FONT_KEY, scale: 1.5 },
+            { fontKey: DEFAULT_STICKER_FONT_KEY, scale: 1.5, color: DEFAULT_STICKER_TEXT_COLOR },
             legacyTextStyle?.fontKey,
             legacyTextStyle?.titleScale,
           ),

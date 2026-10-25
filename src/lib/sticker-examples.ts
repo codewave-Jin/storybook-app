@@ -88,7 +88,7 @@ function birthdayLayout(characterLabel: string): StickerLayoutState {
     widthRatio: 0.56,
     heightRatio: 0.24,
   };
-  phrase1.style = { fontKey: "kedu-line", scale: 1.6 };
+  phrase1.style = { ...phrase1.style, fontKey: "kedu-line", scale: 1.6 };
 
   const phrase2 = createPhraseLayer(1, body);
   phrase2.box = {
@@ -97,7 +97,7 @@ function birthdayLayout(characterLabel: string): StickerLayoutState {
     widthRatio: 0.543,
     heightRatio: 0.2996,
   };
-  phrase2.style = { fontKey: "jua", scale: 0.6 };
+  phrase2.style = { ...phrase2.style, fontKey: "jua", scale: 0.6 };
 
   const phrase3 = createPhraseLayer(2, signoff ?? "엄마&아빠");
   phrase3.box = {
@@ -106,7 +106,7 @@ function birthdayLayout(characterLabel: string): StickerLayoutState {
     widthRatio: 0.405,
     heightRatio: 0.122,
   };
-  phrase3.style = { fontKey: "jua", scale: 0.6 };
+  phrase3.style = { ...phrase3.style, fontKey: "jua", scale: 0.6 };
 
   const heart = createDecalLayer(0, "heart");
   heart.box = {
@@ -152,7 +152,7 @@ function thanksLayout(): StickerLayoutState {
     widthRatio: 0.7845,
     heightRatio: 0.158,
   };
-  phrase1.style = { fontKey: "kedu-line", scale: 0.9 };
+  phrase1.style = { ...phrase1.style, fontKey: "kedu-line", scale: 0.9 };
 
   const phrase2 = createPhraseLayer(1, body);
   phrase2.box = {
@@ -161,7 +161,7 @@ function thanksLayout(): StickerLayoutState {
     widthRatio: 0.635,
     heightRatio: 0.258,
   };
-  phrase2.style = { fontKey: "kedu", scale: 0.5 };
+  phrase2.style = { ...phrase2.style, fontKey: "kedu", scale: 0.5 };
 
   const heart = createDecalLayer(0, "heart");
   heart.box = {
@@ -198,7 +198,23 @@ function thanksLayout(): StickerLayoutState {
 }
 
 export function layoutForMakeMode(mode: StickerMakeMode, characterLabel = "") {
-  if (mode === "special" || mode === "photo") {
+  if (mode === "special") {
+    return clampStickerLayout({
+      character: {
+        leftRatio: 0,
+        topRatio: 0,
+        widthRatio: 1,
+        heightRatio: 1,
+      },
+      characterVisible: true,
+      border: { scale: 1, offsetXRatio: 0, offsetYRatio: 0 },
+      borderVisible: false,
+      phrases: [],
+      decals: [],
+      stack: ["character"],
+    });
+  }
+  if (mode === "photo") {
     return clampStickerLayout({
       character: {
         leftRatio: 0.05,

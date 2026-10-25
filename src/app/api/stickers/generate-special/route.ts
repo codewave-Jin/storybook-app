@@ -58,17 +58,62 @@ export async function POST(request: Request) {
     );
   }
 
+  let companionImage: { bytes: Buffer; mime: string } | null = null;
+  let companionGenderLabel: string | undefined;
+  const companionId = parsed.companionCharacterId;
+  if (companionId) {
+    if (companionId === characterId) {
+      return NextResponse.json(
+        { error: "함께 나올 다른 캐릭터를 골라 주세요." },
+        { status: 400 },
+      );
+    }
+    const companion = await prisma.character.findFirst({
+      where: { id: companionId, userId, deletedAt: null },
+      select: { generatedImagePath: true, status: true, gender: true },
+    });
+    if (!companion || companion.status !== "COMPLETED" || !companion.generatedImagePath) {
+      return NextResponse.json(
+        { error: "생성이 완료된 캐릭터만 함께 사용할 수 있습니다." },
+        { status: 400 },
+      );
+    }
+    companionImage = await loadImageAsset(companion.generatedImagePath);
+    companionGenderLabel = specialGenderLabel(companion.gender);
+  }
+
   const topic = specialGenerateTopic(parsed);
   const phrase = specialGeneratePhrase(parsed);
-  const genderLabel =
+  const primaryGenderLabel =
     parsed.kind === "nametag"
       ? specialGenderLabel(parsed.gender)
       : specialGenderLabel(character.gender);
+  const twoCharacters = Boolean(companionId);
+  const genderLabel = twoCharacters
+    ? `첫 번째 ${primaryGenderLabel ?? ""}, 두 번째 ${companionGenderLabel ?? ""}`.trim()
+    : primaryGenderLabel;
+  const promptCharacters = [
+    {
+      genderLabel: primaryGenderLabel ?? "",
+      outfit: parsed.outfits[0] ?? "",
+    },
+    ...(twoCharacters
+      ? [
+          {
+            genderLabel: companionGenderLabel ?? "",
+            outfit: parsed.outfits[1] ?? "",
+          },
+        ]
+      : []),
+  ];
   const prompt = buildSpecialStickerPrompt({
     kind: parsed.kind,
     topic,
     phrase,
     genderLabel,
+    twins: twoCharacters,
+    outfits: parsed.outfits,
+    characters: promptCharacters,
   });
 
   let holdId: string | null = null;
@@ -97,16 +142,20 @@ export async function POST(request: Request) {
     orderId = draft.orderId;
 
     const image = await loadImageAsset(character.generatedImagePath);
+    const keepStickerDesign = parsed.kind === "gift";
     const generated = await generateStickerImage({
       prompt,
       imageBytes: image.bytes,
       imageMime: image.mime,
+      extraImages: companionImage
+        ? [{ imageBytes: companionImage.bytes, imageMime: companionImage.mime }]
+        : undefined,
       outputFormat: "png",
-      background: "transparent",
+      background: keepStickerDesign ? "opaque" : "transparent",
     });
     const rawBytes = Buffer.from(generated.b64, "base64");
     let imageBytes = rawBytes;
-    if (!(await imageHasTransparency(rawBytes))) {
+    if (!keepStickerDesign && !(await imageHasTransparency(rawBytes))) {
       const rawPath = await persistGeneratedStickerBuffer(
         rawBytes,
         mimeForOutputFormat("png"),

@@ -12,6 +12,7 @@ import {
   PHRASE_FONT_CANVAS_RATIO,
   STICKER_CANVAS_SIZE,
   clampStickerLayout,
+  stickerTextColor,
   decalIdFromLayerKey,
   normalizeStack,
   phraseIdFromLayerKey,
@@ -26,7 +27,6 @@ import {
 
 export { STICKER_LAYOUT } from "@/lib/sticker-layout-constants";
 
-const TEXT_COLOR = "#3D2A1C";
 const fontCache = new Map<string, { name: string; data: Buffer }>();
 
 function resolveFontFile(filePath: string) {
@@ -85,6 +85,7 @@ async function renderPhraseBox(options: {
   box: StickerLayoutState["character"];
   fontKey: string;
   scale: number;
+  color?: string;
 }) {
   const lines = stickerPhraseLines(options.text);
   if (lines.length === 0) {
@@ -110,7 +111,7 @@ async function renderPhraseBox(options: {
           textAlign: "center",
           whiteSpace: "nowrap",
           marginTop: index === 0 ? 0 : Math.round(fontSize * 0.28),
-          color: TEXT_COLOR,
+          color: stickerTextColor(options.color),
           fontSize,
           fontFamily: font.name,
           lineHeight: 1.2,
@@ -218,6 +219,23 @@ async function circularMask(size: number) {
   return Buffer.from(svg);
 }
 
+async function clipCharacterCircle(
+  image: Buffer,
+  width: number,
+  height: number,
+  enabled: boolean,
+) {
+  if (!enabled) {
+    return image;
+  }
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><circle cx="${width / 2}" cy="${height / 2}" r="${Math.min(width, height) / 2}" fill="#fff"/></svg>`;
+  return sharp(image)
+    .ensureAlpha()
+    .composite([{ input: Buffer.from(svg), blend: "dest-in" }])
+    .png()
+    .toBuffer();
+}
+
 async function renderDecalLayer(
   decal: StickerDecalLayer,
   size: number,
@@ -245,20 +263,26 @@ export async function compositeLayoutSticker(options: {
   phrase: string;
   layout?: StickerLayoutState;
   transparentCanvas?: boolean;
+  circularCharacter?: boolean;
 }): Promise<Buffer> {
   const layout = clampStickerLayout(options.layout ?? DEFAULT_STICKER_LAYOUT);
   const size = STICKER_CANVAS_SIZE;
   const box = stickerCharacterBox(size, size, layout);
   const character =
     layout.characterVisible && options.characterBytes
-      ? await sharp(options.characterBytes)
-          .ensureAlpha()
-          .resize(Math.max(1, box.width), Math.max(1, box.height), {
-            fit: "contain",
-            background: { r: 0, g: 0, b: 0, alpha: 0 },
-          })
-          .png()
-          .toBuffer()
+      ? await clipCharacterCircle(
+          await sharp(options.characterBytes)
+            .ensureAlpha()
+            .resize(Math.max(1, box.width), Math.max(1, box.height), {
+              fit: "contain",
+              background: { r: 0, g: 0, b: 0, alpha: 0 },
+            })
+            .png()
+            .toBuffer(),
+          Math.max(1, box.width),
+          Math.max(1, box.height),
+          Boolean(options.circularCharacter),
+        )
       : null;
 
   const phrases = phrasesForRender(layout, options.phrase);
@@ -279,6 +303,7 @@ export async function compositeLayoutSticker(options: {
           box: item.box,
           fontKey: item.style.fontKey,
           scale: item.style.scale,
+          color: item.style.color,
         }),
       })),
     ),

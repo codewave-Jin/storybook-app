@@ -40,8 +40,6 @@ import {
   stickerSizeDisplayMm,
 } from "@/lib/sticker-sheet";
 import {
-  defaultPhraseForClothingTopic,
-  defaultPhraseForGiftTopic,
   type ClothingTopicKey,
   type GiftTopicKey,
   type SpecialGender,
@@ -109,6 +107,9 @@ export function StickerWizard({
   const [specialName, setSpecialName] = useState("");
   const [specialGender, setSpecialGender] = useState<SpecialGender | "">("");
   const [specialPhrase, setSpecialPhrase] = useState("");
+  const [outfitByCharacterId, setOutfitByCharacterId] = useState<Record<string, string>>(
+    {},
+  );
   const [tokens, setTokens] = useState(tokenBalance);
   const [specialConfirmOpen, setSpecialConfirmOpen] = useState(false);
   const [specialGenerating, setSpecialGenerating] = useState(false);
@@ -117,7 +118,10 @@ export function StickerWizard({
   const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [characterId, setCharacterId] = useState<string | null>(null);
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  const [characterLimitNotice, setCharacterLimitNotice] = useState(false);
+  const characterId = selectedCharacterIds[0] ?? null;
+  const companionCharacterId = selectedCharacterIds[1] ?? null;
   const [borderId, setBorderId] = useState<string | null>(null);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [cutoutPath, setCutoutPath] = useState<string | null>(null);
@@ -204,14 +208,29 @@ export function StickerWizard({
 
   function selectClothingTopic(topic: ClothingTopicKey) {
     setClothingTopic(topic);
-    setSpecialPhrase(defaultPhraseForClothingTopic(topic));
+    setSpecialPhrase("");
     setSpecialError(null);
   }
 
   function selectGiftTopic(topic: GiftTopicKey) {
     setGiftTopic(topic);
-    setSpecialPhrase(defaultPhraseForGiftTopic(topic));
+    setSpecialPhrase("");
     setSpecialError(null);
+  }
+
+  function toggleSelectedCharacter(id: string) {
+    setSelectedCharacterIds((current) => {
+      if (current.includes(id)) {
+        setCharacterLimitNotice(false);
+        return current.filter((item) => item !== id);
+      }
+      if (current.length >= 2) {
+        setCharacterLimitNotice(true);
+        return current;
+      }
+      setCharacterLimitNotice(false);
+      return [...current, id];
+    });
   }
 
   function applyPhotoFace(imagePath: string) {
@@ -255,28 +274,29 @@ export function StickerWizard({
       const response = await fetch("/api/stickers/generate-special", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          specialKind === "nametag"
+        body: JSON.stringify({
+          characterId,
+          outfits: selectedCharacterIds.map((id) => (outfitByCharacterId[id] ?? "").trim()),
+          twins: Boolean(companionCharacterId),
+          companionCharacterId,
+          ...(specialKind === "nametag"
             ? {
-                characterId,
                 kind: "nametag",
                 name: specialName.trim(),
                 gender: specialGender,
               }
             : specialKind === "gift"
               ? {
-                  characterId,
                   kind: "gift",
                   topic: giftTopic,
                   phrase: specialPhrase.trim(),
                 }
               : {
-                  characterId,
                   kind: "clothing",
                   topic: clothingTopic,
                   phrase: specialPhrase.trim(),
-                },
-        ),
+                }),
+        }),
       });
       const payload = (await response.json().catch(() => null)) as {
         imagePath?: string;
@@ -376,6 +396,7 @@ export function StickerWizard({
           cutoutImagePath: cutoutPath,
           layout,
           bake: true,
+          circularCharacter: makeMode === "special" && specialKind === "gift",
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -550,17 +571,21 @@ export function StickerWizard({
 
       {step === 1 ? (
         <section>
-          <h2 className="text-lg font-semibold">캐릭터를 한 명 선택해 주세요</h2>
-          <p className="mt-1 text-sm text-stone-500">
-            옷이 입혀진 캐릭터를 그대로 스티커에 올려요.
-          </p>
+          <h2 className="text-lg font-semibold">등장시킬 캐릭터를 선택해 주세요</h2>
+          <p className="mt-1 text-sm text-stone-500">최대 2명까지 선택할 수 있어요.</p>
+          {characterLimitNotice ? (
+            <p className="mt-3 rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-600">
+              최대 2명까지 선택할 수 있어요.
+            </p>
+          ) : null}
           {characters.length === 0 ? (
             <EmptyCharacters />
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
               {characters.map((character) => {
                 const selectable = character.status === "COMPLETED";
-                const selected = character.id === characterId;
+                const selectedIndex = selectedCharacterIds.indexOf(character.id);
+                const selected = selectedIndex >= 0;
                 const imageSrc =
                   character.status === "COMPLETED" && character.generatedImagePath
                     ? character.generatedImagePath
@@ -571,7 +596,7 @@ export function StickerWizard({
                     key={character.id}
                     type="button"
                     disabled={!selectable}
-                    onClick={() => selectable && setCharacterId(character.id)}
+                    onClick={() => selectable && toggleSelectedCharacter(character.id)}
                     className={cn(
                       "overflow-hidden rounded-2xl border bg-white text-left shadow-sm",
                       selectable ? "cursor-pointer" : "cursor-not-allowed opacity-60",
@@ -586,6 +611,11 @@ export function StickerWizard({
                         alt={character.label}
                         grayscale={!selectable}
                       />
+                      {selected ? (
+                        <span className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-sky-400 text-sm font-semibold text-white">
+                          {selectedIndex + 1}
+                        </span>
+                      ) : null}
                       {!selectable ? (
                         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45">
                           {character.status === "FAILED" ? (
@@ -716,6 +746,16 @@ export function StickerWizard({
           kind={specialKind}
           clothingTopic={clothingTopic}
           giftTopic={giftTopic}
+          twoCharacters={Boolean(companionCharacterId)}
+          outfitFields={selectedCharacterIds.map((id) => {
+            const character = characters.find((item) => item.id === id);
+            return {
+              id,
+              label: character?.label ?? "캐릭터",
+              imageSrc: character?.generatedImagePath || character?.originalPhotoPath || "",
+              value: outfitByCharacterId[id] ?? "",
+            };
+          })}
           name={specialName}
           gender={specialGender}
           phrase={specialPhrase}
@@ -725,6 +765,9 @@ export function StickerWizard({
           onKindChange={selectSpecialKind}
           onClothingTopicChange={selectClothingTopic}
           onGiftTopicChange={selectGiftTopic}
+          onOutfitChange={(id, value) =>
+            setOutfitByCharacterId((current) => ({ ...current, [id]: value }))
+          }
           onNameChange={setSpecialName}
           onGenderChange={setSpecialGender}
           onPhraseChange={setSpecialPhrase}
@@ -757,6 +800,7 @@ export function StickerWizard({
               transparentCanvas={
                 selectedBorder ? isTransparentStickerBorder(selectedBorder) : false
               }
+              clipCharacterCircle={makeMode === "special" && specialKind === "gift"}
               onChange={(next) => {
                 setLayout(next);
                 setLayoutDirty(true);
@@ -894,7 +938,7 @@ export function StickerWizard({
             step === 3 && "mt-4 sm:mt-8",
           )}
         >
-          {step > 1 ? (
+          {step === 3 ? null : step > 1 ? (
             <button
               type="button"
               onClick={() => {
@@ -997,7 +1041,10 @@ export function StickerWizard({
                 }
               }}
               disabled={!canNext}
-              className="flex h-12 items-center justify-center rounded-xl bg-sky-400 px-8 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className={cn(
+                "flex h-12 items-center justify-center rounded-xl bg-sky-400 px-8 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50",
+                step === 3 && "sm:ml-auto",
+              )}
             >
               {baking || savingDraft ? "저장 중" : "다음"}
             </button>

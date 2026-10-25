@@ -49,6 +49,12 @@ export const STICKER_DECAL_OPTIONS = [
     src: "/stickers/decals/scepter.png",
     thumbSrc: "/stickers/decals/thumbs/scepter.png",
   },
+  {
+    key: "baekil",
+    label: "백일",
+    src: "/stickers/decals/baekil.png",
+    thumbSrc: "/stickers/decals/thumbs/baekil.png",
+  },
 ] as const;
 
 export type StickerDecalKey = (typeof STICKER_DECAL_OPTIONS)[number]["key"];

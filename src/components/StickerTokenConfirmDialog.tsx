@@ -65,14 +65,41 @@ export function StickerTokenConfirmDialog({
       >
         <div className="border-b border-stone-200/80 px-5 py-4">
           <h2 id={titleId} className="text-base font-semibold text-stone-800">
-            토큰을 사용할까요?
+            {pending ? "만들고 있어요" : "토큰을 사용할까요?"}
           </h2>
         </div>
         <div className="space-y-3 px-5 py-5">
-          <p className="text-sm leading-relaxed text-stone-700">
-            {description}
-          </p>
-          <p className="text-sm text-stone-500">현재 토큰 {tokens}개</p>
+          {pending ? (
+            <div
+              className="flex flex-col items-center gap-4 py-3"
+              role="status"
+              aria-live="polite"
+            >
+              <style>{`
+                @keyframes special-loading {
+                  0% { transform: translateX(-120%); }
+                  100% { transform: translateX(340%); }
+                }
+              `}</style>
+              <span className="h-11 w-11 animate-spin rounded-full border-4 border-sky-100 border-t-sky-500" />
+              <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200">
+                <div
+                  className="h-full w-1/3 rounded-full bg-sky-400"
+                  style={{ animation: "special-loading 1.1s ease-in-out infinite" }}
+                />
+              </div>
+              <p className="text-center text-sm leading-relaxed text-stone-600">
+                스티커를 그리는 중이에요. 잠시만 기다려 주세요.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm leading-relaxed text-stone-700">
+                {description}
+              </p>
+              <p className="text-sm text-stone-500">현재 토큰 {tokens}개</p>
+            </>
+          )}
         </div>
         <div className="flex gap-2 border-t border-stone-200/80 px-5 py-4">
           <button
@@ -89,7 +116,14 @@ export function StickerTokenConfirmDialog({
             onClick={onConfirm}
             className="flex h-12 flex-1 items-center justify-center rounded-xl bg-sky-400 text-sm font-semibold text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {pending ? pendingLabel : "수락"}
+            {pending ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                {pendingLabel}
+              </span>
+            ) : (
+              "수락"
+            )}
           </button>
         </div>
       </div>
