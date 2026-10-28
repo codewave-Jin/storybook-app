@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { DashboardShell } from "@/components/DashboardShell";
 import { EmoticonResultPanel } from "@/components/EmoticonSheetPanel";
-import { emoticonPreviewCells } from "@/lib/emoticon-generate";
+import { emoticonPreviewCells } from "@/lib/emoticon-prompt";
 import { prisma } from "@/lib/prisma";
 
 export default async function EmoticonPreviewPage({

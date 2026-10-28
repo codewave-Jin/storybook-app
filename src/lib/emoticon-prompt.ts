@@ -203,6 +203,20 @@ ${POST_PROCESS_TEXT_INSTRUCTION}
 10. Do not generate extra characters or duplicate stickers.`;
 }
 
+export type EmoticonPreviewCell = {
+  key: string;
+  caption: string;
+  imageUrl: string;
+};
+
+export function emoticonPreviewCells(cellImagePaths: string[]): EmoticonPreviewCell[] {
+  return EMOTICON_CELLS.map((cell, index) => ({
+    key: cell.key,
+    caption: cell.caption,
+    imageUrl: cellImagePaths[index] ?? "",
+  })).filter((cell) => cell.imageUrl);
+}
+
 const MONTH_MIN = 1;
 const MONTH_MAX = 36;
 const YEAR_MIN = 1;

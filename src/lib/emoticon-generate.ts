@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { generateStickerImage } from "@/lib/sticker-openai";
 import {
-  EMOTICON_CELLS,
   buildEmoticonSheetPrompt,
+  emoticonPreviewCells,
   type EmoticonAgeUnit,
 } from "@/lib/emoticon-prompt";
 import { compositeEmoticonCaptions, splitEmoticonCells } from "@/lib/emoticon-sheet";
@@ -31,20 +31,6 @@ function looksLikeImage(buffer: Buffer) {
   const webp =
     buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
   return jpeg || png || webp;
-}
-
-export type EmoticonPreviewCell = {
-  key: string;
-  caption: string;
-  imageUrl: string;
-};
-
-export function emoticonPreviewCells(cellImagePaths: string[]): EmoticonPreviewCell[] {
-  return EMOTICON_CELLS.map((cell, index) => ({
-    key: cell.key,
-    caption: cell.caption,
-    imageUrl: cellImagePaths[index] ?? "",
-  })).filter((cell) => cell.imageUrl);
 }
 
 export async function generateEmoticonSheet(input: {

@@ -25,6 +25,7 @@ const nextConfig = {
       "archiver",
       "openai",
       "satori",
+      "harfbuzzjs",
       "sharp",
       "@resvg/resvg-js",
       "@prisma/client",
@@ -34,9 +35,17 @@ const nextConfig = {
       bodySizeLimit: "20mb",
     },
     outputFileTracingIncludes: {
-      "/api/emoticons/generate": ["./public/fonts/Jua-Regular.ttf"],
+      "/api/emoticons/generate": [
+        "./public/fonts/Jua-Regular.ttf",
+        "./node_modules/harfbuzzjs/hb.wasm",
+      ],
+      "/api/internal/gpt-image-worker": ["./node_modules/harfbuzzjs/hb.wasm"],
+      "/api/stickers/[id]/generate": ["./node_modules/harfbuzzjs/hb.wasm"],
       "/mediapipe/[name]": ["./node_modules/@mediapipe/tasks-vision/wasm/**/*"],
-      "/api/stickers/compose": ["./public/fonts/Jua-Regular.ttf"],
+      "/api/stickers/compose": [
+        "./public/fonts/Jua-Regular.ttf",
+        "./node_modules/harfbuzzjs/hb.wasm",
+      ],
       "/api/media": ["./public/fonts/Jua-Regular.ttf"],
       "/api/media/character/[id]/[kind]": ["./public/fonts/Jua-Regular.ttf"],
       "/api/media/illustration/[id]": ["./public/fonts/Jua-Regular.ttf"],
