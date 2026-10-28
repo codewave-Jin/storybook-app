@@ -24,6 +24,7 @@ import {
   decalLayerKey,
   layerBoxScale,
   moveStackItem,
+  normalizeRotation,
   normalizeStack,
   phraseIdFromLayerKey,
   phraseLayerKey,
@@ -35,6 +36,96 @@ import {
 } from "@/lib/sticker-layout-constants";
 import { MAX_STICKER_PHRASE_LENGTH } from "@/lib/sticker-phrase";
 import { cn } from "@/lib/utils";
+
+function layerRotation(layout: StickerLayoutState, layer: StickerLayerKey) {
+  if (layer === "character") {
+    return layout.character.rotation ?? 0;
+  }
+  const phraseId = phraseIdFromLayerKey(layer);
+  if (phraseId) {
+    return layout.phrases.find((item) => item.id === phraseId)?.box.rotation ?? 0;
+  }
+  const decalId = decalIdFromLayerKey(layer);
+  if (decalId) {
+    return layout.decals.find((item) => item.id === decalId)?.box.rotation ?? 0;
+  }
+  return 0;
+}
+
+function withLayerRotation(
+  layout: StickerLayoutState,
+  layer: StickerLayerKey,
+  rotation: number,
+): StickerLayoutState {
+  if (layer === "character") {
+    return { ...layout, character: { ...layout.character, rotation } };
+  }
+  const phraseId = phraseIdFromLayerKey(layer);
+  if (phraseId) {
+    return {
+      ...layout,
+      phrases: layout.phrases.map((item) =>
+        item.id === phraseId ? { ...item, box: { ...item.box, rotation } } : item,
+      ),
+    };
+  }
+  const decalId = decalIdFromLayerKey(layer);
+  if (decalId) {
+    return {
+      ...layout,
+      decals: layout.decals.map((item) =>
+        item.id === decalId ? { ...item, box: { ...item.box, rotation } } : item,
+      ),
+    };
+  }
+  return layout;
+}
+
+function RotationControl({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (degrees: number) => void;
+}) {
+  const shown = normalizeRotation(value);
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] text-stone-500">회전</p>
+        <span className="text-sm font-semibold text-sky-600">{shown}°</span>
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          type="button"
+          aria-label="왼쪽으로 회전"
+          onClick={() => onChange(normalizeRotation(shown - 15))}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-300 text-lg font-medium hover:bg-sky-50"
+        >
+          −
+        </button>
+        <input
+          type="range"
+          min={-180}
+          max={180}
+          step={1}
+          aria-label="회전"
+          value={shown}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-stone-200 accent-sky-400 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-sky-400"
+        />
+        <button
+          type="button"
+          aria-label="오른쪽으로 회전"
+          onClick={() => onChange(normalizeRotation(shown + 15))}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-300 text-lg font-medium hover:bg-sky-50"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export type StickerEditorBorderOption = {
   id: string;
@@ -74,9 +165,13 @@ export function StickerLayerEditor({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [selectedLayer, setSelectedLayer] = useState<StickerLayerKey | null>(null);
   const dragRef = useRef<{
+    kind: "move" | "rotate";
     layer: StickerLayerKey;
     startX: number;
     startY: number;
+    centerX: number;
+    centerY: number;
+    startAngle: number;
     origin: StickerLayoutState;
   } | null>(null);
 
@@ -184,7 +279,7 @@ export function StickerLayerEditor({
         return;
       }
       const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-sticker-editor-ui]")) {
+      if (target?.closest("[data-sticker-editor-ui], [data-sticker-rotate]")) {
         return;
       }
       if (isPointOutsideStickerCircle(event.clientX, event.clientY)) {
@@ -195,8 +290,41 @@ export function StickerLayerEditor({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
+  function setLayerRotation(layer: StickerLayerKey, rotation: number) {
+    updateLayout(withLayerRotation(layout, layer, normalizeRotation(rotation)));
+  }
+
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    const rotateHandle = target?.closest("[data-sticker-rotate]");
+    if (rotateHandle) {
+      const layerElement = rotateHandle.closest("[data-sticker-layer]") as HTMLElement | null;
+      const layer = layerElement?.getAttribute("data-sticker-layer");
+      if (!layer || !layerElement) {
+        return;
+      }
+      const bounds = layerElement.getBoundingClientRect();
+      const centerX = bounds.left + bounds.width / 2;
+      const centerY = bounds.top + bounds.height / 2;
+      event.preventDefault();
+      dragRef.current = {
+        kind: "rotate",
+        layer,
+        startX: event.clientX,
+        startY: event.clientY,
+        centerX,
+        centerY,
+        startAngle: Math.atan2(event.clientY - centerY, event.clientX - centerX),
+        origin: cloneStickerLayout(layout),
+      };
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Synthetic pointer events cannot capture.
+      }
       return;
     }
     if (isOutsideStickerCircle(event)) {
@@ -204,23 +332,48 @@ export function StickerLayerEditor({
       return;
     }
     const layer = layerFromEvent(event);
-    if (!layer || layer !== selectedLayer) {
+    if (!layer) {
+      return;
+    }
+    if (layer !== selectedLayer) {
+      setSelectedLayer(layer);
       return;
     }
     event.preventDefault();
     dragRef.current = {
+      kind: "move",
       layer,
       startX: event.clientX,
       startY: event.clientY,
+      centerX: 0,
+      centerY: 0,
+      startAngle: 0,
       origin: cloneStickerLayout(layout),
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointer events cannot capture.
+    }
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
     const canvas = canvasRef.current;
     if (!drag || !canvas) {
+      return;
+    }
+    if (drag.kind === "rotate") {
+      const angle = Math.atan2(event.clientY - drag.centerY, event.clientX - drag.centerX);
+      let delta = ((angle - drag.startAngle) * 180) / Math.PI;
+      delta = ((((delta + 180) % 360) + 360) % 360) - 180;
+      updateLayout(
+        withLayerRotation(
+          drag.origin,
+          drag.layer,
+          normalizeRotation(layerRotation(drag.origin, drag.layer) + delta),
+        ),
+      );
       return;
     }
     const rect = canvas.getBoundingClientRect();
@@ -289,8 +442,12 @@ export function StickerLayerEditor({
 
   function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
     dragRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // Synthetic pointer events cannot capture.
     }
   }
 
@@ -594,7 +751,7 @@ export function StickerLayerEditor({
         </div>
       </div>
       <p className="mx-auto mt-2 max-w-lg text-center text-[11px] leading-relaxed text-stone-500">
-        왼쪽 화살표로 앞뒤 순서를 바꾸고, 미리보기를 끌어 옮겨 보세요.
+        레이어를 눌러 고른 뒤 끌어 옮기고, 위쪽 손잡이나 회전 슬라이더로 돌려 보세요.
       </p>
 
       {selectedPhrase ? (
@@ -733,6 +890,10 @@ export function StickerLayerEditor({
               })
             }
           />
+          <RotationControl
+            value={selectedPhrase.box.rotation ?? 0}
+            onChange={(rotation) => setLayerRotation(phraseLayerKey(selectedPhrase.id), rotation)}
+          />
         </div>
       ) : selectedDecal ? (
         <div
@@ -816,6 +977,10 @@ export function StickerLayerEditor({
               </button>
             </div>
           </div>
+          <RotationControl
+            value={selectedDecal.box.rotation ?? 0}
+            onChange={(rotation) => setLayerRotation(decalLayerKey(selectedDecal.id), rotation)}
+          />
         </div>
       ) : selectedLabel ? (
         <div
@@ -937,6 +1102,14 @@ export function StickerLayerEditor({
               +
             </button>
           </div>
+          {selectedLayer === "character" ? (
+            <div className="mt-3">
+              <RotationControl
+                value={layout.character.rotation ?? 0}
+                onChange={(rotation) => setLayerRotation("character", rotation)}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

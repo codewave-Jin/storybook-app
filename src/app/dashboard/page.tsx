@@ -39,7 +39,7 @@ const RECENT_WORK_LIMIT = 5;
 
 type RecentWorkItem = {
   id: string;
-  kind: "storybook" | "sticker";
+  kind: "storybook" | "sticker" | "emoticon";
   title: string;
   href: string;
   createdAt: Date;
@@ -82,6 +82,36 @@ function stickerWorkStatus(order: {
     label: STICKER_FULFILLMENT_STATUS_LABEL[fulfillment],
     badgeClass: FULFILLMENT_STATUS_BADGE[fulfillment],
   };
+}
+
+function workKindLabel(kind: RecentWorkItem["kind"]) {
+  if (kind === "storybook") {
+    return "동화책";
+  }
+  if (kind === "sticker") {
+    return "스티커";
+  }
+  return "이모티콘";
+}
+
+function workKindClass(kind: RecentWorkItem["kind"]) {
+  if (kind === "storybook") {
+    return "bg-sky-100 text-sky-700";
+  }
+  if (kind === "sticker") {
+    return "bg-[#FDE8E0] text-[#E07A5F]";
+  }
+  return "bg-violet-100 text-violet-700";
+}
+
+function emoticonWorkTitle(order: { age: number | null; ageUnit: string | null }) {
+  if (order.age && order.ageUnit === "months") {
+    return `이모티콘 9장 · ${order.age}개월`;
+  }
+  if (order.age && order.ageUnit === "years") {
+    return `이모티콘 9장 · ${order.age}세`;
+  }
+  return "이모티콘 9장";
 }
 
 function StatCard({
@@ -181,13 +211,9 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        item.kind === "storybook"
-                          ? "bg-sky-100 text-sky-700"
-                          : "bg-[#FDE8E0] text-[#E07A5F]"
-                      }`}
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${workKindClass(item.kind)}`}
                     >
-                      {item.kind === "storybook" ? "동화책" : "스티커"}
+                      {workKindLabel(item.kind)}
                     </span>
                     <p className="truncate text-sm font-medium text-stone-800">
                       {item.title}
@@ -215,7 +241,7 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
                   </span>
                 )}
               </Link>
-              {item.canDelete ? (
+              {item.canDelete && item.kind !== "emoticon" ? (
                 <DeleteDraftOrderButton
                   compact
                   kind={item.kind}
@@ -316,6 +342,18 @@ export default async function DashboardPage() {
           },
         },
       },
+      emoticonOrders: {
+        where: { paymentStatus: "PAID" },
+        orderBy: { createdAt: "desc" },
+        take: RECENT_WORK_LIMIT,
+        select: {
+          id: true,
+          paymentStatus: true,
+          age: true,
+          ageUnit: true,
+          createdAt: true,
+        },
+      },
       stickerOrders: {
         orderBy: { createdAt: "desc" },
         take: RECENT_WORK_LIMIT,
@@ -345,9 +383,6 @@ export default async function DashboardPage() {
     (user?.tokenBalance?.freeBalance ?? 0) +
     (user?.tokenBalance?.paidBalance ?? 0);
   const canCreate = characters.length < limit;
-  const hasCompleted = characters.some(
-    (character) => character.status === "COMPLETED",
-  );
   const waitingForGeneration = characters.some(
     (character) =>
       character.status === "PENDING" || character.status === "PROCESSING",
@@ -428,6 +463,17 @@ export default async function DashboardPage() {
           : undefined,
       };
     }),
+    ...(user?.emoticonOrders ?? []).map((order) => ({
+      id: order.id,
+      kind: "emoticon" as const,
+      title: emoticonWorkTitle(order),
+      href: `/dashboard/emoticon/${order.id}`,
+      createdAt: order.createdAt,
+      paymentStatus: order.paymentStatus,
+      statusLabel: PAYMENT_STATUS_LABEL.PAID,
+      statusClass: "bg-emerald-50 text-emerald-700",
+      canDelete: false,
+    })),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, RECENT_WORK_LIMIT);
@@ -464,7 +510,7 @@ export default async function DashboardPage() {
         addHref="/dashboard/characters/new"
       />
 
-      {hasCompleted ? <DashboardCreateActions /> : null}
+      <DashboardCreateActions />
 
       <RecentWork items={recentWork} />
     </DashboardShell>

@@ -23,6 +23,7 @@ model User {
   tokenHolds        TokenHold[]
   orders            StorybookOrder[]
   stickerOrders     StickerOrder[]
+  emoticonOrders    EmoticonOrder[]
   reviews           Review[]
   orderStatusLogs   OrderStatusLog[]
 }
@@ -528,6 +529,23 @@ model StickerOrder {
   @@index([costumeId])
   @@index([borderId])
   @@index([email])
+}
+
+model EmoticonOrder {
+  id             String        @id @default(cuid())
+  email          String?
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  sheetImagePath String
+  cellImagePaths String[]
+  age            Int?
+  ageUnit        String?
+  paymentStatus  PaymentStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email])
+  @@map("emoticon_orders")
 }
 
 model Review {

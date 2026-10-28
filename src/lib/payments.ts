@@ -7,6 +7,7 @@ export const PAYMENTS_ENABLED = true;
 export const STORYBOOK_PRICE_KRW = 45_000;
 export const PHOTO_ALBUM_PRICE_KRW = 5_000;
 export const STICKER_SHEET_PRICE_KRW = 5_000;
+export const EMOTICON_PACK_PRICE_KRW = 2_000;
 export const ORDER_QUANTITY_MIN = 1;
 export const ORDER_QUANTITY_MAX = 20;
 export const STICKER_SHEET_MIN = 1;

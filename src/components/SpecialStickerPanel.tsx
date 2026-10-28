@@ -142,6 +142,12 @@ export function SpecialStickerPanel({
   }
 
   const topicLabel = kind === "gift" ? giftTopic : clothingTopic;
+  const outfitPlaceholder =
+    kind === "nametag"
+      ? "예: 노란 나비 코스튬"
+      : kind === "clothing" && clothingTopic === "스승의날"
+        ? "예: 하늘색 유치원복"
+        : "예: 노란 아기 한복";
   const phrasePlaceholder =
     kind === "gift" && giftTopic
       ? defaultPhraseForGiftTopic(giftTopic)
@@ -248,7 +254,7 @@ export function SpecialStickerPanel({
                 value={field.value}
                 maxLength={80}
                 onChange={(event) => onOutfitChange(field.id, event.target.value)}
-                placeholder="예: 노란 아기 한복"
+                placeholder={outfitPlaceholder}
                 className="h-12 min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
               />
             </span>

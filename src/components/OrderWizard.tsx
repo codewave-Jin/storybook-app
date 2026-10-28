@@ -176,6 +176,21 @@ export function OrderWizard({
     setStep((current) => Math.min(current + 1, STEP_CONFIRM));
   }
 
+  function finishAddingCast(relationKey: string, nextCharacterId: string) {
+    setSupportingCast((current) => {
+      if (
+        current.length >= MAX_SUPPORTING_CAST ||
+        current.some((member) => member.characterId === nextCharacterId)
+      ) {
+        return current;
+      }
+      return [...current, { characterId: nextCharacterId, relationKey }];
+    });
+    setAddingCast(false);
+    setDraftRelationKey(null);
+    setDraftCharacterId(null);
+  }
+
   function goPrev() {
     if (step === STEP_CONFIRM && canSkipFields) {
       setStep(STEP_CHARACTERS);
@@ -434,7 +449,7 @@ export function OrderWizard({
                 <div className="mt-8">
                   <h3 className="text-base font-semibold">등장인물 추가</h3>
                   <p className="mt-1 text-sm text-stone-500">
-                    한 명만 추가할 수 있어요. 없어도 다음으로 갈 수 있어요.
+                    관계를 고른 뒤 캐릭터를 선택하면 추가돼요. 다음 페이지는 아래 다음 버튼으로 이동해요.
                   </p>
 
                   {supportingCast.length > 0 ? (
@@ -505,7 +520,12 @@ export function OrderWizard({
                               <button
                                 key={role.key}
                                 type="button"
-                                onClick={() => setDraftRelationKey(role.key)}
+                                onClick={() => {
+                                  setDraftRelationKey(role.key);
+                                  if (draftCharacterId) {
+                                    finishAddingCast(role.key, draftCharacterId);
+                                  }
+                                }}
                                 className={cn(
                                   "h-10 rounded-full border px-4 text-sm font-medium",
                                   selected
@@ -541,51 +561,27 @@ export function OrderWizard({
                             <CharacterPickGrid
                               characters={extraCastCandidates}
                               selectedId={draftCharacterId}
-                              onSelect={setDraftCharacterId}
+                              onSelect={(id) => {
+                                setDraftCharacterId(id);
+                                if (draftRelationKey) {
+                                  finishAddingCast(draftRelationKey, id);
+                                }
+                              }}
                             />
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAddingCast(false);
-                            setDraftRelationKey(null);
-                            setDraftCharacterId(null);
-                          }}
-                          className="flex h-11 flex-1 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
-                        >
-                          취소
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!draftRelationKey || !draftCharacterId}
-                          onClick={() => {
-                            if (!draftRelationKey || !draftCharacterId) {
-                              return;
-                            }
-                            setSupportingCast((current) => {
-                              if (current.length >= MAX_SUPPORTING_CAST) {
-                                return current;
-                              }
-                              return [
-                                ...current,
-                                {
-                                  characterId: draftCharacterId,
-                                  relationKey: draftRelationKey,
-                                },
-                              ];
-                            });
-                            setAddingCast(false);
-                            setDraftRelationKey(null);
-                            setDraftCharacterId(null);
-                          }}
-                          className="flex h-11 flex-1 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          추가하기
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddingCast(false);
+                          setDraftRelationKey(null);
+                          setDraftCharacterId(null);
+                        }}
+                        className="flex h-11 w-full items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
+                      >
+                        취소
+                      </button>
                     </div>
                   ) : supportingCast.length < MAX_SUPPORTING_CAST ? (
                     extraCastCandidates.length > 0 ? (

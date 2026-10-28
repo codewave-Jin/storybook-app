@@ -45,10 +45,7 @@ import {
   type SpecialGender,
   type SpecialStickerKind,
 } from "@/lib/sticker-special";
-import {
-  isTransparentStickerBorder,
-  type StickerBorderCategoryKey,
-} from "@/lib/templates";
+import { type StickerBorderCategoryKey } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
 export type StickerCharacterOption = {
@@ -674,12 +671,9 @@ export function StickerWizard({
             </button>
             <button
               type="button"
-              disabled
-              className="relative cursor-not-allowed rounded-2xl border border-stone-200 bg-white p-5 text-left opacity-55 shadow-sm"
+              onClick={() => setMakePath("photo")}
+              className="rounded-2xl border border-stone-200 bg-white p-5 text-left shadow-sm hover:border-stone-300"
             >
-              <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-medium text-stone-500 ring-1 ring-stone-200">
-                준비 중
-              </span>
               <p className="font-semibold">실사 얼굴</p>
               <p className="mt-1 text-sm text-stone-500">
                 사진 속 머리만 남기고 문구와 장식을 올려요.
@@ -736,7 +730,7 @@ export function StickerWizard({
 
       {step === 2 && makePath === "photo" && selectedCharacter ? (
         <PhotoFaceStickerPanel
-          characterPhotoSrc={selectedCharacter.originalPhotoPath}
+          characterImageSrc={selectedCharacter.generatedImagePath}
           onUseCutout={applyPhotoFace}
         />
       ) : null}
@@ -797,9 +791,6 @@ export function StickerWizard({
               layout={layout}
               borders={borders}
               borderId={borderId}
-              transparentCanvas={
-                selectedBorder ? isTransparentStickerBorder(selectedBorder) : false
-              }
               clipCharacterCircle={makeMode === "special" && specialKind === "gift"}
               onChange={(next) => {
                 setLayout(next);

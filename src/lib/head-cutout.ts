@@ -1,5 +1,4 @@
-const VISION_VERSION = "0.10.22";
-const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VISION_VERSION}/wasm`;
+const WASM_BASE = "/mediapipe";
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite";
 
@@ -44,28 +43,8 @@ function loadImageElement(blob: Blob) {
 async function getSegmenter() {
   if (!segmenterPromise) {
     segmenterPromise = (async () => {
-      const loadVision = new Function(
-        "specifier",
-        "return import(specifier)",
-      ) as (specifier: string) => Promise<{
-        FilesetResolver: {
-          forVisionTasks: (url: string) => Promise<unknown>;
-        };
-        ImageSegmenter: {
-          createFromOptions: (
-            wasm: unknown,
-            options: {
-              baseOptions: { modelAssetPath: string; delegate: "GPU" | "CPU" };
-              runningMode: "IMAGE";
-              outputCategoryMask: boolean;
-            },
-          ) => Promise<Segmenter>;
-        };
-      }>;
-      const vision = await loadVision(
-        `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VISION_VERSION}/+esm`,
-      );
-      const wasm = await vision.FilesetResolver.forVisionTasks(WASM_URL);
+      const vision = await import("@mediapipe/tasks-vision");
+      const wasm = await vision.FilesetResolver.forVisionTasks(WASM_BASE);
       const options = {
         baseOptions: {
           modelAssetPath: MODEL_URL,
@@ -75,16 +54,21 @@ async function getSegmenter() {
         outputCategoryMask: true,
       };
       try {
-        return await vision.ImageSegmenter.createFromOptions(wasm, options);
+        return (await vision.ImageSegmenter.createFromOptions(
+          wasm,
+          options,
+        )) as Segmenter;
       } catch {
-        return vision.ImageSegmenter.createFromOptions(wasm, {
+        return (await vision.ImageSegmenter.createFromOptions(wasm, {
           ...options,
           baseOptions: { ...options.baseOptions, delegate: "CPU" },
-        });
+        })) as Segmenter;
       }
     })().catch((error: unknown) => {
       segmenterPromise = null;
-      throw error;
+      throw error instanceof Error
+        ? error
+        : new Error("얼굴 분리 모델을 불러오지 못했습니다.");
     });
   }
   return segmenterPromise;
@@ -102,6 +86,7 @@ function keepMask(
   let maxY = 0;
   let hairMinX = width;
   let hairMaxX = 0;
+  const rowWidths = new Int32Array(height);
 
   for (let index = 0; index < categories.length; index += 1) {
     const category = categories[index];
@@ -109,6 +94,7 @@ function keepMask(
     const y = Math.floor(index / width);
     if (category === FACE_SKIN) {
       faceCount += 1;
+      rowWidths[y] += 1;
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
       maxX = Math.max(maxX, x);
@@ -124,24 +110,68 @@ function keepMask(
   }
 
   const faceHeight = Math.max(1, maxY - minY);
+  let cheekWidth = 0;
+  let cheekY = minY;
+  for (let y = minY; y <= maxY; y += 1) {
+    const rowWidth = rowWidths[y] ?? 0;
+    if (rowWidth > cheekWidth) {
+      cheekWidth = rowWidth;
+      cheekY = y;
+    }
+  }
+  const neckWidth = Math.max(3, Math.round(cheekWidth * 0.34));
+  const chinCap = Math.min(maxY, cheekY + Math.round(faceHeight * 0.58));
+  let chinY = cheekY;
+  for (let y = cheekY; y <= chinCap; y += 1) {
+    if ((rowWidths[y] ?? 0) < neckWidth) {
+      break;
+    }
+    chinY = y;
+  }
+
   const sideMin = Math.min(minX, hairMinX);
   const sideMax = Math.max(maxX, hairMaxX);
   const sidePad = Math.round((maxX - minX) * 0.25);
   const keepLeft = Math.max(0, sideMin - sidePad);
   const keepRight = Math.min(width - 1, sideMax + sidePad);
-  const chinLimit = Math.min(height - 1, maxY + Math.round(faceHeight * 0.08));
+  const faceSpan = Math.max(1, maxX - minX);
+  const chinLeft = minX + Math.round(faceSpan * 0.18);
+  const chinRight = maxX - Math.round(faceSpan * 0.18);
+  const chinSearchBottom = Math.min(height - 1, chinY + Math.round(faceHeight * 0.16));
+  const chinKeepWidth = Math.max(4, Math.round(faceSpan * 0.26));
+  let chinBottom = chinY;
+  for (let y = chinY + 1; y <= chinSearchBottom; y += 1) {
+    let rowWidth = 0;
+    const row = y * width;
+    for (let x = chinLeft; x <= chinRight; x += 1) {
+      const category = categories[row + x];
+      if (category === FACE_SKIN || category === BODY_SKIN || category === OTHER) {
+        rowWidth += 1;
+      }
+    }
+    if (rowWidth < chinKeepWidth) {
+      break;
+    }
+    chinBottom = y;
+  }
   const mask = new Uint8Array(categories.length);
 
   for (let index = 0; index < categories.length; index += 1) {
     const category = categories[index];
     const x = index % width;
     const y = Math.floor(index / width);
-    const inHead =
-      x >= keepLeft && x <= keepRight && y <= chinLimit;
+    const inFace = x >= keepLeft && x <= keepRight && y <= chinY;
+    const inChin =
+      y > chinY &&
+      y <= chinBottom &&
+      x >= chinLeft &&
+      x <= chinRight &&
+      (category === FACE_SKIN || category === BODY_SKIN || category === OTHER);
     if (
       category === HAIR ||
-      category === FACE_SKIN ||
-      ((category === BODY_SKIN || category === OTHER) && inHead)
+      (category === FACE_SKIN && y <= chinY) ||
+      ((category === BODY_SKIN || category === OTHER) && inFace) ||
+      inChin
     ) {
       mask[index] = 255;
     }
@@ -227,7 +257,16 @@ function blurAlpha(alpha: Uint8ClampedArray, width: number, height: number, radi
   }
 }
 
-function trimCanvas(source: HTMLCanvasElement) {
+type HeadCrop = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  outWidth: number;
+  outHeight: number;
+};
+
+function measureHeadCrop(source: HTMLCanvasElement): HeadCrop {
   const ctx = source.getContext("2d");
   if (!ctx) {
     throw new Error("얼굴을 분리하지 못했습니다.");
@@ -259,41 +298,43 @@ function trimCanvas(source: HTMLCanvasElement) {
   const cropW = Math.min(width - cropX, maxX - minX + 1 + pad * 2);
   const cropH = Math.min(height - cropY, maxY - minY + 1 + pad * 2);
   const scale = Math.min(1, OUTPUT_MAX / Math.max(cropW, cropH));
+  return {
+    x: cropX,
+    y: cropY,
+    width: cropW,
+    height: cropH,
+    outWidth: Math.max(1, Math.round(cropW * scale)),
+    outHeight: Math.max(1, Math.round(cropH * scale)),
+  };
+}
+
+function paintCrop(source: CanvasImageSource, crop: HeadCrop) {
   const out = document.createElement("canvas");
-  out.width = Math.max(1, Math.round(cropW * scale));
-  out.height = Math.max(1, Math.round(cropH * scale));
+  out.width = crop.outWidth;
+  out.height = crop.outHeight;
   const outCtx = out.getContext("2d");
   if (!outCtx) {
     throw new Error("얼굴을 분리하지 못했습니다.");
   }
   outCtx.imageSmoothingEnabled = true;
   outCtx.imageSmoothingQuality = "high";
-  outCtx.drawImage(source, cropX, cropY, cropW, cropH, 0, 0, out.width, out.height);
+  outCtx.drawImage(source, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.outWidth, crop.outHeight);
   return out;
 }
 
-function drawLimited(image: HTMLImageElement) {
-  const sourceWidth = image.naturalWidth || image.width;
-  const sourceHeight = image.naturalHeight || image.height;
-  const scale = Math.min(1, OUTPUT_MAX / Math.max(sourceWidth, sourceHeight));
-  if (scale === 1) {
-    return image;
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
-  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return image;
-  }
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas;
+function canvasToPng(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("얼굴을 저장하지 못했습니다."));
+        return;
+      }
+      resolve(blob);
+    }, "image/png");
+  });
 }
 
-export async function cutoutHeadPng(blob: Blob) {
-  const image = drawLimited(await loadImageElement(blob));
+async function segmentFaceAlpha(image: CanvasImageSource, width: number, height: number) {
   const segmenter = await getSegmenter();
   const result = segmenter.segment(image);
   const categoryMask = result.categoryMask;
@@ -316,12 +357,54 @@ export async function cutoutHeadPng(blob: Blob) {
     throw new Error("얼굴을 찾지 못했습니다. 원에 얼굴이 가득 차게 다시 맞춰 주세요.");
   }
 
-  const width = "naturalWidth" in image ? image.naturalWidth || image.width : image.width;
-  const height = "naturalHeight" in image ? image.naturalHeight || image.height : image.height;
   const alpha = sampleMask(mask, maskWidth, maskHeight, width, height);
   const edge = Math.max(1, Math.round(Math.min(width, height) / 180));
   dilate(alpha, width, height, edge);
   blurAlpha(alpha, width, height, edge);
+  return alpha;
+}
+
+export async function faceKeepAlpha(blob: Blob) {
+  const image = await loadImageElement(blob);
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  return {
+    alpha: await segmentFaceAlpha(image, width, height),
+    width,
+    height,
+  };
+}
+
+function drawLimited(image: HTMLImageElement) {
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const scale = Math.min(1, OUTPUT_MAX / Math.max(sourceWidth, sourceHeight));
+  if (scale === 1) {
+    return image;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return image;
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+export type HeadCutout = {
+  cutout: Blob;
+  source: Blob;
+};
+
+export async function cutoutHeadPng(blob: Blob): Promise<HeadCutout> {
+  const image = drawLimited(await loadImageElement(blob));
+  const width = "naturalWidth" in image ? image.naturalWidth || image.width : image.width;
+  const height = "naturalHeight" in image ? image.naturalHeight || image.height : image.height;
+  const alpha = await segmentFaceAlpha(image, width, height);
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -331,21 +414,24 @@ export async function cutoutHeadPng(blob: Blob) {
     throw new Error("얼굴을 분리하지 못했습니다.");
   }
   ctx.drawImage(image, 0, 0, width, height);
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = width;
+  sourceCanvas.height = height;
+  const sourceCtx = sourceCanvas.getContext("2d");
+  if (!sourceCtx) {
+    throw new Error("얼굴을 분리하지 못했습니다.");
+  }
+  sourceCtx.drawImage(canvas, 0, 0);
   const imageData = ctx.getImageData(0, 0, width, height);
   for (let index = 0; index < alpha.length; index += 1) {
     imageData.data[index * 4 + 3] = alpha[index] ?? 0;
   }
   ctx.putImageData(imageData, 0, 0);
 
-  const trimmed = trimCanvas(canvas);
-  const png = await new Promise<Blob>((resolve, reject) => {
-    trimmed.toBlob((next) => {
-      if (!next) {
-        reject(new Error("얼굴을 저장하지 못했습니다."));
-        return;
-      }
-      resolve(next);
-    }, "image/png");
-  });
-  return png;
+  const crop = measureHeadCrop(canvas);
+  const [cutout, source] = await Promise.all([
+    canvasToPng(paintCrop(canvas, crop)),
+    canvasToPng(paintCrop(sourceCanvas, crop)),
+  ]);
+  return { cutout, source };
 }

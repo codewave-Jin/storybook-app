@@ -143,11 +143,13 @@ export function DashboardCreateActions() {
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-        <ComingSoonCard
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+        <AvailableCard
+          href="/dashboard/emoticon"
           image="/landing/make-emoji.jpg"
           title="이모티콘"
-          description="카카오톡, 메시지에서 쓰는 우리 가족 이모티콘"
+          description="같은 얼굴로 만드는 3×3 메시지 이모티콘"
+          accent="sky"
         />
         <ComingSoonCard
           image="/landing/make-video.jpg"

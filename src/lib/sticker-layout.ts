@@ -146,9 +146,15 @@ async function renderPhraseBox(options: {
   );
 
   const textPng = await sharp(Buffer.from(textSvg)).png().toBuffer();
-  const destLeft = Math.max(0, Math.min(left, options.canvasWidth - 1));
-  const destTop = Math.max(0, Math.min(top, options.canvasHeight - 1));
-  return { input: textPng, left: destLeft, top: destTop };
+  return placeRotatedOverlay(
+    textPng,
+    width,
+    height,
+    left,
+    top,
+    options.box.rotation ?? 0,
+    options.canvasWidth,
+  );
 }
 
 function phrasesForRender(layout: StickerLayoutState, phrase: string): StickerPhraseLayer[] {
@@ -157,6 +163,36 @@ function phrasesForRender(layout: StickerLayoutState, phrase: string): StickerPh
     item.text.trim()
       ? item
       : { ...item, text: fallback[index] ?? "" },
+  );
+}
+
+async function placeRotatedOverlay(
+  input: Buffer,
+  width: number,
+  height: number,
+  left: number,
+  top: number,
+  degrees: number,
+  canvasSize: number,
+) {
+  const rotation = ((degrees % 360) + 360) % 360;
+  if (rotation < 0.5 || rotation > 359.5) {
+    return overlayWithinCanvas(input, width, height, left, top, canvasSize);
+  }
+  const rotated = await sharp(input)
+    .rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const meta = await sharp(rotated).metadata();
+  const nextWidth = meta.width ?? width;
+  const nextHeight = meta.height ?? height;
+  return overlayWithinCanvas(
+    rotated,
+    nextWidth,
+    nextHeight,
+    Math.round(left + width / 2 - nextWidth / 2),
+    Math.round(top + height / 2 - nextHeight / 2),
+    canvasSize,
   );
 }
 
@@ -254,7 +290,15 @@ async function renderDecalLayer(
     })
     .png()
     .toBuffer();
-  return overlayWithinCanvas(resized, width, height, left, top, size);
+  return placeRotatedOverlay(
+    resized,
+    width,
+    height,
+    left,
+    top,
+    decal.box.rotation ?? 0,
+    size,
+  );
 }
 
 export async function compositeLayoutSticker(options: {
@@ -291,7 +335,15 @@ export async function compositeLayoutSticker(options: {
       ? renderBorderLayer(options.borderBytes, size, layout)
       : Promise.resolve(null),
     character
-      ? overlayWithinCanvas(character, box.width, box.height, box.left, box.top, size)
+      ? placeRotatedOverlay(
+          character,
+          box.width,
+          box.height,
+          box.left,
+          box.top,
+          layout.character.rotation ?? 0,
+          size,
+        )
       : Promise.resolve(null),
     Promise.all(
       phrases.map(async (item) => ({

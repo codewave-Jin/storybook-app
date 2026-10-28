@@ -11,6 +11,8 @@ export type StickerLayerBox = {
   topRatio: number;
   widthRatio: number;
   heightRatio: number;
+  /** Clockwise degrees. Missing values are treated as 0. */
+  rotation?: number;
 };
 
 export type StickerBorderTransform = {
@@ -129,8 +131,16 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+export function normalizeRotation(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const wrapped = ((Math.round(value) % 360) + 360) % 360;
+  return wrapped > 180 ? wrapped - 360 : wrapped;
+}
+
 function cloneBox(box: StickerLayerBox): StickerLayerBox {
-  return { ...box };
+  return { ...box, rotation: normalizeRotation(box.rotation ?? 0) };
 }
 
 export function stickerPhraseBoxForText(
@@ -155,6 +165,7 @@ export function stickerPhraseBoxForText(
     topRatio: cy - heightRatio / 2,
     widthRatio,
     heightRatio,
+    rotation: normalizeRotation(origin?.rotation ?? 0),
   };
 }
 
@@ -309,6 +320,7 @@ function clampBox(
     topRatio: clamp(centerY - heightRatio / 2, limits.top[0], limits.top[1]),
     widthRatio,
     heightRatio,
+    rotation: normalizeRotation(box.rotation ?? 0),
   };
 }
 
@@ -369,6 +381,7 @@ function parseBox(
     topRatio: asFiniteNumber(raw?.topRatio, fallback.topRatio),
     widthRatio: asFiniteNumber(raw?.widthRatio, fallback.widthRatio),
     heightRatio: asFiniteNumber(raw?.heightRatio, fallback.heightRatio),
+    rotation: normalizeRotation(asFiniteNumber(raw?.rotation, fallback.rotation ?? 0)),
   };
 }
 
@@ -509,6 +522,7 @@ export function scaleLayerBox(
     topRatio: centerY - heightRatio / 2,
     widthRatio,
     heightRatio,
+    rotation: normalizeRotation(box.rotation ?? 0),
   };
 }
 

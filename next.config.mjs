@@ -34,6 +34,8 @@ const nextConfig = {
       bodySizeLimit: "20mb",
     },
     outputFileTracingIncludes: {
+      "/api/emoticons/generate": ["./public/fonts/Jua-Regular.ttf"],
+      "/mediapipe/[name]": ["./node_modules/@mediapipe/tasks-vision/wasm/**/*"],
       "/api/stickers/compose": ["./public/fonts/Jua-Regular.ttf"],
       "/api/media": ["./public/fonts/Jua-Regular.ttf"],
       "/api/media/character/[id]/[kind]": ["./public/fonts/Jua-Regular.ttf"],

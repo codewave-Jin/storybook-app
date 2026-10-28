@@ -519,7 +519,7 @@ export function CharacterPhotoPicker({
                     />
                   </svg>
                   <p className="absolute inset-x-0 bottom-4 px-4 text-center text-sm font-medium text-white drop-shadow">
-                    얼굴이 원에 가득 차게 맞춰주세요
+                    얼굴이 원안에 들어가게 조정해주세요
                   </p>
                 </div>
               </div>
@@ -564,7 +564,7 @@ export function CharacterPhotoPicker({
                   onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
                 />
                 <p className="pointer-events-none absolute inset-x-0 bottom-4 z-10 px-4 text-center text-sm font-medium text-white drop-shadow">
-                  얼굴이 원에 가득 차게 맞춰주세요
+                  얼굴이 원안에 들어가게 조정해주세요
                 </p>
               </div>
               <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">

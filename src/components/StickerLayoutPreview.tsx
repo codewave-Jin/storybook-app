@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { AppImage } from "@/components/AppImage";
 import { SlotLoadingBar, useImageReady } from "@/components/SlotLoadingBar";
 import { stickerDecalByKey } from "@/lib/sticker-decals";
@@ -33,6 +34,30 @@ function DashedFrame({ tight = false, round = false }: { tight?: boolean; round?
   );
 }
 
+function RotateHandle() {
+  return (
+    <button
+      type="button"
+      data-sticker-rotate=""
+      aria-label="회전"
+      className="absolute left-1/2 top-0 z-20 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-sky-500 bg-white text-sky-600 shadow-sm active:cursor-grabbing"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4">
+        <path d="M20 12a8 8 0 1 1-2.2-5.5" strokeLinecap="round" />
+        <path d="M20 4v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+function layerRotationStyle(rotation: number | undefined): CSSProperties {
+  const degrees = rotation ?? 0;
+  if (!degrees) {
+    return {};
+  }
+  return { transform: `rotate(${degrees}deg)`, transformOrigin: "center" };
+}
+
 function PhraseLayer({
   phrase,
   index,
@@ -53,7 +78,7 @@ function PhraseLayer({
       aria-label={`문구${index + 1}`}
       className={cn(
         "absolute flex flex-col items-center justify-center overflow-visible text-center",
-        selected ? "cursor-grab active:cursor-grabbing" : "pointer-events-none",
+        selected ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       )}
       style={{
         zIndex,
@@ -67,6 +92,7 @@ function PhraseLayer({
         wordBreak: "keep-all",
         letterSpacing: "0",
         textAlign: "center",
+        ...layerRotationStyle(phrase.box.rotation),
       }}
     >
       <div
@@ -88,6 +114,7 @@ function PhraseLayer({
         )}
       </div>
       {selected ? <DashedFrame tight /> : null}
+      {selected ? <RotateHandle /> : null}
     </div>
   );
 }
@@ -110,7 +137,7 @@ function DecalLayer({
       aria-label={`스티커${index + 1}`}
       className={cn(
         "absolute overflow-visible",
-        selected ? "cursor-grab active:cursor-grabbing" : "pointer-events-none",
+        selected ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       )}
       style={{
         zIndex,
@@ -118,6 +145,7 @@ function DecalLayer({
         top: `${decal.box.topRatio * 100}%`,
         width: `${decal.box.widthRatio * 100}%`,
         height: `${decal.box.heightRatio * 100}%`,
+        ...layerRotationStyle(decal.box.rotation),
       }}
     >
       <img
@@ -127,6 +155,7 @@ function DecalLayer({
         className="pointer-events-none h-full w-full object-contain"
       />
       {selected ? <DashedFrame /> : null}
+      {selected ? <RotateHandle /> : null}
     </div>
   );
 }
@@ -188,8 +217,7 @@ export function StickerLayoutPreview({
               data-sticker-layer="character"
               aria-label="캐릭터"
               className={cn(
-                "absolute",
-                clipCharacterCircle ? "overflow-hidden rounded-full" : "overflow-visible",
+                "absolute overflow-visible",
                 selectedLayer === "character" && characterReady
                   ? "cursor-grab active:cursor-grabbing"
                   : "pointer-events-none",
@@ -200,29 +228,40 @@ export function StickerLayoutPreview({
                 top: `${character.topRatio * 100}%`,
                 width: `${character.widthRatio * 100}%`,
                 height: `${character.heightRatio * 100}%`,
+                ...layerRotationStyle(character.rotation),
               }}
             >
-              {characterSrc ? (
-                <AppImage
-                  src={characterSrc}
-                  alt="캐릭터"
-                  fill
-                  unoptimized
-                  draggable={false}
-                  className={cn(
-                    "pointer-events-none object-contain transition-opacity duration-300",
-                    characterReady && !characterLoading ? "opacity-100" : "opacity-40",
-                  )}
-                  sizes="(max-width: 640px) 50vw, 16rem"
-                />
-              ) : null}
-              {showCharacterLoader ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                  <SlotLoadingBar compact />
-                </div>
-              ) : null}
+              <div
+                className={cn(
+                  "absolute inset-0",
+                  clipCharacterCircle && "overflow-hidden rounded-full",
+                )}
+              >
+                {characterSrc ? (
+                  <AppImage
+                    src={characterSrc}
+                    alt="캐릭터"
+                    fill
+                    unoptimized
+                    draggable={false}
+                    className={cn(
+                      "pointer-events-none object-contain transition-opacity duration-300",
+                      characterReady && !characterLoading ? "opacity-100" : "opacity-40",
+                    )}
+                    sizes="(max-width: 640px) 50vw, 16rem"
+                  />
+                ) : null}
+                {showCharacterLoader ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                    <SlotLoadingBar compact />
+                  </div>
+                ) : null}
+                {selectedLayer === "character" && characterReady && !characterLoading ? (
+                  <DashedFrame round={clipCharacterCircle} />
+                ) : null}
+              </div>
               {selectedLayer === "character" && characterReady && !characterLoading ? (
-                <DashedFrame round={clipCharacterCircle} />
+                <RotateHandle />
               ) : null}
             </div>
           );
