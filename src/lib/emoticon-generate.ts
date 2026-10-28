@@ -54,7 +54,7 @@ export async function generateEmoticonSheet(input: {
     imageBytes: input.imageBytes,
     imageMime: input.imageMime,
     outputFormat: "png",
-    quality: "low",
+    quality: "medium",
     background: "opaque",
   });
   const sheet = Buffer.from(generated.b64, "base64");
