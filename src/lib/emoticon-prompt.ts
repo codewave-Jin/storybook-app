@@ -13,47 +13,47 @@ export const EMOTICON_CELLS: EmoticonCell[] = [
   {
     key: "hello",
     caption: "안녕!",
-    pose: '1. HELLO\nA cheerful expression with a big smile, waving both hands.\nAdd small pink hearts.\nKorean caption: "안녕!"',
+    pose: '1. HELLO\nA cheerful expression with a big smile, waving both hands.\nAdd small pink hearts.\nDraw this exact text at the top: 안녕!',
   },
   {
     key: "happy",
     caption: "좋아!",
-    pose: '2. HAPPY\nA delighted smile with both fists gently resting against the cheeks.\nAdd small hearts and yellow sparkles.\nKorean caption: "좋아!"',
+    pose: '2. HAPPY\nA delighted smile with both fists gently resting against the cheeks.\nAdd small hearts and yellow sparkles.\nDraw this exact text at the top: 좋아!',
   },
   {
     key: "kiss",
     caption: "쪽♡",
-    pose: '3. KISS\nA playful wink with puckered lips, blowing a kiss.\nAdd floating pink hearts.\nKorean caption: "쪽♡"',
+    pose: '3. KISS\nA playful wink with puckered lips, blowing a kiss.\nAdd floating pink hearts.\nDraw this exact text at the top: 쪽♡',
   },
   {
     key: "laughing",
     caption: "ㅋㅋㅋ",
-    pose: '4. LAUGHING\nLaughing joyfully with eyes nearly closed.\nAdd playful cartoon-style laughing tears.\nKorean caption: "ㅋㅋㅋ"',
+    pose: '4. LAUGHING\nLaughing joyfully with eyes nearly closed.\nAdd playful cartoon-style laughing tears.\nDraw this exact text at the top: ㅋㅋㅋ',
   },
   {
     key: "sleeping",
     caption: "잘자~",
-    pose: '5. SLEEPING\nSleeping peacefully with closed eyes, resting beside a soft plush toy.\nAdd a crescent moon and tiny stars.\nKorean caption: "잘자~"',
+    pose: '5. SLEEPING\nSleeping peacefully with closed eyes, resting beside a soft plush toy.\nAdd a crescent moon and tiny stars.\nDraw this exact text at the top: 잘자~',
   },
   {
     key: "surprised",
     caption: "헉!",
-    pose: '6. SURPRISED\nWide-open eyes and mouth, both hands touching the cheeks.\nAdd colorful exclamation marks and yellow emphasis lines.\nKorean caption: "헉!"',
+    pose: '6. SURPRISED\nWide-open eyes and mouth, both hands touching the cheeks.\nAdd colorful exclamation marks and yellow emphasis lines.\nDraw this exact text at the top: 헉!',
   },
   {
     key: "thumbs-up",
     caption: "최고!",
-    pose: '7. THUMBS UP\nSmiling confidently while showing two thumbs up.\nAdd yellow stars and sparkles.\nKorean caption: "최고!"',
+    pose: '7. THUMBS UP\nSmiling confidently while showing two thumbs up.\nAdd yellow stars and sparkles.\nDraw this exact text at the top: 최고!',
   },
   {
     key: "peekaboo",
     caption: "뿅!",
-    pose: '8. PEEKABOO\nPlayfully peeking from behind a fluffy blanket.\nOnly the upper face and small hands are visible.\nKorean caption: "뿅!"',
+    pose: '8. PEEKABOO\nPlayfully peeking from behind a fluffy blanket.\nOnly the upper face and small hands are visible.\nDraw this exact text at the top: 뿅!',
   },
   {
     key: "love",
     caption: "사랑해♡",
-    pose: '9. LOVE\nHappily hugging a large pink heart.\nAdd floating pink hearts around the character.\nKorean caption: "사랑해♡"',
+    pose: '9. LOVE\nHappily hugging a large pink heart.\nAdd floating pink hearts around the character.\nDraw this exact text at the top: 사랑해♡',
   },
 ];
 
@@ -61,7 +61,7 @@ const NO_AGE_INSTRUCTION =
   "Preserve the apparent age and natural body proportions of the person or character shown in the reference image. Do not intentionally make the character younger or older.";
 
 const POST_PROCESS_TEXT_INSTRUCTION =
-  "Do not render any text, letters, words, or numbers. Keep the top 18% of every cell as empty white space, the same height in all nine cells, for Korean captions to be added during post-processing. Do not place the face, hands, props, or decorations in that band.";
+  "Draw the Korean caption listed for each cell directly into the image. Render the exact Hangul, including punctuation and hearts, with correct spelling. Use one rounded, friendly, dark-brown handwritten style in every cell. Center each caption in the top 18% of its own cell, at the same size and the same height. Keep that band clear of the face, hands, props, and decorations. Do not add any other words, letters, or numbers.";
 
 export function emoticonAgeUnitPhrase(age: number, unit: EmoticonAgeUnit) {
   if (unit === "months") {
@@ -172,7 +172,7 @@ ${row3}
 - Props such as a blanket, plush toy, or heart must not shrink or enlarge the face.
 - Keep the gap between characters equal horizontally and vertically.
 - Keep each sticker fully inside its own cell. Do not overlap a neighboring cell.
-- Leave the same empty white band at the top of every cell.
+- Place each cell's Korean caption in the top band. Keep the caption size, color, and vertical position the same in every cell.
 
 ### Visual Design
 
@@ -200,7 +200,8 @@ ${POST_PROCESS_TEXT_INSTRUCTION}
 7. Use one continuous white background, with no per-cell card or frame.
 8. Keep the face size, eye line, and margins the same in every cell.
 9. Ensure no sticker elements overlap neighboring cells.
-10. Do not generate extra characters or duplicate stickers.`;
+10. Do not generate extra characters or duplicate stickers.
+11. Draw each cell's exact Korean caption inside that cell.`;
 }
 
 export type EmoticonPreviewCell = {

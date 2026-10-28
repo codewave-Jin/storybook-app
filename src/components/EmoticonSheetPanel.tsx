@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Cropper, { type Area } from "react-easy-crop";
 import { AppImage } from "@/components/AppImage";
+import { getCroppedImageFile } from "@/lib/crop-image";
 import type { EmoticonAgeUnit } from "@/lib/emoticon-prompt";
 import { estimatedGenerationPercent } from "@/lib/generation-progress-estimate";
 import { toProtectedMediaSrc } from "@/lib/media-paths";
@@ -36,6 +38,11 @@ export function EmoticonSheetPanel({
   const [source, setSource] = useState<EmoticonSource | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [cropping, setCropping] = useState(false);
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [useAge, setUseAge] = useState(false);
   const [age, setAge] = useState("3");
@@ -52,33 +59,103 @@ export function EmoticonSheetPanel({
     };
   }, [previewUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (cropSrc) {
+        URL.revokeObjectURL(cropSrc);
+      }
+    };
+  }, [cropSrc]);
+
   function chooseSource(next: EmoticonSource) {
     setSource(next);
     setError(null);
     if (next === "photo") {
       setCharacterId(null);
     } else {
-      chooseFile(null);
+      clearPhoto();
     }
   }
 
   function resetSource() {
     setSource(null);
     setCharacterId(null);
-    chooseFile(null);
+    clearPhoto();
     setError(null);
     router.replace("/dashboard/emoticon");
   }
 
-  function chooseFile(next: File | null) {
-    setError(null);
-    setFile(next);
+  function clearPhoto() {
+    setFile(null);
+    setCropping(false);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
     setPreviewUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current);
       }
-      return next ? URL.createObjectURL(next) : null;
+      return null;
     });
+    setCropSrc((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return null;
+    });
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }
+
+  function chooseOriginal(next: File | null) {
+    setError(null);
+    if (!next) {
+      clearPhoto();
+      return;
+    }
+    if (next.type && !ACCEPT.split(",").includes(next.type)) {
+      setError("JPG, PNG, WEBP 이미지만 올릴 수 있습니다.");
+      return;
+    }
+    setFile(null);
+    setPreviewUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return null;
+    });
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setCropSrc((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return URL.createObjectURL(next);
+    });
+    setCropping(true);
+  }
+
+  async function applyCrop() {
+    if (!cropSrc || !croppedAreaPixels) {
+      setError("얼굴이 원 안에 들어오게 먼저 맞춰 주세요.");
+      return;
+    }
+    setError(null);
+    try {
+      const cropped = await getCroppedImageFile(cropSrc, croppedAreaPixels);
+      setFile(cropped);
+      setPreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return URL.createObjectURL(cropped);
+      });
+      setCropping(false);
+    } catch {
+      setError("사진을 맞추지 못했습니다. 다른 이미지를 선택해 주세요.");
+    }
   }
 
   async function generate() {
@@ -200,29 +277,105 @@ export function EmoticonSheetPanel({
       {source === "photo" ? (
         <div className="mt-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
           <p className="text-sm font-medium text-stone-800">사진 올리기</p>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={generating}
-            className="mt-3 flex w-full flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-3 py-6 text-sm text-stone-500 hover:border-sky-300 hover:bg-sky-50 disabled:opacity-60"
-          >
-            {previewUrl ? (
-              <img
-                src={previewUrl}
-                alt="올린 사진"
-                className="max-h-56 w-full rounded-xl object-contain"
-              />
-            ) : (
-              <span>JPG, PNG, WEBP 사진을 선택해 주세요</span>
-            )}
-          </button>
+          <p className="mt-1 text-sm text-stone-500">
+            확대하거나 옮겨서 얼굴이 원 안에 들어오게 맞춰 주세요. 맞춘 사진이 이모티콘 입력으로 쓰입니다.
+          </p>
           <input
             ref={inputRef}
             type="file"
             accept={ACCEPT}
             className="hidden"
-            onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
+            onChange={(event) => chooseOriginal(event.target.files?.[0] ?? null)}
           />
+          {cropping && cropSrc ? (
+            <div className="mt-3 space-y-3">
+              <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-slate-900 sm:h-80">
+                <Cropper
+                  image={cropSrc}
+                  crop={crop}
+                  zoom={zoom}
+                  minZoom={1}
+                  maxZoom={3}
+                  aspect={1}
+                  cropShape="round"
+                  showGrid={false}
+                  zoomWithScroll
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
+                />
+                <p className="pointer-events-none absolute inset-x-0 bottom-4 z-10 px-4 text-center text-sm font-medium text-white drop-shadow">
+                  얼굴이 원 안에 들어가게 조정해 주세요
+                </p>
+              </div>
+              <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+                확대 / 축소
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={zoom}
+                  onChange={(event) => setZoom(Number(event.target.value))}
+                  className="w-full accent-sky-400"
+                  aria-label="사진 확대"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => inputRef.current?.click()}
+                  className="flex h-11 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
+                >
+                  다른 사진
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void applyCrop()}
+                  disabled={!croppedAreaPixels}
+                  className="flex h-11 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  이 얼굴로 사용
+                </button>
+              </div>
+            </div>
+          ) : previewUrl ? (
+            <div className="mt-3 space-y-3">
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-stone-50 px-4 py-6">
+                <img
+                  src={previewUrl}
+                  alt="맞춘 얼굴"
+                  className="h-52 w-52 rounded-full object-cover ring-2 ring-white shadow-sm"
+                />
+                <p className="text-sm font-medium text-stone-700">이 얼굴로 이모티콘을 만듭니다</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => inputRef.current?.click()}
+                  className="flex h-11 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
+                >
+                  다른 사진
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCropping(true)}
+                  className="flex h-11 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
+                >
+                  다시 맞추기
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={generating}
+              className="mt-3 flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-3 py-6 text-sm text-stone-500 hover:border-sky-300 hover:bg-sky-50 disabled:opacity-60"
+            >
+              JPG, PNG, WEBP 사진을 선택해 주세요
+            </button>
+          )}
         </div>
       ) : characters.length === 0 ? (
         <div className="mt-3 rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-10 text-center">

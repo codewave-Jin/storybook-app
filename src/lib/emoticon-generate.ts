@@ -5,7 +5,7 @@ import {
   emoticonPreviewCells,
   type EmoticonAgeUnit,
 } from "@/lib/emoticon-prompt";
-import { compositeEmoticonCaptions, splitEmoticonCells } from "@/lib/emoticon-sheet";
+import { splitEmoticonCells } from "@/lib/emoticon-sheet";
 import { persistGeneratedStickerBuffer } from "@/lib/uploads";
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -54,10 +54,10 @@ export async function generateEmoticonSheet(input: {
     imageBytes: input.imageBytes,
     imageMime: input.imageMime,
     outputFormat: "png",
-    quality: "high",
+    quality: "low",
     background: "opaque",
   });
-  const sheet = await compositeEmoticonCaptions(Buffer.from(generated.b64, "base64"));
+  const sheet = Buffer.from(generated.b64, "base64");
   const pieces = await splitEmoticonCells(sheet);
   const sheetImagePath = await persistGeneratedStickerBuffer(sheet, "image/png", input.userId);
   const cellImagePaths: string[] = [];
