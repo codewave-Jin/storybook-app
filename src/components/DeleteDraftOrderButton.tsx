@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { deleteEmoticonOrder } from "@/app/actions/emoticons";
 import { deleteDraftOrder } from "@/app/actions/orders";
 import { deleteDraftStickerOrder } from "@/app/actions/stickers";
 import { cn } from "@/lib/utils";
@@ -15,7 +16,7 @@ export function DeleteDraftOrderButton({
 }: {
   orderId: string;
   title: string;
-  kind?: "storybook" | "sticker";
+  kind?: "storybook" | "sticker" | "emoticon";
   compact?: boolean;
   redirectTo?: string;
 }) {
@@ -23,14 +24,17 @@ export function DeleteDraftOrderButton({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const heading = kind === "sticker" ? "스티커 삭제" : "동화책 삭제";
+  const heading =
+    kind === "sticker" ? "스티커 삭제" : kind === "emoticon" ? "이모티콘 삭제" : "동화책 삭제";
 
   function handleDelete() {
     startTransition(async () => {
       const result =
         kind === "sticker"
           ? await deleteDraftStickerOrder(orderId)
-          : await deleteDraftOrder(orderId);
+          : kind === "emoticon"
+            ? await deleteEmoticonOrder(orderId)
+            : await deleteDraftOrder(orderId);
       if (result?.error) {
         setError(result.error);
         return;

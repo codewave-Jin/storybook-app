@@ -90,6 +90,13 @@ export async function runStickerPreviewGeneration(
     return { success: true, skipped: true };
   }
 
+  if (!order.character) {
+    const error = "캐릭터가 없는 실사 스티커는 이 경로로 다시 만들지 않습니다.";
+    logSticker("sticker.failed", error, { reason: error });
+    await markPreviewFailed(orderId, error);
+    return { error };
+  }
+
   const claimed = await prisma.stickerOrder.updateMany({
     where: {
       id: orderId,

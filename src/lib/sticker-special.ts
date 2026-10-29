@@ -276,6 +276,94 @@ export function buildSpecialStickerPrompt(input: {
   return parts.join(" ");
 }
 
+function photoAgeLine(age?: number | null, ageUnit?: "months" | "years" | null) {
+  if (age != null && ageUnit) {
+    const label = ageUnit === "months" ? `${age}개월` : `${age}세`;
+    return `나이는 약 ${label}의 실제 아이로 표현한다. 얼굴의 특징은 입력 사진 그대로 유지한다.`;
+  }
+  return "나이를 바꾸지 말고, 사진에서 보이는 연령을 유지한다.";
+}
+
+function photoOutfitLine(kind: SpecialStickerKind | undefined, outfit: string) {
+  const clothes = outfit.trim();
+  if (clothes) {
+    return `입을 옷은 ${clothes}. 얼굴과 이목구비는 입력 사진 그대로 유지한다.`;
+  }
+  if (kind === "gift") {
+    return "옷은 성별에 맞는 아기 한복으로 바꾼다. 얼굴과 이목구비는 입력 사진 그대로 유지한다.";
+  }
+  return "옷과 헤어스타일은 입력 사진 그대로 유지한다.";
+}
+
+const PHOTO_REALISM =
+  "입력은 실제 아이의 사진이다. 결과도 그림이 아니라 그 아이의 실제 사진으로 만든다. 수채화, 일러스트, 동화책 그림, 만화, 애니메이션, 3D 인형, 그림체는 쓰지 않는다. 피부, 머리카락, 눈, 옷감, 빛은 실제 사진의 질감으로 표현한다.";
+
+export function buildPhotoSpecialStickerPrompt(input: {
+  kind?: SpecialStickerKind;
+  topic: string;
+  phrase: string;
+  genderLabel?: string;
+  outfits?: string[];
+  age?: number | null;
+  ageUnit?: "months" | "years" | null;
+}) {
+  const outfit = photoOutfitLine(input.kind, input.outfits?.[0] ?? "");
+  const age = photoAgeLine(input.age, input.ageUnit);
+  const gender = input.genderLabel?.trim() ? `성별은 ${input.genderLabel.trim()}이다.` : "";
+
+  if (input.kind === "gift") {
+    const phrase = input.phrase.trim();
+    return [
+      "첨부된 실제 사진의 아이로 백일 답례품 스티커를 만든다.",
+      PHOTO_REALISM,
+      "얼굴형, 눈의 모양·크기·간격, 코, 입, 눈썹, 피부색, 머리색과 헤어라인은 입력 사진 그대로 유지한다. 다른 아이로 바꾸지 않는다.",
+      age,
+      gender,
+      outfit,
+      "포즈는 폭신한 아이보리색 담요 위에 엎드려, 팔을 앞으로 모으고 고개를 살짝 들어 정면을 보는 실제 사진이다.",
+      "정사각형 한가운데 원형 스티커로 구성한다. 아이와 문구는 원 안에 두고, 원 밖은 비어 있는 따뜻한 아이보리색만 둔다.",
+      "연분홍과 복숭아색 꽃, 작은 잎, 하트, 리본은 아이 옆의 작은 실사 장식으로만 둔다. 원을 따라 그린 테두리는 넣지 않는다.",
+      phrase
+        ? `문구는 한 글자도 바꾸지 말고 그대로 적는다. ${phrase}`
+        : "글자는 넣지 않는다.",
+      "우선순위는 1. 사진 속 얼굴 동일성, 2. 실제 사진, 3. 의상과 나이, 4. 문구와 원형 구도 순이다.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (input.kind === "nametag") {
+    return [
+      "투명 배경의 실사 다이컷 이름표 스티커를 만들어라. 배경, 바닥, 스튜디오, 그림자 벽, 네모난 캔버스 채우기는 넣지 말 것.",
+      PHOTO_REALISM,
+      "입력 사진의 얼굴, 헤어, 이목구비만 유지한다.",
+      "구도: 상반신(머리~팔꿈치)이 화면의 주인공이다. 아이는 이미지 높이의 약 65~75%를 차지하고, 아래쪽 작은 이름판 위에 팔을 얹고 얼굴을 내민다.",
+      "이름판은 어깨 너비 정도의 작고 둥근 배너이며, 이미지 높이의 20~30%만 차지한다. 이름판이 화면을 가득 채우거나 아이보다 커지면 안 된다.",
+      "전신, 서 있는 아이, 가슴에 작은 명찰만 단 초상화는 금지.",
+      outfit,
+      age,
+      gender,
+      `주제 : 이름표 문구 : ${input.phrase}`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  return [
+    "투명 배경의 실사 다이컷 스티커를 만들어라. 배경, 바닥, 스튜디오, 네모난 캔버스 채우기는 넣지 말 것.",
+    PHOTO_REALISM,
+    "입력 사진 속 아이의 얼굴과 이목구비를 그대로 유지한다.",
+    outfit,
+    age,
+    gender,
+    input.phrase.trim()
+      ? `주제 : ${input.topic} 문구 : ${input.phrase.trim()}`
+      : `주제 : ${input.topic} 문구는 넣지 말 것. 한글, 영어, 숫자를 넣지 말 것.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 type SpecialCharacterFields = {
   outfits: string[];
   companionCharacterId: string | null;

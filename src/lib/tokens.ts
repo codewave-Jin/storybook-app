@@ -4,7 +4,17 @@ import { prisma } from "@/lib/prisma";
 export const SIGNUP_TOKEN_GRANT = 3;
 
 export type TokenSpendSource = "free" | "paid";
-export type TokenHoldKind = "STORYBOOK_PREVIEW" | "STICKER_SPECIAL";
+export type TokenHoldKind = "STORYBOOK_PREVIEW" | "STICKER_SPECIAL" | "EMOTICON_PREVIEW";
+
+function transactionTypeForHold(kind: TokenHoldKind): TokenTransactionType {
+  if (kind === "STICKER_SPECIAL") {
+    return "STICKER_SPECIAL";
+  }
+  if (kind === "EMOTICON_PREVIEW") {
+    return "EMOTICON_PREVIEW";
+  }
+  return "STORYBOOK_PREVIEW";
+}
 
 function totalTokens(balance: {
   freeBalance: number;
@@ -87,6 +97,77 @@ export async function consumeToken(
   });
 }
 
+export async function consumeTokens(
+  userId: string,
+  amount: number,
+  type: TokenTransactionType,
+): Promise<{
+  success: boolean;
+  message?: string;
+  freeUsed?: number;
+  paidUsed?: number;
+}> {
+  if (!Number.isInteger(amount) || amount < 1) {
+    return { success: false, message: "사용할 토큰을 확인해 주세요." };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.tokenBalance.findUnique({
+      where: { userId },
+    });
+    if (!existing || totalTokens(existing) < amount) {
+      return { success: false, message: "토큰이 부족합니다" };
+    }
+
+    const freeUsed = Math.min(existing.freeBalance, amount);
+    const paidUsed = amount - freeUsed;
+    await tx.tokenBalance.update({
+      where: { userId },
+      data: {
+        freeBalance: existing.freeBalance - freeUsed,
+        paidBalance: existing.paidBalance - paidUsed,
+      },
+    });
+    await tx.tokenTransaction.create({
+      data: {
+        userId,
+        amount: -amount,
+        type,
+      },
+    });
+    return { success: true, freeUsed, paidUsed };
+  });
+}
+
+export async function restoreTokenSpend(
+  userId: string,
+  spent: { freeUsed?: number; paidUsed?: number },
+): Promise<void> {
+  const freeUsed = spent.freeUsed ?? 0;
+  const paidUsed = spent.paidUsed ?? 0;
+  const amount = freeUsed + paidUsed;
+  if (amount < 1) {
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.tokenBalance.update({
+      where: { userId },
+      data: {
+        ...(freeUsed > 0 ? { freeBalance: { increment: freeUsed } } : {}),
+        ...(paidUsed > 0 ? { paidBalance: { increment: paidUsed } } : {}),
+      },
+    });
+    await tx.tokenTransaction.create({
+      data: {
+        userId,
+        amount,
+        type: "REFUND",
+      },
+    });
+  });
+}
+
 export async function consumeTokenHold(
   userId: string,
   kind: TokenHoldKind,
@@ -95,9 +176,7 @@ export async function consumeTokenHold(
   message?: string;
   holdId?: string;
 }> {
-  const type: TokenTransactionType =
-    kind === "STICKER_SPECIAL" ? "STICKER_SPECIAL" : "STORYBOOK_PREVIEW";
-  const consumed = await consumeToken(userId, type);
+  const consumed = await consumeToken(userId, transactionTypeForHold(kind));
   if (!consumed.success || !consumed.used) {
     return { success: false, message: consumed.message ?? "토큰이 부족합니다" };
   }

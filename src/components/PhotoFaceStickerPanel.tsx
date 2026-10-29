@@ -2,7 +2,6 @@
 
 import {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -19,7 +18,7 @@ function originalCharacterImageSrc(src: string) {
   return `${url.pathname}?${url.searchParams.toString()}`;
 }
 
-type CutoutTool = "erase" | "restore";
+type CutoutTool = "erase" | "restore" | "move";
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
@@ -68,17 +67,22 @@ function CutoutEraser({
   const originalRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
-  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const panRef = useRef<{
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef(1);
-  const scrollAnchorRef = useRef<{
-    contentX: number;
-    contentY: number;
-    fromZoom: number;
-    viewX: number;
-    viewY: number;
-  } | null>(null);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const imageSizeRef = useRef({ width: 0, height: 0 });
+  const zoomActionRef = useRef<
+    (next: number, anchor?: { viewX: number; viewY: number }) => void
+  >(() => {});
   const [tool, setTool] = useState<CutoutTool | null>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [grabbing, setGrabbing] = useState(false);
   const [brush, setBrush] = useState(28);
   const [autoBusy, setAutoBusy] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -110,6 +114,8 @@ function CutoutEraser({
       canvas.height = height;
       zoomRef.current = 1;
       setZoom(1);
+      offsetRef.current = { x: 0, y: 0 };
+      setOffset({ x: 0, y: 0 });
       setImageSize({ width, height });
       const ctx = canvas.getContext("2d");
       if (!ctx) {
@@ -147,7 +153,7 @@ function CutoutEraser({
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       const rect = frame.getBoundingClientRect();
-      changeZoom(zoomRef.current + (event.deltaY < 0 ? 0.15 : -0.15), {
+      zoomActionRef.current(zoomRef.current + (event.deltaY < 0 ? 0.15 : -0.15), {
         viewX: event.clientX - rect.left,
         viewY: event.clientY - rect.top,
       });
@@ -159,45 +165,61 @@ function CutoutEraser({
     };
   }, []);
 
-  useLayoutEffect(() => {
-    const frame = frameRef.current;
-    const anchor = scrollAnchorRef.current;
-    if (!frame || !anchor || anchor.fromZoom === zoom) {
-      return;
-    }
-    const ratio = zoom / anchor.fromZoom;
-    frame.scrollLeft = anchor.contentX * ratio - anchor.viewX;
-    frame.scrollTop = anchor.contentY * ratio - anchor.viewY;
-    scrollAnchorRef.current = null;
-  }, [zoom]);
+  function measureLayer(nextZoom: number, frame: HTMLDivElement) {
+    const image = imageSizeRef.current;
+    const frameWidth = frame.clientWidth;
+    const frameHeight = frame.clientHeight;
+    const availableWidth = Math.max(1, frameWidth - pad * 2);
+    const availableHeight = Math.max(1, frameHeight - pad * 2);
+    const fit =
+      image.width > 0 && frameWidth > 0
+        ? Math.min(availableWidth / image.width, availableHeight / image.height)
+        : 0;
+    return {
+      frameWidth,
+      frameHeight,
+      displayWidth: fit ? Math.max(1, Math.round(image.width * fit * nextZoom)) : 0,
+      displayHeight: fit ? Math.max(1, Math.round(image.height * fit * nextZoom)) : 0,
+    };
+  }
 
   function changeZoom(next: number, anchor?: { viewX: number; viewY: number }) {
     const frame = frameRef.current;
     const clamped = clampZoom(next);
-    if (clamped === zoomRef.current) {
+    const from = zoomRef.current;
+    if (clamped === from) {
       return;
     }
-    if (frame) {
+    if (frame && imageSizeRef.current.width > 0) {
       const viewX = anchor?.viewX ?? frame.clientWidth / 2;
       const viewY = anchor?.viewY ?? frame.clientHeight / 2;
-      scrollAnchorRef.current = {
-        contentX: frame.scrollLeft + viewX,
-        contentY: frame.scrollTop + viewY,
-        fromZoom: zoomRef.current,
-        viewX,
-        viewY,
-      };
+      const before = measureLayer(from, frame);
+      const after = measureLayer(clamped, frame);
+      if (before.displayWidth > 0 && after.displayWidth > 0) {
+        const left0 = (before.frameWidth - before.displayWidth) / 2 + offsetRef.current.x;
+        const top0 = (before.frameHeight - before.displayHeight) / 2 + offsetRef.current.y;
+        const left1 = viewX - (viewX - left0) * (after.displayWidth / before.displayWidth);
+        const top1 = viewY - (viewY - top0) * (after.displayHeight / before.displayHeight);
+        const nextOffset = {
+          x: left1 - (after.frameWidth - after.displayWidth) / 2,
+          y: top1 - (after.frameHeight - after.displayHeight) / 2,
+        };
+        offsetRef.current = nextOffset;
+        setOffset(nextOffset);
+      }
     }
     zoomRef.current = clamped;
     setZoom(clamped);
   }
+
+  zoomActionRef.current = changeZoom;
 
   const pad = 16;
 
   function placeRing(event: ReactPointerEvent<HTMLCanvasElement>) {
     const ring = ringRef.current;
     const wrap = wrapRef.current;
-    if (!ring || !wrap || !tool) {
+    if (!ring || !wrap || (tool !== "erase" && tool !== "restore")) {
       return;
     }
     const rect = wrap.getBoundingClientRect();
@@ -355,22 +377,75 @@ function CutoutEraser({
       : 0;
   const displayWidth = fit ? Math.max(1, Math.round(imageSize.width * fit * zoom)) : 0;
   const displayHeight = fit ? Math.max(1, Math.round(imageSize.height * fit * zoom)) : 0;
-  const contentWidth = Math.max(frameSize.width, displayWidth);
-  const contentHeight = Math.max(frameSize.height, displayHeight);
+  imageSizeRef.current = imageSize;
+  offsetRef.current = offset;
+  const layerLeft = (frameSize.width - displayWidth) / 2;
+  const layerTop = (frameSize.height - displayHeight) / 2;
+
+  function clampOffset(nextX: number, nextY: number) {
+    const frame = frameRef.current;
+    const frameWidth = frame?.clientWidth ?? frameSize.width;
+    const frameHeight = frame?.clientHeight ?? frameSize.height;
+    const keep = 72;
+    let minX = keep - layerLeft - displayWidth;
+    let maxX = frameWidth - keep - layerLeft;
+    let minY = keep - layerTop - displayHeight;
+    let maxY = frameHeight - keep - layerTop;
+    if (minX > maxX) {
+      const mid = (minX + maxX) / 2;
+      minX = mid;
+      maxX = mid;
+    }
+    if (minY > maxY) {
+      const mid = (minY + maxY) / 2;
+      minY = mid;
+      maxY = mid;
+    }
+    return {
+      x: Math.min(maxX, Math.max(minX, nextX)),
+      y: Math.min(maxY, Math.max(minY, nextY)),
+    };
+  }
+
+  function beginPan(event: ReactPointerEvent<HTMLCanvasElement>) {
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers reject capture for this pointer.
+    }
+    panRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      offsetX: offset.x,
+      offsetY: offset.y,
+    };
+    setGrabbing(true);
+  }
+
+  function endPan() {
+    if (!panRef.current) {
+      return;
+    }
+    panRef.current = null;
+    setGrabbing(false);
+  }
 
   return (
     <div className="w-full">
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-[length:16px_16px] bg-[linear-gradient(45deg,#e7e5e4_25%,transparent_25%),linear-gradient(-45deg,#e7e5e4_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e7e5e4_75%),linear-gradient(-45deg,transparent_75%,#e7e5e4_75%)] bg-[position:0_0,0_8px,8px_-8px,-8px_0] bg-white">
-        <div ref={frameRef} className="h-72 w-full overflow-auto">
-          <div className="relative" style={{ width: contentWidth || "100%", height: contentHeight || "100%" }}>
+        <div
+          ref={frameRef}
+          className={`h-72 w-full overflow-hidden ${tool === "move" ? "touch-none" : ""}`}
+        >
+          <div className="relative h-full w-full">
             <div
               ref={wrapRef}
               className="absolute"
               style={
                 displayWidth
-                  ? {
-                      left: Math.max(0, (contentWidth - displayWidth) / 2),
-                      top: Math.max(0, (contentHeight - displayHeight) / 2),
+                    ? {
+                      left: layerLeft + offset.x,
+                      top: layerTop + offset.y,
                       width: displayWidth,
                       height: displayHeight,
                     }
@@ -384,22 +459,9 @@ function CutoutEraser({
                   if (disabled || autoBusy) {
                     return;
                   }
-                  const frame = frameRef.current;
-                  if (!tool) {
-                    if (!frame || zoomRef.current <= 1) {
-                      return;
-                    }
-                    try {
-                      event.currentTarget.setPointerCapture(event.pointerId);
-                    } catch {
-                      // Some browsers reject capture for this pointer.
-                    }
-                    panRef.current = {
-                      x: event.clientX,
-                      y: event.clientY,
-                      left: frame.scrollLeft,
-                      top: frame.scrollTop,
-                    };
+                  if (tool === "move") {
+                    event.preventDefault();
+                    beginPan(event);
                     return;
                   }
                   try {
@@ -414,13 +476,19 @@ function CutoutEraser({
                   paintLine(point, point, point.radius, tool);
                 }}
                 onPointerMove={(event) => {
-                  if (panRef.current && frameRef.current) {
-                    frameRef.current.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
-                    frameRef.current.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
+                  if (panRef.current) {
+                    const dx = event.clientX - panRef.current.x;
+                    const dy = event.clientY - panRef.current.y;
+                    const nextOffset = clampOffset(
+                      panRef.current.offsetX + dx,
+                      panRef.current.offsetY + dy,
+                    );
+                    offsetRef.current = nextOffset;
+                    setOffset(nextOffset);
                     return;
                   }
                   placeRing(event);
-                  if (!drawingRef.current || !lastRef.current || !tool) {
+                  if (!drawingRef.current || !lastRef.current || tool === "move" || !tool) {
                     return;
                   }
                   const point = canvasPoint(event);
@@ -428,7 +496,7 @@ function CutoutEraser({
                   lastRef.current = point;
                 }}
                 onPointerUp={() => {
-                  panRef.current = null;
+                  endPan();
                   if (!drawingRef.current) {
                     return;
                   }
@@ -437,7 +505,7 @@ function CutoutEraser({
                   commit();
                 }}
                 onPointerCancel={() => {
-                  panRef.current = null;
+                  endPan();
                   const painted = drawingRef.current;
                   drawingRef.current = false;
                   lastRef.current = null;
@@ -448,7 +516,10 @@ function CutoutEraser({
                 }}
                 onPointerLeave={hideRing}
                 className={`block h-full w-full select-none ${tool ? "touch-none" : ""}`}
-                style={{ cursor: tool ? "none" : zoom > 1 ? "grab" : "default" }}
+                style={{
+                  cursor:
+                    tool === "move" ? (grabbing ? "grabbing" : "grab") : tool ? "none" : "default",
+                }}
               />
               <div
                 ref={ringRef}
@@ -509,7 +580,20 @@ function CutoutEraser({
       >
         {autoBusy ? "얼굴만 남기는 중..." : "자동 지우개"}
       </button>
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          aria-pressed={tool === "move"}
+          onClick={() => selectTool("move")}
+          disabled={disabled || autoBusy}
+          className={
+            tool === "move"
+              ? "flex h-12 items-center justify-center rounded-xl bg-sky-500 px-2 text-center text-sm font-medium leading-tight text-white"
+              : "flex h-12 items-center justify-center rounded-xl border border-stone-300 bg-white px-2 text-center text-sm font-medium leading-tight text-stone-800 hover:bg-stone-50"
+          }
+        >
+          {tool === "move" ? "이동 중" : "화면 이동"}
+        </button>
         <button
           type="button"
           aria-pressed={tool === "erase"}
@@ -517,8 +601,8 @@ function CutoutEraser({
           disabled={disabled || autoBusy}
           className={
             tool === "erase"
-              ? "flex h-12 items-center justify-center rounded-xl bg-stone-800 px-4 text-sm font-medium text-white"
-              : "flex h-12 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800 hover:bg-stone-50"
+              ? "flex h-12 items-center justify-center rounded-xl bg-stone-800 px-2 text-center text-sm font-medium leading-tight text-white"
+              : "flex h-12 items-center justify-center rounded-xl border border-stone-300 bg-white px-2 text-center text-sm font-medium leading-tight text-stone-800 hover:bg-stone-50"
           }
         >
           {tool === "erase" ? "지우개 사용 중" : "지우개"}
@@ -531,13 +615,13 @@ function CutoutEraser({
           className={
             tool === "restore"
               ? "flex h-12 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-medium text-white"
-              : "flex h-12 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800 hover:bg-stone-50"
+              : "flex h-12 items-center justify-center rounded-xl border border-stone-300 bg-white px-2 text-center text-sm font-medium leading-tight text-stone-800 hover:bg-stone-50"
           }
         >
           {tool === "restore" ? "되돌리는 중" : "되돌리기"}
         </button>
       </div>
-      {tool ? (
+      {tool === "erase" || tool === "restore" ? (
         <label className="mt-3 flex items-center gap-3 text-sm text-stone-600">
           크기
           <input
@@ -551,11 +635,13 @@ function CutoutEraser({
         </label>
       ) : null}
       <p className="mt-3 text-sm text-stone-500">
-        {tool === "erase"
-          ? "동그라미 안이 지워져요."
-          : tool === "restore"
-            ? "동그라미 안이 자르기 전 원본으로 돌아와요."
-            : "자동 지우개는 얼굴만 남기고, 지우개와 되돌리기는 원으로 직접 고쳐요."}
+        {tool === "move"
+          ? "레이어를 붙잡고 끌어 옮겨요."
+          : tool === "erase"
+            ? "동그라미 안이 지워져요."
+            : tool === "restore"
+              ? "동그라미 안이 자르기 전 원본으로 돌아와요."
+              : "자동 지우개는 얼굴만 남기고, 화면 이동으로 레이어를 옮기거나 지우개와 되돌리기로 고쳐요."}
       </p>
     </div>
   );
@@ -563,9 +649,11 @@ function CutoutEraser({
 
 export function PhotoFaceStickerPanel({
   characterImageSrc,
+  photoOnly = false,
   onUseCutout,
 }: {
   characterImageSrc: string | null;
+  photoOnly?: boolean;
   onUseCutout: (imagePath: string) => void;
 }) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -735,6 +823,45 @@ export function PhotoFaceStickerPanel({
             {busy ? "저장 중..." : "이 얼굴로 만들기"}
           </button>
         </div>
+      </section>
+    );
+  }
+
+  if (photoOnly) {
+    return (
+      <section>
+        <h2 className="text-lg font-semibold">실제 사진으로 스티커를 만들게요</h2>
+        <p className="mt-3 text-center text-base font-bold leading-snug text-stone-900">
+          눈, 코, 입이 잘 보이도록 정면 사진을 올려주세요
+        </p>
+        <div className="mt-3">
+          <CharacterPhotoPicker
+            disabled={busy}
+            hideHeading
+            accept="image/jpeg,image/png,image/webp"
+            guideText="눈, 코, 입이 잘 보이게 정면을 원 안에 맞춰 주세요"
+            albumHint="눈, 코, 입이 잘 보이도록 정면으로 맞춰 주세요"
+            onPhotoChange={setPhotoFile}
+          />
+        </div>
+        {photoFile ? (
+          <button
+            type="button"
+            onClick={() => void cutoutFromBlob(photoFile)}
+            disabled={busy}
+            className="mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busy ? "얼굴을 분리하는 중..." : "이 사진으로 머리만 남기기"}
+          </button>
+        ) : null}
+        {busy ? (
+          <p className="mt-3 text-center text-sm text-stone-500">
+            처음에는 얼굴 분리 모델을 받아 와서 조금 걸릴 수 있어요.
+          </p>
+        ) : null}
+        {error ? (
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        ) : null}
       </section>
     );
   }

@@ -8,7 +8,10 @@ export function StickerTokenConfirmDialog({
   tokens,
   pending,
   pendingLabel = "생성 중...",
-  description = "특수 제작 이미지를 만들면 토큰 1개가 사용돼요. 결제가 끝나면 다시 돌려드려요.",
+  pendingMessage = "스티커를 그리는 중이에요. 잠시만 기다려 주세요.",
+  description = "특수 제작 이미지를 만들면 토큰 1개가 사용돼요. 토큰으로 주문이 끝나면 다시 돌려드려요.",
+  confirmLabel = "수락",
+  confirmDisabled = false,
   onClose,
   onConfirm,
 }: {
@@ -16,7 +19,10 @@ export function StickerTokenConfirmDialog({
   tokens: number;
   pending?: boolean;
   pendingLabel?: string;
+  pendingMessage?: string;
   description?: string;
+  confirmLabel?: string;
+  confirmDisabled?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -45,7 +51,7 @@ export function StickerTokenConfirmDialog({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-6">
       <button
         type="button"
         aria-label="닫기"
@@ -89,7 +95,7 @@ export function StickerTokenConfirmDialog({
                 />
               </div>
               <p className="text-center text-sm leading-relaxed text-stone-600">
-                스티커를 그리는 중이에요. 잠시만 기다려 주세요.
+                {pendingMessage}
               </p>
             </div>
           ) : (
@@ -112,7 +118,7 @@ export function StickerTokenConfirmDialog({
           </button>
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || confirmDisabled}
             onClick={onConfirm}
             className="flex h-12 flex-1 items-center justify-center rounded-xl bg-sky-400 text-sm font-semibold text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -122,7 +128,7 @@ export function StickerTokenConfirmDialog({
                 {pendingLabel}
               </span>
             ) : (
-              "수락"
+              confirmLabel
             )}
           </button>
         </div>

@@ -16,6 +16,7 @@ export const STICKER_EXAMPLES = [
     key: "birthday",
     label: "생일",
     description: "생일 문구 예시",
+    thumbnailPath: null,
     borderKey: "birthday",
     phrases: [
       "생 일",
@@ -27,6 +28,7 @@ export const STICKER_EXAMPLES = [
     key: "thanks",
     label: "감사인사",
     description: "고마운 마음을 전해요",
+    thumbnailPath: null,
     borderKey: "carnation",
     phrases: [
       "감사합니다 ♥",
@@ -37,6 +39,7 @@ export const STICKER_EXAMPLES = [
     key: "congrats",
     label: "축하인사",
     description: "기쁜 날을 축하해요",
+    thumbnailPath: null,
     borderKey: "stars-moon",
     phrases: ["축하해요", "행복한 하루\n되세요"],
   },

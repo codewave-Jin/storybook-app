@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { PAYMENTS_ENABLED } from "@/lib/payments";
+import { EMOTICON_PACK_TOKENS, PAYMENTS_ENABLED } from "@/lib/payments";
 import { prisma } from "@/lib/prisma";
+import { consumeTokens, getCharacterSlotAndTokens, refundTokenHoldsForOrder, restoreTokenSpend } from "@/lib/tokens";
 
 export const runtime = "nodejs";
 
@@ -27,11 +28,33 @@ export async function POST(
   }
 
   if (order.paymentStatus !== "PAID") {
-    await prisma.emoticonOrder.update({
-      where: { id: order.id },
-      data: { paymentStatus: "PAID" },
-    });
+    const spent = await consumeTokens(
+      session.user.id,
+      EMOTICON_PACK_TOKENS,
+      "EMOTICON_ORDER",
+    );
+    if (!spent.success) {
+      return NextResponse.json(
+        { error: spent.message ?? "토큰이 부족합니다" },
+        { status: 400 },
+      );
+    }
+    try {
+      await prisma.emoticonOrder.update({
+        where: { id: order.id },
+        data: { paymentStatus: "PAID" },
+      });
+    } catch (error) {
+      await restoreTokenSpend(session.user.id, spent);
+      console.error("[emoticon] pay failed", error);
+      return NextResponse.json(
+        { error: "주문 정보를 저장하지 못했습니다." },
+        { status: 500 },
+      );
+    }
+    await refundTokenHoldsForOrder(session.user.id, "EMOTICON_PREVIEW", order.id);
   }
 
-  return NextResponse.json({ paid: true });
+  const { tokens } = await getCharacterSlotAndTokens(session.user.id);
+  return NextResponse.json({ paid: true, tokens });
 }

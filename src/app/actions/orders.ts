@@ -10,15 +10,17 @@ import {
 import { logGenerationEvent } from "@/lib/generation-events";
 import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
 import { parseCheckoutForm, validateCheckoutInput } from "@/lib/checkout";
-import { PAYMENTS_ENABLED } from "@/lib/payments";
+import { PAYMENTS_ENABLED, quoteStorybookOrder } from "@/lib/payments";
 import { ensureOrderPhotoAlbumPages } from "@/lib/photo-album-pages";
 import { resolveOrderArtStyleId } from "@/lib/art-styles";
 import { prisma } from "@/lib/prisma";
 import {
   attachTokenHoldToOrder,
   consumeTokenHold,
+  consumeTokens,
   refundTokenHold,
   refundTokenHoldsForOrder,
+  restoreTokenSpend,
 } from "@/lib/tokens";
 import {
   MAX_SUPPORTING_CAST,
@@ -277,13 +279,26 @@ export async function payForOrder(
       (page) => !page.id || page.status !== "COMPLETED" || !page.imagePath,
     )
   ) {
-    return { error: "미리보기가 끝난 뒤에 결제할 수 있습니다." };
+    return { error: "미리보기가 끝난 뒤에 토큰으로 완성할 수 있습니다." };
   }
 
   const checkout = parseCheckoutForm(formData);
   const checkoutError = validateCheckoutInput(checkout);
   if (checkoutError) {
     return { error: checkoutError };
+  }
+
+  const quote = quoteStorybookOrder({
+    quantity: checkout.quantity,
+    includePhotoAlbum: checkout.includePhotoAlbum,
+  });
+  const spent = await consumeTokens(
+    session.user.id,
+    quote.totalTokens,
+    "STORYBOOK_ORDER",
+  );
+  if (!spent.success) {
+    return { error: spent.message ?? "토큰이 부족합니다" };
   }
 
   try {
@@ -303,8 +318,9 @@ export async function payForOrder(
       },
     });
   } catch (error) {
+    await restoreTokenSpend(session.user.id, spent);
     console.error("payForOrder update failed", error);
-    return { error: "결제 정보를 저장하지 못했습니다. 다시 시도해 주세요." };
+    return { error: "주문 정보를 저장하지 못했습니다. 다시 시도해 주세요." };
   }
 
   await refundTokenHoldsForOrder(
@@ -385,10 +401,6 @@ export async function deleteDraftOrder(orderId: string) {
 
   if (!order) {
     return { error: "주문을 찾을 수 없습니다." };
-  }
-
-  if (order.paymentStatus === "PAID") {
-    return { error: "결제가 끝난 주문은 삭제할 수 없습니다." };
   }
 
   await refundTokenHoldsForOrder(session.user.id, "STORYBOOK_PREVIEW", orderId);

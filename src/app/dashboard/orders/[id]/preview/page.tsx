@@ -11,6 +11,7 @@ import {
 } from "@/lib/storybook-copy";
 import { resolveCoverComment } from "@/lib/cover-comment";
 import { storybookOrderOptionLines } from "@/lib/storybook-order-summary";
+import { getCharacterSlotAndTokens } from "@/lib/tokens";
 import { isBirthdayStorybookTitle } from "@/lib/templates";
 import {
   startOrderPaidGeneration,
@@ -173,6 +174,8 @@ export default async function OrderPreviewPage({
     ),
   });
 
+  const { tokens } = await getCharacterSlotAndTokens(session.user.id);
+
   return (
     <>
       <OrderPreviewBook
@@ -190,6 +193,7 @@ export default async function OrderPreviewPage({
         fulfillmentStatus={order.fulfillmentStatus}
         shippingCarrier={order.shippingCarrier}
         trackingNumber={order.trackingNumber}
+        tokenBalance={tokens}
       />
     </>
   );

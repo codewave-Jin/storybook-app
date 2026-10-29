@@ -232,6 +232,12 @@ export function stickerOrderExtraLabel(order: {
   return order.border?.label?.trim() || order.template?.label?.trim() || null;
 }
 
+export function stickerCharacterLabel(
+  character: { label: string } | null | undefined,
+) {
+  return character?.label?.trim() || "실제 사진";
+}
+
 export function stickerOrderTitle(
   characterLabel: string,
   extraLabel?: string | null,

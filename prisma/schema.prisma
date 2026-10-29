@@ -59,7 +59,11 @@ enum TokenTransactionType {
   SIGNUP_GRANT
   CHARACTER_GENERATION
   STORYBOOK_PREVIEW
+  STORYBOOK_ORDER
   STICKER_SPECIAL
+  STICKER_ORDER
+  EMOTICON_PREVIEW
+  EMOTICON_ORDER
   PURCHASE
   REFUND
 }
@@ -67,6 +71,7 @@ enum TokenTransactionType {
 enum TokenHoldKind {
   STORYBOOK_PREVIEW
   STICKER_SPECIAL
+  EMOTICON_PREVIEW
 }
 
 model TokenHold {
@@ -487,8 +492,8 @@ model StickerOrder {
   email            String?
   userId           String
   user             User              @relation(fields: [userId], references: [id])
-  characterId      String
-  character        Character         @relation(fields: [characterId], references: [id])
+  characterId      String?
+  character        Character?        @relation(fields: [characterId], references: [id])
   templateId       String?
   template         StickerTemplate?  @relation(fields: [templateId], references: [id])
   borderId         String?
@@ -540,6 +545,7 @@ model EmoticonOrder {
   cellImagePaths String[]
   age            Int?
   ageUnit        String?
+  theme          String        @default("basic")
   paymentStatus  PaymentStatus @default(PENDING)
   createdAt      DateTime      @default(now())
 

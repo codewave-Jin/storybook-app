@@ -17,11 +17,13 @@ export function StickerPreviewPayButton({
   optionLines,
   defaultEmail,
   defaultName,
+  tokenBalance,
 }: {
   orderId: string;
   optionLines: OrderOptionLine[];
   defaultEmail?: string;
   defaultName?: string;
+  tokenBalance: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -48,7 +50,7 @@ export function StickerPreviewPayButton({
         onClick={() => setOpen(true)}
         className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-sm font-semibold text-white shadow-sm hover:bg-[#d56c51]"
       >
-        결제하기
+        토큰으로 주문하기
       </button>
       {state?.error && !open ? (
         <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-700">
@@ -64,6 +66,7 @@ export function StickerPreviewPayButton({
         error={state?.error}
         formAction={formAction}
         hiddenFields={<input type="hidden" name="orderId" value={orderId} />}
+        tokenBalance={tokenBalance}
       />
     </>
   );

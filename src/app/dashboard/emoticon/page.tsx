@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { EmoticonSheetPanel } from "@/components/EmoticonSheetPanel";
 import { toClientCharacterImages } from "@/lib/media-paths";
 import { prisma } from "@/lib/prisma";
+import { getCharacterSlotAndTokens } from "@/lib/tokens";
 
 export default async function EmoticonPage({
   searchParams,
@@ -29,8 +30,10 @@ export default async function EmoticonPage({
     select: { id: true, label: true, generatedImagePath: true, originalPhotoPath: true },
   });
 
+  const { tokens } = await getCharacterSlotAndTokens(session.user.id);
+
   return (
-    <DashboardShell title="이모티콘 만들기">
+    <DashboardShell compact title="이모티콘 만들기">
       <EmoticonSheetPanel
         characters={characters.flatMap((character) => {
           const image = toClientCharacterImages(character);
@@ -45,6 +48,7 @@ export default async function EmoticonPage({
             },
           ];
         })}
+        tokenBalance={tokens}
       />
     </DashboardShell>
   );

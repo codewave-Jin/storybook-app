@@ -15,6 +15,7 @@ import { GenerationProgress } from "@/components/GenerationProgress";
 import { IntervalRefresher } from "@/components/IntervalRefresher";
 import { OrderOptionSummary } from "@/components/OrderOptionSummary";
 import { DashboardShell } from "@/components/DashboardShell";
+import { emoticonThemeById } from "@/lib/emoticon-prompt";
 import { characterStatusPayload } from "@/lib/generation-status";
 import {
   FULFILLMENT_STATUS_BADGE,
@@ -26,6 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { toClientCharacterImages } from "@/lib/media-paths";
 import { storybookOrderOptionLines, collectOrderCharacterIds, type OrderOptionLine } from "@/lib/storybook-order-summary";
 import { stickerPhraseDisplay } from "@/lib/sticker-phrase";
+import { stickerCharacterLabel } from "@/lib/templates";
 
 const PRODUCTION_BADGE: Record<ProductionStatus, string> = {
   WAITING: "bg-[#F6E7C1] text-[#8A5A12]",
@@ -104,14 +106,16 @@ function workKindClass(kind: RecentWorkItem["kind"]) {
   return "bg-violet-100 text-violet-700";
 }
 
-function emoticonWorkTitle(order: { age: number | null; ageUnit: string | null }) {
+function emoticonWorkTitle(order: { age: number | null; ageUnit: string | null; theme: string }) {
+  const themeLabel = order.theme && order.theme !== "basic" ? emoticonThemeById(order.theme).label : "";
+  const base = themeLabel ? `이모티콘 9장 · ${themeLabel}` : "이모티콘 9장";
   if (order.age && order.ageUnit === "months") {
-    return `이모티콘 9장 · ${order.age}개월`;
+    return `${base} · ${order.age}개월`;
   }
   if (order.age && order.ageUnit === "years") {
-    return `이모티콘 9장 · ${order.age}세`;
+    return `${base} · ${order.age}세`;
   }
-  return "이모티콘 9장";
+  return base;
 }
 
 function StatCard({
@@ -241,7 +245,7 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
                   </span>
                 )}
               </Link>
-              {item.canDelete && item.kind !== "emoticon" ? (
+              {item.canDelete ? (
                 <DeleteDraftOrderButton
                   compact
                   kind={item.kind}
@@ -351,6 +355,7 @@ export default async function DashboardPage() {
           paymentStatus: true,
           age: true,
           ageUnit: true,
+          theme: true,
           createdAt: true,
         },
       },
@@ -422,7 +427,7 @@ export default async function DashboardPage() {
           : printRequested
             ? FULFILLMENT_STATUS_BADGE[order.fulfillmentStatus]
             : PRODUCTION_BADGE[order.productionStatus],
-        canDelete: unpaid,
+        canDelete: true,
         optionLines: storybookOrderOptionLines({
           selectedCharacterIds: order.selectedCharacterIds,
           customInputValues: order.customInputValues,
@@ -444,13 +449,13 @@ export default async function DashboardPage() {
       return {
         id: order.id,
         kind: "sticker" as const,
-        title: `${order.character.label} · ${stickerPhraseDisplay(order.phrase) || "스티커"}`,
+        title: `${stickerCharacterLabel(order.character)} · ${stickerPhraseDisplay(order.phrase) || "스티커"}`,
         href: `/dashboard/sticker/${order.id}/preview`,
         createdAt: order.createdAt,
         paymentStatus: order.paymentStatus,
         statusLabel: status.label,
         statusClass: status.badgeClass,
-        canDelete: order.paymentStatus !== "PAID",
+        canDelete: true,
         generating: generating
           ? {
               href: `/api/stickers/${order.id}/status`,
@@ -472,7 +477,7 @@ export default async function DashboardPage() {
       paymentStatus: order.paymentStatus,
       statusLabel: PAYMENT_STATUS_LABEL.PAID,
       statusClass: "bg-emerald-50 text-emerald-700",
-      canDelete: false,
+      canDelete: true,
     })),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())

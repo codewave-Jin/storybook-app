@@ -8,7 +8,7 @@ import {
   STICKER_REVIEWABLE_WHERE,
   STORYBOOK_REVIEWABLE_WHERE,
 } from "@/lib/reviews";
-import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
+import { stickerCharacterLabel, stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 
 export default async function WriteReviewPage({
   searchParams,
@@ -74,7 +74,9 @@ export default async function WriteReviewPage({
     kind === "storybook"
       ? (lockedOrder as { template: { title: string } }).template.title
       : stickerOrderTitle(
-          (lockedOrder as { character: { label: string } }).character.label,
+          stickerCharacterLabel(
+            (lockedOrder as { character: { label: string } | null }).character,
+          ),
           stickerOrderExtraLabel(
             lockedOrder as {
               border: { label: string } | null;

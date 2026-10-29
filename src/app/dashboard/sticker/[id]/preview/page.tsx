@@ -11,9 +11,10 @@ import { StickerPreviewViews } from "@/components/StickerPreviewViews";
 import { enqueueStickerGeneration } from "@/lib/enqueue-sticker-generation";
 import { stickerPhraseDisplay } from "@/lib/sticker-phrase";
 import { isSpecialStickerHint } from "@/lib/sticker-special";
-import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
+import { stickerCharacterLabel, stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
 import { stickerMediaSrc } from "@/lib/media-paths";
+import { getCharacterSlotAndTokens } from "@/lib/tokens";
 import { getFulfillmentHint } from "@/lib/orders";
 import {
   STICKER_FULFILLMENT_STATUS_LABEL,
@@ -57,6 +58,7 @@ export default async function StickerPreviewPage({
   }
 
   const stickerSrc = completed ? stickerMediaSrc(order.id) : null;
+  const { tokens } = await getCharacterSlotAndTokens(session.user.id);
   const shipping = visibleShippingInfo(order);
   const fulfillmentHint = getFulfillmentHint(
     order.paymentStatus,
@@ -91,7 +93,7 @@ export default async function StickerPreviewPage({
             kind="sticker"
             orderId={order.id}
             title={stickerOrderTitle(
-              order.character.label,
+              stickerCharacterLabel(order.character),
               stickerOrderExtraLabel(order),
             )}
             redirectTo="/dashboard"
@@ -143,7 +145,7 @@ export default async function StickerPreviewPage({
           </p>
           <p className="mt-1 text-sm text-stone-500">
             {stickerOrderTitle(
-              order.character.label,
+              stickerCharacterLabel(order.character),
               stickerOrderExtraLabel(order),
             )}
             {order.customCostumeHint.trim()
@@ -190,7 +192,7 @@ export default async function StickerPreviewPage({
             ) : (
               <div className="rounded-2xl bg-[#FDE8E0] px-5 py-8 text-center ring-1 ring-[#E07A5F]/20">
                 <p className="text-lg font-semibold text-stone-800">
-                  결제가 완료되었어요
+                  주문이 완료되었어요
                 </p>
                 <p className="mt-2 text-sm text-[#E07A5F]">
                   {fulfillmentHint ?? "실제 스티커 파일을 준비하고 있습니다."}
@@ -209,12 +211,13 @@ export default async function StickerPreviewPage({
               defaultEmail={session.user.email ?? undefined}
               defaultName={session.user.name ?? undefined}
               optionLines={[
-                { label: "캐릭터", value: order.character.label },
+                { label: "캐릭터", value: stickerCharacterLabel(order.character) },
                 ...(order.border
                   ? [{ label: "테두리", value: order.border.label }]
                   : []),
                 { label: "사이즈", value: order.sizeOption.label },
               ]}
+              tokenBalance={tokens}
             />
           ) : failed ? (
             <RetryStickerPreviewButton orderId={order.id} />

@@ -38,6 +38,8 @@ export async function generateEmoticonSheet(input: {
   imageMime: string;
   age: number | null;
   ageUnit: EmoticonAgeUnit | null;
+  theme: string;
+  referenceKind: "photo" | "character";
   userId: string;
   email?: string | null;
 }) {
@@ -48,6 +50,8 @@ export async function generateEmoticonSheet(input: {
   const prompt = buildEmoticonSheetPrompt({
     age: input.age,
     ageUnit: input.ageUnit,
+    theme: input.theme,
+    referenceKind: input.referenceKind,
   });
   const generated = await generateStickerImage({
     prompt,
@@ -74,12 +78,13 @@ export async function generateEmoticonSheet(input: {
       cellImagePaths,
       age: input.age,
       ageUnit: input.ageUnit,
+      theme: input.theme,
       paymentStatus: "PENDING",
     },
   });
   return {
     orderId: order.id,
     paid: false,
-    cells: emoticonPreviewCells(cellImagePaths),
+    cells: emoticonPreviewCells(cellImagePaths, input.theme),
   };
 }

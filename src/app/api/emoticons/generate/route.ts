@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { generateEmoticonSheet, emoticonReferenceError } from "@/lib/emoticon-generate";
-import { parseEmoticonAgeInput } from "@/lib/emoticon-prompt";
+import { parseEmoticonAgeInput, parseEmoticonTheme } from "@/lib/emoticon-prompt";
 import { loadImageAsset } from "@/lib/openai-illustration";
 import { isOpenAIRateLimitError } from "@/lib/openai-rate-limit";
 import { prisma } from "@/lib/prisma";
+import {
+  attachTokenHoldToOrder,
+  consumeTokenHold,
+  getCharacterSlotAndTokens,
+  refundTokenHold,
+} from "@/lib/tokens";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -23,6 +29,7 @@ export async function POST(request: Request) {
 
   let imageBytes: Buffer | null = null;
   let imageMime = "image/png";
+  let referenceKind: "photo" | "character" = "character";
   if (characterId) {
     const character = await prisma.character.findFirst({
       where: { id: characterId, userId: session.user.id, deletedAt: null },
@@ -44,6 +51,7 @@ export async function POST(request: Request) {
     }
     imageBytes = Buffer.from(await file.arrayBuffer());
     imageMime = file.type;
+    referenceKind = "photo";
   } else {
     return NextResponse.json(
       { error: "실제 사진을 올리거나 만든 캐릭터를 골라 주세요." },
@@ -55,6 +63,19 @@ export async function POST(request: Request) {
   if ("error" in age) {
     return NextResponse.json({ error: age.error }, { status: 400 });
   }
+  const theme = parseEmoticonTheme(form?.get("theme"));
+  if ("error" in theme) {
+    return NextResponse.json({ error: theme.error }, { status: 400 });
+  }
+
+  const userId = session.user.id;
+  const hold = await consumeTokenHold(userId, "EMOTICON_PREVIEW");
+  if (!hold.success || !hold.holdId) {
+    return NextResponse.json(
+      { error: hold.message ?? "토큰이 부족합니다" },
+      { status: 400 },
+    );
+  }
 
   try {
     const result = await generateEmoticonSheet({
@@ -62,11 +83,16 @@ export async function POST(request: Request) {
       imageMime,
       age: age.age,
       ageUnit: age.ageUnit,
-      userId: session.user.id,
+      theme: theme.theme,
+      referenceKind,
+      userId,
       email: session.user.email,
     });
-    return NextResponse.json(result);
+    await attachTokenHoldToOrder(userId, hold.holdId, result.orderId);
+    const { tokens } = await getCharacterSlotAndTokens(userId);
+    return NextResponse.json({ ...result, tokens });
   } catch (error) {
+    await refundTokenHold(userId, hold.holdId);
     if (isOpenAIRateLimitError(error)) {
       return NextResponse.json(
         { error: "요청이 몰려 있어요. 잠시 후 다시 시도해 주세요." },

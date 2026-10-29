@@ -16,7 +16,7 @@ import { loadOrderPrintComment } from "@/lib/order-print-comment";
 import { parseIdList } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { collectIllustrationAssetPaths } from "@/lib/illustration-versions";
-import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
+import { stickerCharacterLabel, stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { deleteIllustrationFile, deleteStickerFile } from "@/lib/uploads";
 
 const PRODUCTION_STATUSES: ProductionStatus[] = [
@@ -327,7 +327,7 @@ export type AdminStickerOrderDetail = {
     label: string;
     originalPhotoPath: string;
     generatedImagePath: string | null;
-  };
+  } | null;
 };
 
 export type StickerFulfillmentUpdateState = {
@@ -368,7 +368,7 @@ function serializeAdminStickerOrder(order: {
     userName: order.user.name,
     userEmail: order.user.email,
     productTitle: stickerOrderTitle(
-      order.character.label,
+      stickerCharacterLabel(order.character),
       stickerOrderExtraLabel(order),
     ),
     phrase: order.phrase,

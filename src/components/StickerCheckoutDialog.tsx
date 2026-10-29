@@ -1,28 +1,40 @@
 "use client";
 
-import { useEffect, useId, useState, type InputHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
 import { DaumPostcodeFields } from "@/components/DaumPostcodeFields";
+import { TokenConfirmDialog } from "@/components/StickerTokenConfirmDialog";
 import type { OrderOptionLine } from "@/lib/storybook-order-summary";
 import {
   STICKER_SHEET_MAX,
   STICKER_SHEET_MIN,
-  STICKER_SHEET_PRICE_KRW,
+  STICKER_SHEET_PRICE_TOKENS,
   clampStickerSheetCount,
-  formatKrw,
+  formatTokens,
   quoteStickerOrder,
 } from "@/lib/payments";
 
-function PaySubmitButton({ total }: { total: number }) {
+function PaySubmitButton({
+  totalTokens,
+  tokenBalance,
+}: {
+  totalTokens: number;
+  tokenBalance: number;
+}) {
   const { pending } = useFormStatus();
+  const short = tokenBalance < totalTokens;
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || short}
       className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-sm font-semibold text-white shadow-sm hover:bg-[#d56c51] disabled:cursor-not-allowed disabled:opacity-50"
     >
-      {pending ? "결제 중..." : `${formatKrw(total)} 결제하고 스티커 주문하기`}
+      {pending
+        ? "사용 중..."
+        : short
+          ? "토큰이 부족합니다"
+          : `${formatTokens(totalTokens)} 사용하고 스티커 주문하기`}
     </button>
   );
 }
@@ -77,6 +89,7 @@ export function StickerCheckoutDialog({
   error,
   formAction,
   hiddenFields,
+  tokenBalance,
 }: {
   open: boolean;
   onClose: () => void;
@@ -86,8 +99,12 @@ export function StickerCheckoutDialog({
   error?: string;
   formAction: (formData: FormData) => void;
   hiddenFields?: ReactNode;
+  tokenBalance: number;
 }) {
   const [sheetCount, setSheetCount] = useState(STICKER_SHEET_MIN);
+  const [tokenConfirmOpen, setTokenConfirmOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const tokenConfirmedRef = useRef(false);
   const titleId = useId();
   const quote = quoteStickerOrder(sheetCount);
 
@@ -113,7 +130,23 @@ export function StickerCheckoutDialog({
     return null;
   }
 
-  return createPortal(
+  function requestPay() {
+    const form = formRef.current;
+    if (!form || tokenBalance < quote.totalTokens) {
+      return;
+    }
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    tokenConfirmedRef.current = true;
+    setTokenConfirmOpen(false);
+    form.requestSubmit();
+  }
+
+  return (
+    <>
+    {createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
       <button
         type="button"
@@ -129,7 +162,7 @@ export function StickerCheckoutDialog({
       >
         <div className="flex items-center justify-between border-b border-stone-200/80 px-5 py-4">
           <h2 id={titleId} className="text-base font-semibold text-stone-800">
-            주문 결제
+            토큰으로 주문
           </h2>
           <button
             type="button"
@@ -141,7 +174,22 @@ export function StickerCheckoutDialog({
           </button>
         </div>
 
-        <form action={formAction} className="flex min-h-0 flex-1 flex-col">
+        <form
+          ref={formRef}
+          action={formAction}
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            if (tokenConfirmedRef.current) {
+              tokenConfirmedRef.current = false;
+              return;
+            }
+            event.preventDefault();
+            if (tokenBalance < quote.totalTokens) {
+              return;
+            }
+            setTokenConfirmOpen(true);
+          }}
+        >
           {hiddenFields}
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
             {error ? (
@@ -201,7 +249,7 @@ export function StickerCheckoutDialog({
                     </div>
                   </div>
                   <p className="mt-1.5 pl-[4.75rem] text-[11px] text-stone-400">
-                    A4 한 장에 {formatKrw(STICKER_SHEET_PRICE_KRW)}
+                    A4 한 장에 {formatTokens(STICKER_SHEET_PRICE_TOKENS)}
                   </p>
                 </li>
               </ul>
@@ -241,26 +289,35 @@ export function StickerCheckoutDialog({
             <section className="rounded-2xl bg-white px-4 py-3 text-sm ring-1 ring-stone-100">
               <div className="flex justify-between text-stone-500">
                 <span>
-                  스티커 {formatKrw(STICKER_SHEET_PRICE_KRW)} × {quote.sheetCount}장
+                  스티커 {formatTokens(STICKER_SHEET_PRICE_TOKENS)} × {quote.sheetCount}장
                 </span>
-                <span>{formatKrw(quote.total)}</span>
+                <span>{formatTokens(quote.totalTokens)}</span>
               </div>
               <div className="mt-2 flex justify-between border-t border-stone-100 pt-2 font-semibold text-stone-800">
-                <span>합계 (예정)</span>
-                <span>{formatKrw(quote.total)}</span>
+                <span>합계</span>
+                <span>{formatTokens(quote.totalTokens)}</span>
               </div>
               <p className="mt-2 text-[11px] text-stone-400">
-                지금은 테스트 결제입니다. 실제 결제는 나중에 연결됩니다.
+                보유 토큰 {tokenBalance}개. 특수 제작에 쓴 토큰이 있으면 주문이 끝나면 다시 돌아와요.
               </p>
             </section>
           </div>
 
           <div className="border-t border-stone-200/80 px-5 py-4">
-            <PaySubmitButton total={quote.total} />
+            <PaySubmitButton totalTokens={quote.totalTokens} tokenBalance={tokenBalance} />
           </div>
         </form>
       </div>
     </div>,
     document.body,
+  )}
+      <TokenConfirmDialog
+        open={tokenConfirmOpen}
+        tokens={tokenBalance}
+        description={`${formatTokens(quote.totalTokens)}이 사용돼요. 특수 제작에 쓴 토큰이 있으면 주문이 끝나면 다시 돌아와요.`}
+        onClose={() => setTokenConfirmOpen(false)}
+        onConfirm={requestPay}
+      />
+    </>
   );
 }

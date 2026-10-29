@@ -15,7 +15,7 @@ import {
   stickerAdminStatus,
 } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
-import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
+import { stickerCharacterLabel, stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
 function ordersHref(query: string, status?: string, product?: string) {
@@ -134,7 +134,7 @@ export default async function AdminOrdersPage({
         userEmail: order.user.email,
         productKindLabel: "스티커",
         productTitle: stickerOrderTitle(
-          order.character.label,
+          stickerCharacterLabel(order.character),
           stickerOrderExtraLabel(order),
         ),
         statusLabel: status.label,

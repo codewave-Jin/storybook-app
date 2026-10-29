@@ -130,9 +130,17 @@ async function alignStreamFacing(stream: MediaStream, facing: FacingMode) {
 export function CharacterPhotoPicker({
   disabled,
   onPhotoChange,
+  hideHeading = false,
+  guideText = "얼굴이 원안에 들어가게 조정해주세요",
+  albumHint = "얼굴이 원에 가득 차도록 맞춰 주세요",
+  accept = "image/jpeg,image/png,image/webp,image/gif",
 }: {
   disabled?: boolean;
   onPhotoChange?: (file: File | null) => void;
+  hideHeading?: boolean;
+  guideText?: string;
+  albumHint?: string;
+  accept?: string;
 }) {
   const maskId = useId().replace(/:/g, "");
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -340,7 +348,8 @@ export function CharacterPhotoPicker({
 
   function onAlbumFiles(files: FileList | null) {
     const next = files?.[0];
-    if (!next || (next.type && !next.type.startsWith("image/"))) {
+    const allowed = accept.split(",").map((type) => type.trim());
+    if (!next || (next.type && !allowed.includes(next.type))) {
       setError("이미지 파일만 선택할 수 있습니다.");
       return;
     }
@@ -395,7 +404,7 @@ export function CharacterPhotoPicker({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-stone-700">사진</p>
+      {hideHeading ? null : <p className="text-sm font-medium text-stone-700">사진</p>}
 
       <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="사진 입력 방식">
         <button
@@ -432,7 +441,7 @@ export function CharacterPhotoPicker({
         ref={photoInputRef}
         name="photo"
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept={accept}
         required
         className="sr-only"
         tabIndex={-1}
@@ -519,7 +528,7 @@ export function CharacterPhotoPicker({
                     />
                   </svg>
                   <p className="absolute inset-x-0 bottom-4 px-4 text-center text-sm font-medium text-white drop-shadow">
-                    얼굴이 원안에 들어가게 조정해주세요
+                    {guideText}
                   </p>
                 </div>
               </div>
@@ -539,7 +548,7 @@ export function CharacterPhotoPicker({
           <input
             ref={albumInputRef}
             type="file"
-            accept="image/*"
+            accept={accept}
             className="sr-only"
             aria-label="앨범에서 사진 선택"
             onChange={(event) => onAlbumFiles(event.target.files)}
@@ -564,7 +573,7 @@ export function CharacterPhotoPicker({
                   onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
                 />
                 <p className="pointer-events-none absolute inset-x-0 bottom-4 z-10 px-4 text-center text-sm font-medium text-white drop-shadow">
-                  얼굴이 원안에 들어가게 조정해주세요
+                  {guideText}
                 </p>
               </div>
               <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
@@ -635,7 +644,7 @@ export function CharacterPhotoPicker({
                 <span className="block font-medium text-stone-700">
                   사진을 드래그하거나 눌러서 선택
                 </span>
-                <span className="block">얼굴이 원에 가득 차도록 맞춰 주세요</span>
+                <span className="block">{albumHint}</span>
                 <span className="block">JPG, PNG, WEBP · 최대 5MB</span>
               </span>
             </button>

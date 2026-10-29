@@ -676,7 +676,8 @@ function StickerOrderDetailModal({
               <h3 className="text-sm font-medium text-stone-700">캐릭터 이미지</h3>
               <ul className="mt-3 space-y-3">
                 <li className="rounded-xl border border-stone-200 px-3 py-2 text-sm">
-                  <p className="font-medium">{detail.character.label}</p>
+                  <p className="font-medium">{detail.character?.label ?? "실제 사진"}</p>
+                  {detail.character ? (
                   <div className="mt-1 flex flex-wrap gap-3">
                     <a
                       href={originalMediaHref(detail.character.originalPhotoPath)}
@@ -709,6 +710,7 @@ function StickerOrderDetailModal({
                       </a>
                     ) : null}
                   </div>
+                  ) : null}
                 </li>
               </ul>
             </section>

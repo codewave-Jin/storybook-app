@@ -22,7 +22,7 @@ import {
   collectOrderCharacterIds,
   storybookOrderOptionLines,
 } from "@/lib/storybook-order-summary";
-import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
+import { stickerCharacterLabel, stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
 export default async function MyPage() {
@@ -109,7 +109,7 @@ export default async function MyPage() {
       id: order.id,
       kind: "sticker" as const,
       title: stickerOrderTitle(
-        order.character.label,
+        stickerCharacterLabel(order.character),
         stickerOrderExtraLabel(order),
       ),
       href: `/dashboard/sticker/${order.id}/preview`,

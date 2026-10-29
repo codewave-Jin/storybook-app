@@ -1,9 +1,10 @@
 /**
- * 결제 버튼 노출. true면 스토리북/스티커 모두 결제 UI가 살아난다.
- * 실제 PG는 없고, 누르면 주문을 PAID로 바꾼 뒤 나머지 삽화를 만든다.
+ * 주문 완료는 현금이 아니라 토큰으로 한다. 토큰 1개 = 1,000원.
+ * 배송 정보를 받은 뒤 토큰을 차감하고 주문을 PAID로 바꾼다.
  */
 export const PAYMENTS_ENABLED = true;
 
+export const TOKEN_KRW = 1_000;
 export const STORYBOOK_PRICE_KRW = 45_000;
 export const PHOTO_ALBUM_PRICE_KRW = 5_000;
 export const STICKER_SHEET_PRICE_KRW = 5_000;
@@ -18,6 +19,19 @@ export const QUANTITY_DISCOUNT_MAX = 0.3;
 export function formatKrw(amount: number) {
   return `${amount.toLocaleString("ko-KR")}원`;
 }
+
+export function tokensForKrw(amountKrw: number) {
+  return Math.max(0, Math.round(amountKrw / TOKEN_KRW));
+}
+
+export function formatTokens(amount: number) {
+  return `${amount.toLocaleString("ko-KR")}토큰`;
+}
+
+export const STORYBOOK_PRICE_TOKENS = tokensForKrw(STORYBOOK_PRICE_KRW);
+export const PHOTO_ALBUM_PRICE_TOKENS = tokensForKrw(PHOTO_ALBUM_PRICE_KRW);
+export const STICKER_SHEET_PRICE_TOKENS = tokensForKrw(STICKER_SHEET_PRICE_KRW);
+export const EMOTICON_PACK_TOKENS = tokensForKrw(EMOTICON_PACK_PRICE_KRW);
 
 export function clampOrderQuantity(value: number) {
   if (!Number.isFinite(value)) {
@@ -44,7 +58,9 @@ export function quoteStickerOrder(sheetCount: number) {
   return {
     sheetCount: sheets,
     unitPrice: STICKER_SHEET_PRICE_KRW,
+    unitTokens: STICKER_SHEET_PRICE_TOKENS,
     total: STICKER_SHEET_PRICE_KRW * sheets,
+    totalTokens: STICKER_SHEET_PRICE_TOKENS * sheets,
   };
 }
 
@@ -66,6 +82,7 @@ export function quoteStorybookOrder(input: {
   const subtotal = bookAmount + albumAmount;
   const discountRate = quantityDiscountRate(quantity);
   const discountAmount = Math.round(subtotal * discountRate);
+  const total = subtotal - discountAmount;
   return {
     quantity,
     unitPrice: STORYBOOK_PRICE_KRW + (input.includePhotoAlbum ? PHOTO_ALBUM_PRICE_KRW : 0),
@@ -75,6 +92,11 @@ export function quoteStorybookOrder(input: {
     discountRate,
     discountPercent: Math.round(discountRate * 100),
     discountAmount,
-    total: subtotal - discountAmount,
+    total,
+    bookTokens: tokensForKrw(bookAmount),
+    albumTokens: tokensForKrw(albumAmount),
+    subtotalTokens: tokensForKrw(subtotal),
+    discountTokens: tokensForKrw(discountAmount),
+    totalTokens: tokensForKrw(total),
   };
 }

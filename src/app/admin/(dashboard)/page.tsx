@@ -27,12 +27,12 @@ export default async function AdminHomePage() {
 
   const stats = [
     { label: "전체 동화책", value: totalOrders },
-    { label: "동화책 결제완료", value: paidCount },
-    { label: "결제완료 · 작업대기중", value: waitingCount },
+    { label: "동화책 주문완료", value: paidCount },
+    { label: "주문완료 · 작업대기중", value: waitingCount },
     { label: "삽화작업중", value: illustratingCount },
     { label: "제작완료", value: completedCount },
     { label: "스티커 주문", value: stickerCount },
-    { label: "스티커 결제완료", value: stickerPaidCount },
+    { label: "스티커 주문완료", value: stickerPaidCount },
   ];
 
   return (

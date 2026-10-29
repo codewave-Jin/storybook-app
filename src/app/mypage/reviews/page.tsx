@@ -12,7 +12,7 @@ import {
   isReviewEditable,
   reviewProductTitle,
 } from "@/lib/reviews";
-import { stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
+import { stickerCharacterLabel, stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
 
 export default async function MyReviewsPage() {
   const session = await auth();
@@ -105,13 +105,14 @@ export default async function MyReviewsPage() {
       id: order.id,
       kind: "sticker" as const,
       title: stickerOrderTitle(
-        order.character.label,
+        stickerCharacterLabel(order.character),
         stickerOrderExtraLabel(order),
       ),
       thumbnail:
         order.previewImagePath ??
-        order.character.generatedImagePath ??
-        order.character.originalPhotoPath,
+        order.character?.generatedImagePath ??
+        order.character?.originalPhotoPath ??
+        null,
       completedAt: formatDateTime(order.createdAt),
     })),
   ];

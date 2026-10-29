@@ -127,7 +127,7 @@ export function OrderWizard({
   const [draftCharacterId, setDraftCharacterId] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [tokenConfirmOpen, setTokenConfirmOpen] = useState(false);
-  const [tokenConfirmed, setTokenConfirmed] = useState(false);
+  const tokenConfirmedRef = useRef(false);
   const previewFormRef = useRef<HTMLFormElement>(null);
   const [state, formAction] = useFormState<CreateOrderState, FormData>(
     createOrder,
@@ -788,10 +788,10 @@ export function OrderWizard({
               </div>
             ) : null}
             <p className="rounded-lg bg-[#F6E7C1]/70 px-3 py-2 text-sm text-[#8A5A12]">
-              지금은 표지와 1페이지, 3페이지를 먼저 만들어요. 마음에 들면 결제로 나머지 장을 이어서 완성할 수 있어요.
+              지금은 표지와 1페이지, 3페이지를 먼저 만들어요. 마음에 들면 토큰으로 나머지 장을 이어서 완성할 수 있어요.
             </p>
             <p className="text-sm text-stone-500">
-              미리보기 만들 때 토큰 1개가 사용되고, 결제하면 다시 돌려드려요. 현재 토큰 {tokenBalance}개
+              미리보기 만들 때 토큰 1개가 사용되고, 토큰으로 완성하면 그 1개를 다시 돌려드려요. 현재 토큰 {tokenBalance}개
             </p>
           </div>
 
@@ -804,10 +804,12 @@ export function OrderWizard({
                 event.preventDefault();
                 return;
               }
-              if (!tokenConfirmed) {
+              if (!tokenConfirmedRef.current) {
                 event.preventDefault();
                 setTokenConfirmOpen(true);
+                return;
               }
+              tokenConfirmedRef.current = false;
             }}
           >
             <input type="hidden" name="templateId" value={templateId ?? ""} />
@@ -858,10 +860,10 @@ export function OrderWizard({
             open={tokenConfirmOpen}
             tokens={tokenBalance}
             pendingLabel="미리보기 만드는 중..."
-            description="미리보기를 만들면 토큰 1개가 사용돼요. 결제가 끝나면 다시 돌려드려요."
+            description="미리보기를 만들면 토큰 1개가 사용돼요. 토큰으로 완성이 끝나면 다시 돌려드려요."
             onClose={() => setTokenConfirmOpen(false)}
             onConfirm={() => {
-              setTokenConfirmed(true);
+              tokenConfirmedRef.current = true;
               setTokenConfirmOpen(false);
               previewFormRef.current?.requestSubmit();
             }}

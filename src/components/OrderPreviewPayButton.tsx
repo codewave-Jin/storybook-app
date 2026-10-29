@@ -15,12 +15,14 @@ export function OrderPreviewPayButton({
   optionLines,
   defaultEmail,
   defaultName,
+  tokenBalance,
 }: {
   orderId: string;
   ready: boolean;
   optionLines: OrderOptionLine[];
   defaultEmail?: string;
   defaultName?: string;
+  tokenBalance: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -53,11 +55,11 @@ export function OrderPreviewPayButton({
         onClick={() => setOpen(true)}
         className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-sm font-semibold text-white shadow-sm hover:bg-[#d56c51] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        결제하고 전체 동화책 완성하기
+        토큰으로 전체 동화책 완성하기
       </button>
       {!ready ? (
         <p className="mt-1.5 text-center text-xs text-stone-500">
-          표지와 장면이 모두 완성되면 결제할 수 있어요.
+          표지와 장면이 모두 완성되면 토큰으로 완성할 수 있어요.
         </p>
       ) : null}
       {state?.error && !open ? (
@@ -74,6 +76,7 @@ export function OrderPreviewPayButton({
         defaultName={defaultName}
         error={state?.error}
         formAction={formAction}
+        tokenBalance={tokenBalance}
       />
     </>
   );

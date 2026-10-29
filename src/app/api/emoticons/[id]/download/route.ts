@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { EMOTICON_CELLS, emoticonDownloadName } from "@/lib/emoticon-prompt";
+import { EMOTICON_CELLS, emoticonDownloadName, emoticonThemeById } from "@/lib/emoticon-prompt";
 import { contentDisposition } from "@/lib/files";
 import { prisma } from "@/lib/prisma";
 import { readStoredAsset } from "@/lib/uploads";
@@ -18,13 +18,13 @@ export async function GET(
 
   const order = await prisma.emoticonOrder.findFirst({
     where: { id: params.id, userId: session.user.id },
-    select: { paymentStatus: true, cellImagePaths: true },
+    select: { paymentStatus: true, cellImagePaths: true, theme: true },
   });
   if (!order) {
     return NextResponse.json({ error: "이모티콘을 찾을 수 없습니다." }, { status: 404 });
   }
   if (order.paymentStatus !== "PAID") {
-    return NextResponse.json({ error: "결제 후 한 장씩 받을 수 있어요." }, { status: 402 });
+    return NextResponse.json({ error: "토큰 사용 후 한 장씩 받을 수 있어요." }, { status: 402 });
   }
   if (order.cellImagePaths.length !== EMOTICON_CELLS.length) {
     return NextResponse.json({ error: "이모티콘 파일을 찾지 못했습니다." }, { status: 404 });
@@ -41,7 +41,8 @@ export async function GET(
     return NextResponse.json({ error: "이모티콘 파일을 찾지 못했습니다." }, { status: 404 });
   }
 
-  const filename = emoticonDownloadName(index, EMOTICON_CELLS[index]?.caption ?? "emoticon");
+  const caption = emoticonThemeById(order.theme).cells[index]?.caption ?? "emoticon";
+  const filename = emoticonDownloadName(index, caption);
   return new NextResponse(new Uint8Array(file), {
     headers: {
       "Content-Type": "image/png",

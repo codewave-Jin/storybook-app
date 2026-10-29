@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { composeStickerPreviewImage } from "@/lib/sticker-compose";
 import {
   parseStickerLayout,
+  isAllowedStickerAssetPath,
   type StickerLayoutState,
 } from "@/lib/sticker-layout-constants";
 import { prisma } from "@/lib/prisma";
@@ -61,27 +62,33 @@ export async function POST(request: Request) {
   const parts = parseStickerPhrase(phrase);
 
   const phraseError = stickerPhraseValidationError(parts, { required: false });
-  if (!characterId || !borderId || phraseError) {
+  if (!borderId || phraseError || (!characterId && !cutoutImagePath)) {
     return NextResponse.json(
-      { error: phraseError ?? "캐릭터와 테두리를 확인해 주세요." },
+      { error: phraseError ?? "테두리와 스티커 이미지를 확인해 주세요." },
       { status: 400 },
     );
   }
 
-  const [character, border] = await Promise.all([
-    prisma.character.findFirst({
+  const border = await prisma.stickerBorder.findFirst({
+    where: { id: borderId, isActive: true },
+    select: { imageUrl: true, category: true, key: true },
+  });
+  let characterImagePath = "";
+  if (characterId) {
+    const character = await prisma.character.findFirst({
       where: { id: characterId, userId: session.user.id, deletedAt: null },
       select: { generatedImagePath: true, status: true },
-    }),
-    prisma.stickerBorder.findFirst({
-      where: { id: borderId, isActive: true },
-      select: { imageUrl: true, category: true, key: true },
-    }),
-  ]);
-
-  if (!character || character.status !== "COMPLETED" || !character.generatedImagePath) {
+    });
+    if (!character || character.status !== "COMPLETED" || !character.generatedImagePath) {
+      return NextResponse.json(
+        { error: "생성이 완료된 캐릭터만 사용할 수 있습니다." },
+        { status: 400 },
+      );
+    }
+    characterImagePath = character.generatedImagePath;
+  } else if (!isAllowedStickerAssetPath(cutoutImagePath)) {
     return NextResponse.json(
-      { error: "생성이 완료된 캐릭터만 사용할 수 있습니다." },
+      { error: "스티커 이미지를 확인해 주세요." },
       { status: 400 },
     );
   }
@@ -95,7 +102,7 @@ export async function POST(request: Request) {
   try {
     const composed = await composeStickerPreviewImage({
       userId: session.user.id,
-      characterImagePath: character.generatedImagePath,
+      characterImagePath: characterImagePath || cutoutImagePath,
       borderImageUrl: border.imageUrl,
       phrase,
       layout,

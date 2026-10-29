@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Cropper, { type Area } from "react-easy-crop";
 import { AppImage } from "@/components/AppImage";
-import { getCroppedImageFile } from "@/lib/crop-image";
-import type { EmoticonAgeUnit } from "@/lib/emoticon-prompt";
+import { CharacterPhotoPicker } from "@/components/CharacterPhotoPicker";
+import { PreviewWatermark } from "@/components/PreviewWatermark";
+import { TokenConfirmDialog } from "@/components/StickerTokenConfirmDialog";
+import {
+  EMOTICON_THEMES,
+  emoticonDownloadName,
+  type EmoticonAgeUnit,
+  type EmoticonThemeId,
+} from "@/lib/emoticon-prompt";
 import { estimatedGenerationPercent } from "@/lib/generation-progress-estimate";
 import { toProtectedMediaSrc } from "@/lib/media-paths";
-import { EMOTICON_PACK_PRICE_KRW, formatKrw } from "@/lib/payments";
+import { EMOTICON_PACK_TOKENS, formatTokens } from "@/lib/payments";
 import { cn } from "@/lib/utils";
 
 const ACCEPT = "image/jpeg,image/png,image/webp";
@@ -25,29 +31,28 @@ type EmoticonSource = "photo" | "character";
 export type EmoticonPreview = {
   orderId: string;
   paid: boolean;
+  themeLabel: string;
   cells: { key: string; caption: string; imageUrl: string }[];
 };
 
 export function EmoticonSheetPanel({
   characters,
+  tokenBalance,
 }: {
   characters: EmoticonCharacterOption[];
+  tokenBalance: number;
 }) {
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState<EmoticonSource | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-  const [cropping, setCropping] = useState(false);
   const [characterId, setCharacterId] = useState<string | null>(null);
+  const [theme, setTheme] = useState<EmoticonThemeId>("basic");
   const [useAge, setUseAge] = useState(false);
   const [age, setAge] = useState("3");
   const [ageUnit, setAgeUnit] = useState<EmoticonAgeUnit>("months");
   const [generating, setGenerating] = useState(false);
+  const [tokenConfirmOpen, setTokenConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = source === "photo" ? Boolean(file) : Boolean(characterId);
 
@@ -58,14 +63,6 @@ export function EmoticonSheetPanel({
       }
     };
   }, [previewUrl]);
-
-  useEffect(() => {
-    return () => {
-      if (cropSrc) {
-        URL.revokeObjectURL(cropSrc);
-      }
-    };
-  }, [cropSrc]);
 
   function chooseSource(next: EmoticonSource) {
     setSource(next);
@@ -87,98 +84,67 @@ export function EmoticonSheetPanel({
 
   function clearPhoto() {
     setFile(null);
-    setCropping(false);
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedAreaPixels(null);
     setPreviewUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current);
       }
       return null;
     });
-    setCropSrc((current) => {
-      if (current) {
-        URL.revokeObjectURL(current);
-      }
-      return null;
-    });
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
   }
 
-  function chooseOriginal(next: File | null) {
+  function setPhotoFile(next: File | null) {
     setError(null);
-    if (!next) {
-      clearPhoto();
-      return;
-    }
-    if (next.type && !ACCEPT.split(",").includes(next.type)) {
-      setError("JPG, PNG, WEBP 이미지만 올릴 수 있습니다.");
-      return;
-    }
-    setFile(null);
+    setFile(next);
     setPreviewUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current);
       }
-      return null;
+      return next ? URL.createObjectURL(next) : null;
     });
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedAreaPixels(null);
-    setCropSrc((current) => {
-      if (current) {
-        URL.revokeObjectURL(current);
-      }
-      return URL.createObjectURL(next);
-    });
-    setCropping(true);
   }
 
-  async function applyCrop() {
-    if (!cropSrc || !croppedAreaPixels) {
-      setError("얼굴이 원 안에 들어오게 먼저 맞춰 주세요.");
-      return;
-    }
-    setError(null);
-    try {
-      const cropped = await getCroppedImageFile(cropSrc, croppedAreaPixels);
-      setFile(cropped);
-      setPreviewUrl((current) => {
-        if (current) {
-          URL.revokeObjectURL(current);
-        }
-        return URL.createObjectURL(cropped);
-      });
-      setCropping(false);
-    } catch {
-      setError("사진을 맞추지 못했습니다. 다른 이미지를 선택해 주세요.");
-    }
-  }
-
-  async function generate() {
+  function validateBeforeGenerate() {
     if (generating) {
-      return;
+      return false;
     }
     if (source === "photo" && !file) {
       setError("실제 사진을 올려 주세요.");
-      return;
+      return false;
     }
     if (source === "character" && !characterId) {
       setError("만든 캐릭터를 골라 주세요.");
-      return;
+      return false;
     }
     if (!source) {
       setError("실제 사진 또는 만든 캐릭터를 먼저 골라 주세요.");
-      return;
+      return false;
     }
     if (useAge && !/^\d+$/.test(age.trim())) {
       setError("나이는 숫자로 입력해 주세요.");
+      return false;
+    }
+    if (tokenBalance < 1) {
+      setError("토큰이 부족합니다");
+      return false;
+    }
+    setError(null);
+    return true;
+  }
+
+  function requestGenerate() {
+    if (!validateBeforeGenerate()) {
+      return;
+    }
+    setTokenConfirmOpen(true);
+  }
+
+  async function generate() {
+    if (!validateBeforeGenerate()) {
+      setTokenConfirmOpen(false);
       return;
     }
 
+    setTokenConfirmOpen(false);
     setGenerating(true);
     setError(null);
     try {
@@ -188,6 +154,7 @@ export function EmoticonSheetPanel({
       } else if (file) {
         body.set("referenceImage", file);
       }
+      body.set("theme", theme);
       if (useAge) {
         body.set("age", age.trim());
         body.set("ageUnit", ageUnit);
@@ -276,106 +243,19 @@ export function EmoticonSheetPanel({
       <>
       {source === "photo" ? (
         <div className="mt-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
-          <p className="text-sm font-medium text-stone-800">사진 올리기</p>
-          <p className="mt-1 text-sm text-stone-500">
-            확대하거나 옮겨서 얼굴이 원 안에 들어오게 맞춰 주세요. 맞춘 사진이 이모티콘 입력으로 쓰입니다.
+          <p className="text-center text-base font-bold leading-snug text-stone-900">
+            눈, 코, 입이 잘 보이도록 정면 사진을 올려주세요
           </p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept={ACCEPT}
-            className="hidden"
-            onChange={(event) => chooseOriginal(event.target.files?.[0] ?? null)}
-          />
-          {cropping && cropSrc ? (
-            <div className="mt-3 space-y-3">
-              <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-slate-900 sm:h-80">
-                <Cropper
-                  image={cropSrc}
-                  crop={crop}
-                  zoom={zoom}
-                  minZoom={1}
-                  maxZoom={3}
-                  aspect={1}
-                  cropShape="round"
-                  showGrid={false}
-                  zoomWithScroll
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
-                />
-                <p className="pointer-events-none absolute inset-x-0 bottom-4 z-10 px-4 text-center text-sm font-medium text-white drop-shadow">
-                  얼굴이 원 안에 들어가게 조정해 주세요
-                </p>
-              </div>
-              <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
-                확대 / 축소
-                <input
-                  type="range"
-                  min={1}
-                  max={3}
-                  step={0.01}
-                  value={zoom}
-                  onChange={(event) => setZoom(Number(event.target.value))}
-                  className="w-full accent-sky-400"
-                  aria-label="사진 확대"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className="flex h-11 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
-                >
-                  다른 사진
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void applyCrop()}
-                  disabled={!croppedAreaPixels}
-                  className="flex h-11 items-center justify-center rounded-xl bg-sky-400 text-sm font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  이 얼굴로 사용
-                </button>
-              </div>
-            </div>
-          ) : previewUrl ? (
-            <div className="mt-3 space-y-3">
-              <div className="flex flex-col items-center gap-3 rounded-2xl bg-stone-50 px-4 py-6">
-                <img
-                  src={previewUrl}
-                  alt="맞춘 얼굴"
-                  className="h-52 w-52 rounded-full object-cover ring-2 ring-white shadow-sm"
-                />
-                <p className="text-sm font-medium text-stone-700">이 얼굴로 이모티콘을 만듭니다</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className="flex h-11 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
-                >
-                  다른 사진
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCropping(true)}
-                  className="flex h-11 items-center justify-center rounded-xl border border-stone-300 text-sm font-medium hover:bg-stone-50"
-                >
-                  다시 맞추기
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
+          <div className="mt-3">
+            <CharacterPhotoPicker
               disabled={generating}
-              className="mt-3 flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-3 py-6 text-sm text-stone-500 hover:border-sky-300 hover:bg-sky-50 disabled:opacity-60"
-            >
-              JPG, PNG, WEBP 사진을 선택해 주세요
-            </button>
-          )}
+              hideHeading
+              accept={ACCEPT}
+              guideText="눈, 코, 입이 잘 보이게 정면을 원 안에 맞춰 주세요"
+              albumHint="눈, 코, 입이 잘 보이도록 정면으로 맞춰 주세요"
+              onPhotoChange={setPhotoFile}
+            />
+          </div>
         </div>
       ) : characters.length === 0 ? (
         <div className="mt-3 rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-10 text-center">
@@ -389,7 +269,7 @@ export function EmoticonSheetPanel({
           </Link>
         </div>
       ) : (
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
           {characters.map((character) => {
             const selected = characterId === character.id;
             return (
@@ -402,7 +282,7 @@ export function EmoticonSheetPanel({
                   setError(null);
                 }}
                 className={cn(
-                  "overflow-hidden rounded-2xl border bg-white text-left shadow-sm disabled:opacity-60",
+                  "overflow-hidden rounded-xl border bg-white text-left shadow-sm disabled:opacity-60",
                   selected ? "border-sky-400 ring-2 ring-sky-300" : "border-stone-200",
                 )}
               >
@@ -412,10 +292,10 @@ export function EmoticonSheetPanel({
                     alt={character.label}
                     fill
                     className="object-cover"
-                    sizes="160px"
+                    sizes="72px"
                   />
                 </span>
-                <span className="block truncate px-3 py-2 text-sm font-semibold text-stone-800">
+                <span className="block truncate px-1 py-1 text-center text-[11px] font-semibold leading-tight text-stone-800">
                   {character.label}
                 </span>
               </button>
@@ -424,7 +304,39 @@ export function EmoticonSheetPanel({
         </div>
       )}
 
-      <div className="mt-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
+      <div className="mt-3">
+        <p className="text-sm font-medium text-stone-800">테마</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {EMOTICON_THEMES.map((option) => {
+            const selected = theme === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={selected}
+                disabled={generating}
+                onClick={() => {
+                  setTheme(option.id);
+                  setError(null);
+                }}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-60",
+                  selected
+                    ? "border-sky-400 bg-sky-50 text-sky-800 ring-2 ring-sky-200"
+                    : "border-stone-200 bg-white text-stone-700 hover:border-sky-300",
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-xs leading-relaxed text-stone-500">
+          {EMOTICON_THEMES.find((option) => option.id === theme)?.description}. 얼굴은 그대로 두고, 고른 테마에 맞는 옷과 문구로 만듭니다.
+        </p>
+      </div>
+
+      <div className="mt-3">
         <label className="flex items-center gap-2 text-sm font-medium text-stone-800">
           <input
             type="checkbox"
@@ -436,7 +348,7 @@ export function EmoticonSheetPanel({
           나이를 반영할게요
         </label>
         {useAge ? (
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2">
             <input
               type="number"
               min={1}
@@ -445,21 +357,21 @@ export function EmoticonSheetPanel({
               disabled={generating}
               onChange={(event) => setAge(event.target.value)}
               aria-label="나이"
-              className="h-11 w-24 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-sky-400"
+              className="h-10 w-24 rounded-xl border border-stone-200 bg-white px-3 text-sm outline-none focus:border-sky-400"
             />
             <select
               value={ageUnit}
               disabled={generating}
               onChange={(event) => setAgeUnit(event.target.value as EmoticonAgeUnit)}
               aria-label="나이 단위"
-              className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm outline-none focus:border-sky-400"
+              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm outline-none focus:border-sky-400"
             >
               <option value="months">개월</option>
               <option value="years">세</option>
             </select>
           </div>
         ) : (
-          <p className="mt-2 text-xs leading-relaxed text-stone-500">
+          <p className="mt-1 text-xs leading-relaxed text-stone-500">
             입력하지 않으면 원본에서 보이는 연령과 외형을 유지합니다.
           </p>
         )}
@@ -467,15 +379,26 @@ export function EmoticonSheetPanel({
 
       <button
         type="button"
-        onClick={() => void generate()}
+        onClick={requestGenerate}
         disabled={generating || !ready}
         className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-sky-400 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
       >
         이모티콘 만들기
       </button>
+      <p className="mt-2 text-center text-sm text-stone-500">
+        미리보기를 만들면 토큰 1개가 사용되고, 결제하면 다시 돌려드려요. 현재 토큰 {tokenBalance}개
+      </p>
       </>
       ) : null}
       {error ? <p className="mt-2 text-center text-sm text-red-500">{error}</p> : null}
+      <TokenConfirmDialog
+        open={tokenConfirmOpen}
+        tokens={tokenBalance}
+        description="미리보기를 만들면 토큰 1개가 사용돼요. 결제하면 다시 돌려드려요."
+        pendingLabel="이모티콘 만드는 중..."
+        onClose={() => setTokenConfirmOpen(false)}
+        onConfirm={() => void generate()}
+      />
     </div>
   );
 }
@@ -524,8 +447,15 @@ function EmoticonGenerating({ imageSrc }: { imageSrc: string | null }) {
   );
 }
 
-export function EmoticonResultPanel({ initialPreview }: { initialPreview: EmoticonPreview }) {
+export function EmoticonResultPanel({
+  initialPreview,
+  tokenBalance,
+}: {
+  initialPreview: EmoticonPreview;
+  tokenBalance: number;
+}) {
   const [preview, setPreview] = useState(initialPreview);
+  const [tokens, setTokens] = useState(tokenBalance);
   const [cellIndex, setCellIndex] = useState(0);
   const [paying, setPaying] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -539,15 +469,24 @@ export function EmoticonResultPanel({ initialPreview }: { initialPreview: Emotic
     setError(null);
     try {
       const response = await fetch(`/api/emoticons/${preview.orderId}/pay`, { method: "POST" });
-      const payload = (await response.json().catch(() => null)) as { error?: string; paid?: boolean } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        paid?: boolean;
+        tokens?: number;
+      } | null;
       if (!response.ok || !payload?.paid) {
-        setError(payload?.error ?? "결제하지 못했습니다.");
+        setError(payload?.error ?? "토큰을 사용하지 못했습니다.");
         return;
+      }
+      if (typeof payload.tokens === "number") {
+        setTokens(payload.tokens);
+      } else {
+        setTokens((current) => Math.max(0, current - EMOTICON_PACK_TOKENS));
       }
       setPreview({ ...preview, paid: true });
       setPayOpen(false);
     } catch {
-      setError("결제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setError("토큰을 사용하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setPaying(false);
     }
@@ -562,35 +501,22 @@ export function EmoticonResultPanel({ initialPreview }: { initialPreview: Emotic
         onPay={() => setPayOpen(true)}
       />
       {error ? <p className="mt-2 text-center text-sm text-red-500">{error}</p> : null}
-      {payOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-lg">
-            <p className="text-base font-semibold text-stone-800">이모티콘 9장</p>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">
-              결제하면 한 장씩 크게 보고, 보고 있는 장을 각각 받을 수 있어요.
-            </p>
-            <p className="mt-3 text-lg font-semibold text-stone-800">
-              {formatKrw(EMOTICON_PACK_PRICE_KRW)}
-            </p>
-            <button
-              type="button"
-              onClick={() => void pay()}
-              disabled={paying}
-              className="mt-4 flex h-11 w-full items-center justify-center rounded-full bg-[#E07A5F] text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {paying ? "결제 중..." : "결제하기"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPayOpen(false)}
-              disabled={paying}
-              className="mt-2 flex h-11 w-full items-center justify-center rounded-full text-sm font-medium text-stone-500"
-            >
-              취소
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <TokenConfirmDialog
+        open={payOpen}
+        tokens={tokens}
+        pending={paying}
+        pendingLabel="사용 중..."
+        pendingMessage="토큰을 사용하고 있어요. 잠시만 기다려 주세요."
+        description={`${formatTokens(EMOTICON_PACK_TOKENS)}이 사용돼요. 미리보기에 쓴 토큰 1개는 결제하면 다시 돌아와요.`}
+        confirmLabel={tokens < EMOTICON_PACK_TOKENS ? "토큰이 부족합니다" : "수락"}
+        confirmDisabled={tokens < EMOTICON_PACK_TOKENS}
+        onClose={() => {
+          if (!paying) {
+            setPayOpen(false);
+          }
+        }}
+        onConfirm={() => void pay()}
+      />
     </div>
   );
 }
@@ -609,6 +535,59 @@ function EmoticonViewer({
   const total = preview.cells.length;
   const current = preview.cells[Math.min(index, total - 1)] ?? preview.cells[0];
   const position = preview.cells.indexOf(current);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  async function downloadAll() {
+    if (downloadingAll || preview.cells.length === 0) {
+      return;
+    }
+    setDownloadingAll(true);
+    setDownloadError(null);
+    try {
+      const files = await Promise.all(
+        preview.cells.map(async (cell, cellPosition) => {
+          const response = await fetch(
+            `/api/emoticons/${preview.orderId}/download?index=${cellPosition}`,
+          );
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+            throw new Error(payload?.error ?? "전체 다운로드에 실패했습니다.");
+          }
+          const blob = await response.blob();
+          if (!blob.type.startsWith("image/")) {
+            throw new Error("이모티콘 파일을 받지 못했습니다.");
+          }
+          return {
+            blob,
+            filename: emoticonDownloadName(cellPosition, cell.caption),
+          };
+        }),
+      );
+      files.forEach((file, index) => {
+        window.setTimeout(() => {
+          const url = URL.createObjectURL(file.blob);
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = file.filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+          if (index === files.length - 1) {
+            setDownloadingAll(false);
+          }
+        }, index * 300);
+      });
+    } catch (downloadFailure) {
+      setDownloadError(
+        downloadFailure instanceof Error
+          ? downloadFailure.message
+          : "전체 다운로드에 실패했습니다.",
+      );
+      setDownloadingAll(false);
+    }
+  }
 
   function step(delta: number) {
     onIndexChange((position + delta + total) % total);
@@ -623,24 +602,27 @@ function EmoticonViewer({
       <div className="mt-5 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
         <p className="text-sm font-medium text-stone-800">미리보기</p>
         <p className="mt-1 text-xs leading-relaxed text-stone-500">
-          9장을 3×3으로 확인할 수 있어요. 결제하면 한 장씩 크게 보고 각각 받을 수 있습니다.
+          {preview.themeLabel} 테마 9장을 3×3으로 확인할 수 있어요. 결제하면 미리보기 토큰 1개가 돌아오고, 한 장씩 크게 보고 각각 받을 수 있습니다.
         </p>
-        <div className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded-2xl bg-white">
-          {preview.cells.map((cell) => (
-            <img
-              key={cell.key}
-              src={toProtectedMediaSrc(cell.imageUrl)}
-              alt={cell.caption}
-              className="aspect-square w-full bg-white object-contain"
-            />
-          ))}
+        <div className="relative mt-3 overflow-hidden rounded-2xl bg-white">
+          <div className="grid grid-cols-3 gap-px">
+            {preview.cells.map((cell) => (
+              <img
+                key={cell.key}
+                src={toProtectedMediaSrc(cell.imageUrl)}
+                alt={cell.caption}
+                className="aspect-square w-full bg-white object-contain"
+              />
+            ))}
+          </div>
+          <PreviewWatermark placement="center" size="lg" />
         </div>
         <button
           type="button"
           onClick={onPay}
           className="mt-3 flex h-11 w-full items-center justify-center rounded-full bg-[#E07A5F] text-sm font-semibold text-white hover:bg-[#d56c51]"
         >
-          {formatKrw(EMOTICON_PACK_PRICE_KRW)} 결제하고 한 장씩 받기
+          {formatTokens(EMOTICON_PACK_TOKENS)} 사용하고 한 장씩 받기
         </button>
       </div>
     );
@@ -648,9 +630,9 @@ function EmoticonViewer({
 
   return (
     <div className="mt-5 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-stone-800">받은 이모티콘</p>
+      <p className="text-sm font-medium text-stone-800">받은 이모티콘 · {preview.themeLabel}</p>
       <p className="mt-1 text-xs leading-relaxed text-stone-500">
-        화살표로 한 장씩 넘겨 크게 보고, 보고 있는 장을 받을 수 있어요.
+        화살표로 한 장씩 넘겨 크게 보고, 보고 있는 장이나 9장 전체를 받을 수 있어요.
       </p>
       <img
         src={toProtectedMediaSrc(current.imageUrl)}
@@ -709,6 +691,15 @@ function EmoticonViewer({
       >
         이 장 다운로드
       </a>
+      <button
+        type="button"
+        onClick={() => void downloadAll()}
+        disabled={downloadingAll}
+        className="mt-2 flex h-11 w-full items-center justify-center rounded-full border border-sky-300 bg-white text-sm font-semibold text-sky-600 hover:bg-sky-50 disabled:opacity-50"
+      >
+        {downloadingAll ? "전체 받는 중..." : "전체 다운로드"}
+      </button>
+      {downloadError ? <p className="mt-2 text-center text-sm text-red-500">{downloadError}</p> : null}
     </div>
   );
 }

@@ -10,10 +10,10 @@ import {
   type PayStickerOrderState,
 } from "@/app/actions/stickers";
 import { AppImage } from "@/components/AppImage";
-import { GenerationProgress } from "@/components/GenerationProgress";
 import { SlotLoadingBar, useImageReady } from "@/components/SlotLoadingBar";
 import { PaymentComingSoon } from "@/components/PaymentComingSoon";
 import { PhotoFaceStickerPanel } from "@/components/PhotoFaceStickerPanel";
+import { CharacterPhotoPicker } from "@/components/CharacterPhotoPicker";
 import { SpecialStickerPanel } from "@/components/SpecialStickerPanel";
 import { StickerCheckoutDialog } from "@/components/StickerCheckoutDialog";
 import { StickerLayerEditor } from "@/components/StickerLayerEditor";
@@ -25,7 +25,6 @@ import {
   STICKER_EXAMPLES,
   configForMakeMode,
   layoutForMakeMode,
-  phrasesForExample,
   type StickerExampleKey,
   type StickerMakeMode,
 } from "@/lib/sticker-examples";
@@ -96,7 +95,9 @@ export function StickerWizard({
 }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [makePath, setMakePath] = useState<"path" | "examples" | "special" | "photo">("path");
+  const [makePath, setMakePath] = useState<
+    "path" | "examples" | "special" | "photo" | "photo-choice"
+  >("path");
   const [makeMode, setMakeMode] = useState<StickerMakeMode | null>(null);
   const [specialKind, setSpecialKind] = useState<SpecialStickerKind | null>(null);
   const [clothingTopic, setClothingTopic] = useState<ClothingTopicKey | null>(null);
@@ -104,6 +105,10 @@ export function StickerWizard({
   const [specialName, setSpecialName] = useState("");
   const [specialGender, setSpecialGender] = useState<SpecialGender | "">("");
   const [specialPhrase, setSpecialPhrase] = useState("");
+  const [photoUseAge, setPhotoUseAge] = useState(false);
+  const [photoAge, setPhotoAge] = useState("3");
+  const [photoAgeUnit, setPhotoAgeUnit] = useState<"months" | "years">("months");
+  const [specialPhotoFile, setSpecialPhotoFile] = useState<File | null>(null);
   const [outfitByCharacterId, setOutfitByCharacterId] = useState<Record<string, string>>(
     {},
   );
@@ -116,6 +121,7 @@ export function StickerWizard({
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  const [usePhotoFace, setUsePhotoFace] = useState(false);
   const [characterLimitNotice, setCharacterLimitNotice] = useState(false);
   const characterId = selectedCharacterIds[0] ?? null;
   const companionCharacterId = selectedCharacterIds[1] ?? null;
@@ -142,13 +148,21 @@ export function StickerWizard({
 
   const canNext = useMemo(() => {
     if (step === 1) {
-      return Boolean(
-        characterId &&
-          characters.find((item) => item.id === characterId)?.status === "COMPLETED",
+      return (
+        usePhotoFace ||
+        Boolean(
+          characterId &&
+            characters.find((item) => item.id === characterId)?.status === "COMPLETED",
+        )
       );
     }
     if (step === 3) {
-      return Boolean(characterId && cutoutPath) && !previewing && !baking && !savingDraft;
+      return (
+        Boolean((characterId || usePhotoFace) && cutoutPath) &&
+        !previewing &&
+        !baking &&
+        !savingDraft
+      );
     }
     if (step === 4) {
       return Boolean(
@@ -160,6 +174,7 @@ export function StickerWizard({
   }, [
     step,
     characterId,
+    usePhotoFace,
     characters,
     cutoutPath,
     previewing,
@@ -215,7 +230,15 @@ export function StickerWizard({
     setSpecialError(null);
   }
 
+  function togglePhotoFace() {
+    setUsePhotoFace((current) => !current);
+    setSelectedCharacterIds([]);
+    setCharacterLimitNotice(false);
+    setSpecialPhotoFile(null);
+  }
+
   function toggleSelectedCharacter(id: string) {
+    setUsePhotoFace(false);
     setSelectedCharacterIds((current) => {
       if (current.includes(id)) {
         setCharacterLimitNotice(false);
@@ -262,39 +285,64 @@ export function StickerWizard({
   }
 
   async function generateSpecialSticker() {
-    if (!characterId || !specialKind) {
+    if (!specialKind || (!usePhotoFace && !characterId)) {
+      return;
+    }
+    if (usePhotoFace && !specialPhotoFile) {
+      setSpecialError("실제 사진을 올려 주세요.");
+      setSpecialConfirmOpen(false);
       return;
     }
     setSpecialGenerating(true);
     setSpecialError(null);
     try {
-      const response = await fetch("/api/stickers/generate-special", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          characterId,
-          outfits: selectedCharacterIds.map((id) => (outfitByCharacterId[id] ?? "").trim()),
-          twins: Boolean(companionCharacterId),
-          companionCharacterId,
-          ...(specialKind === "nametag"
+      const requestBody = {
+        outfits: usePhotoFace
+          ? [(outfitByCharacterId.photo ?? "").trim()]
+          : selectedCharacterIds.map((id) => (outfitByCharacterId[id] ?? "").trim()),
+        twins: usePhotoFace ? false : Boolean(companionCharacterId),
+        ...(usePhotoFace
+          ? {}
+          : { characterId, companionCharacterId }),
+        ...(usePhotoFace && photoUseAge
+          ? { age: photoAge.trim(), ageUnit: photoAgeUnit }
+          : {}),
+        ...(specialKind === "nametag"
+          ? {
+              kind: "nametag" as const,
+              name: specialName.trim(),
+              gender: specialGender,
+            }
+          : specialKind === "gift"
             ? {
-                kind: "nametag",
-                name: specialName.trim(),
-                gender: specialGender,
+                kind: "gift" as const,
+                topic: giftTopic,
+                phrase: specialPhrase.trim(),
               }
-            : specialKind === "gift"
-              ? {
-                  kind: "gift",
-                  topic: giftTopic,
-                  phrase: specialPhrase.trim(),
-                }
-              : {
-                  kind: "clothing",
-                  topic: clothingTopic,
-                  phrase: specialPhrase.trim(),
-                }),
-        }),
-      });
+            : {
+                kind: "clothing" as const,
+                topic: clothingTopic,
+                phrase: specialPhrase.trim(),
+              }),
+      };
+      const response = await fetch(
+        "/api/stickers/generate-special",
+        usePhotoFace && specialPhotoFile
+          ? {
+              method: "POST",
+              body: (() => {
+                const form = new FormData();
+                form.set("image", specialPhotoFile);
+                form.set("payload", JSON.stringify(requestBody));
+                return form;
+              })(),
+            }
+          : {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+            },
+      );
       const payload = (await response.json().catch(() => null)) as {
         imagePath?: string;
         tokens?: number;
@@ -377,7 +425,8 @@ export function StickerWizard({
   }
 
   async function bakePreview() {
-    if (!characterId || !borderId || !cutoutPath) {
+    if ((!characterId && !usePhotoFace) || !borderId || !cutoutPath) {
+      setPreviewError("배치를 적용하지 못했습니다.");
       return null;
     }
     setBaking(true);
@@ -387,7 +436,7 @@ export function StickerWizard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          characterId,
+          ...(characterId ? { characterId } : {}),
           borderId,
           phrase,
           cutoutImagePath: cutoutPath,
@@ -440,14 +489,19 @@ export function StickerWizard({
   }) {
     const selectedSizeId = options?.sizeOptionId ?? sizeOptionId;
     const imagePath = options?.previewImagePath ?? previewPath;
-    if (!characterId || !borderId || !selectedSizeId) {
+    if (!borderId || !selectedSizeId) {
       return { error: "사이즈를 선택해 주세요." };
+    }
+    if (!characterId && !usePhotoFace) {
+      return { error: "캐릭터를 선택해 주세요." };
     }
     const form = new FormData();
     if (draftOrderId) {
       form.set("orderId", draftOrderId);
     }
-    form.set("characterId", characterId);
+    if (characterId) {
+      form.set("characterId", characterId);
+    }
     form.set("borderId", borderId);
     form.set("phrase", phrase);
     form.set("sizeOptionId", selectedSizeId);
@@ -568,17 +622,29 @@ export function StickerWizard({
 
       {step === 1 ? (
         <section>
-          <h2 className="text-lg font-semibold">등장시킬 캐릭터를 선택해 주세요</h2>
-          <p className="mt-1 text-sm text-stone-500">최대 2명까지 선택할 수 있어요.</p>
+          <h2 className="text-base font-semibold">등장시킬 캐릭터를 선택해 주세요</h2>
+          <p className="mt-0.5 text-xs leading-relaxed text-stone-500">
+            최대 2명까지 선택할 수 있어요.
+          </p>
+          <button
+            type="button"
+            aria-pressed={usePhotoFace}
+            onClick={togglePhotoFace}
+            className={cn(
+              "mt-2 inline-flex h-9 items-center rounded-full border px-3 text-sm font-medium",
+              usePhotoFace
+                ? "border-sky-400 bg-sky-50 text-sky-800 ring-2 ring-sky-300"
+                : "border-stone-300 bg-white text-stone-800 hover:bg-stone-50",
+            )}
+          >
+            실제 사진으로 만들기
+          </button>
           {characterLimitNotice ? (
-            <p className="mt-3 rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-600">
+            <p className="mt-2 rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-600">
               최대 2명까지 선택할 수 있어요.
             </p>
           ) : null}
-          {characters.length === 0 ? (
-            <EmptyCharacters />
-          ) : (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+          <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
               {characters.map((character) => {
                 const selectable = character.status === "COMPLETED";
                 const selectedIndex = selectedCharacterIds.indexOf(character.id);
@@ -595,7 +661,7 @@ export function StickerWizard({
                     disabled={!selectable}
                     onClick={() => selectable && toggleSelectedCharacter(character.id)}
                     className={cn(
-                      "overflow-hidden rounded-2xl border bg-white text-left shadow-sm",
+                      "overflow-hidden rounded-xl border bg-white text-left shadow-sm",
                       selectable ? "cursor-pointer" : "cursor-not-allowed opacity-60",
                       selected
                         ? "border-sky-400 ring-2 ring-sky-300"
@@ -609,30 +675,27 @@ export function StickerWizard({
                         grayscale={!selectable}
                       />
                       {selected ? (
-                        <span className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-sky-400 text-sm font-semibold text-white">
+                        <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-sky-400 text-[11px] font-semibold text-white">
                           {selectedIndex + 1}
                         </span>
                       ) : null}
                       {!selectable ? (
-                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45">
+                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45 px-1 text-center">
                           {character.status === "FAILED" ? (
-                            <span className="rounded-full bg-white px-3 py-1 text-sm font-medium">
-                              생성 실패
+                            <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium">
+                              실패
                             </span>
                           ) : (
-                            <div className="rounded-2xl bg-white/95 px-3 py-2">
-                              <GenerationProgress
-                                kind="character"
-                                id={character.id}
-                              />
-                            </div>
+                            <span className="text-[10px] font-medium text-white">만드는 중</span>
                           )}
                         </div>
                       ) : null}
                     </div>
-                    <div className="p-3">
-                      <p className="truncate font-semibold">{character.label}</p>
-                      <p className="text-xs text-stone-500 sm:text-sm">
+                    <div className="px-1 py-1">
+                      <p className="truncate text-center text-[11px] font-semibold leading-tight">
+                        {character.label}
+                      </p>
+                      <p className="truncate text-center text-[10px] leading-tight text-stone-500">
                         {GENDER_LABEL[character.gender]}
                       </p>
                     </div>
@@ -640,7 +703,17 @@ export function StickerWizard({
                 );
               })}
             </div>
-          )}
+          {characters.length === 0 ? (
+            <p className="mt-4 text-sm text-stone-500">
+              만든 캐릭터가 아직 없어요.{" "}
+              <Link
+                href="/dashboard/characters/new"
+                className="font-medium text-sky-700 underline"
+              >
+                캐릭터 만들기
+              </Link>
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -648,9 +721,9 @@ export function StickerWizard({
         <section>
           <h2 className="text-lg font-semibold">어떻게 만들까요?</h2>
           <p className="mt-1 text-sm text-stone-500">
-            간단 제작, 특수 제작, 실사 얼굴 중에서 골라 주세요.
+            간단 제작과 특수 제작 중에서 골라 주세요.
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => setMakePath("examples")}
@@ -669,16 +742,6 @@ export function StickerWizard({
               <p className="font-semibold">특수 제작</p>
               <p className="mt-1 text-sm text-stone-500">원하는 디자인을 따로 맞춰 드려요.</p>
             </button>
-            <button
-              type="button"
-              onClick={() => setMakePath("photo")}
-              className="rounded-2xl border border-stone-200 bg-white p-5 text-left shadow-sm hover:border-stone-300"
-            >
-              <p className="font-semibold">실사 얼굴</p>
-              <p className="mt-1 text-sm text-stone-500">
-                사진 속 머리만 남기고 문구와 장식을 올려요.
-              </p>
-            </button>
           </div>
         </section>
       ) : null}
@@ -687,40 +750,34 @@ export function StickerWizard({
         <section>
           <h2 className="text-lg font-semibold">간단 제작 예시를 골라 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            문구만 보여 드려요. 고르면 제작하기에서 바로 고칠 수 있어요.
+            고르면 제작하기에서 바로 고칠 수 있어요.
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {STICKER_EXAMPLES.map((example) => {
-              const phrases = phrasesForExample(
-                example.key,
-                selectedCharacter?.label ?? "",
-              );
               return (
               <button
                 key={example.key}
                 type="button"
                 onClick={() => applyMakeMode(example.key as StickerExampleKey)}
                 className={cn(
-                  "rounded-2xl border bg-white p-4 text-left shadow-sm hover:border-stone-300",
+                  "overflow-hidden rounded-2xl border bg-white text-left shadow-sm hover:border-stone-300",
                   makeMode === example.key
                     ? "border-sky-400 ring-2 ring-sky-300"
                     : "border-stone-200",
                 )}
               >
-                <p className="font-semibold">{example.label}</p>
-                <p className="mt-3 text-base font-medium text-stone-800">
-                  {phrases[0]}
-                </p>
-                {phrases[1] ? (
-                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-600">
-                    {phrases[1]}
-                  </p>
-                ) : null}
-                {phrases[2] ? (
-                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-600">
-                    {phrases[2]}
-                  </p>
-                ) : null}
+                <span className="relative block aspect-square bg-stone-100">
+                  {example.thumbnailPath ? (
+                    <AppImage
+                      src={example.thumbnailPath}
+                      alt={example.label}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 50vw, 33vw"
+                    />
+                  ) : null}
+                </span>
+                <span className="block px-3 py-3 font-semibold">{example.label}</span>
               </button>
               );
             })}
@@ -728,9 +785,39 @@ export function StickerWizard({
         </section>
       ) : null}
 
-      {step === 2 && makePath === "photo" && selectedCharacter ? (
+      {step === 2 && makePath === "photo-choice" ? (
+        <section>
+          <h2 className="text-lg font-semibold">어떻게 만들까요?</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            특수 제작과 얼굴 스티커 중에서 골라 주세요.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={openSpecialPath}
+              className="rounded-2xl border border-stone-200 bg-white p-5 text-left shadow-sm hover:border-stone-300"
+            >
+              <p className="font-semibold">특수 제작</p>
+              <p className="mt-1 text-sm text-stone-500">원하는 디자인을 따로 맞춰 드려요.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMakePath("photo")}
+              className="rounded-2xl border border-stone-200 bg-white p-5 text-left shadow-sm hover:border-stone-300"
+            >
+              <p className="font-semibold">얼굴 스티커</p>
+              <p className="mt-1 text-sm text-stone-500">
+                사진 속 머리만 남기고 문구와 장식을 올려요.
+              </p>
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {step === 2 && makePath === "photo" ? (
         <PhotoFaceStickerPanel
-          characterImageSrc={selectedCharacter.generatedImagePath}
+          characterImageSrc={selectedCharacter?.generatedImagePath ?? null}
+          photoOnly={usePhotoFace}
           onUseCutout={applyPhotoFace}
         />
       ) : null}
@@ -741,18 +828,51 @@ export function StickerWizard({
           clothingTopic={clothingTopic}
           giftTopic={giftTopic}
           twoCharacters={Boolean(companionCharacterId)}
-          outfitFields={selectedCharacterIds.map((id) => {
-            const character = characters.find((item) => item.id === id);
-            return {
-              id,
-              label: character?.label ?? "캐릭터",
-              imageSrc: character?.generatedImagePath || character?.originalPhotoPath || "",
-              value: outfitByCharacterId[id] ?? "",
-            };
-          })}
+          outfitFields={
+            usePhotoFace
+              ? [
+                  {
+                    id: "photo",
+                    label: "실제 사진",
+                    imageSrc: "",
+                    value: outfitByCharacterId.photo ?? "",
+                  },
+                ]
+              : selectedCharacterIds.map((id) => {
+                  const character = characters.find((item) => item.id === id);
+                  return {
+                    id,
+                    label: character?.label ?? "캐릭터",
+                    imageSrc: character?.generatedImagePath || character?.originalPhotoPath || "",
+                    value: outfitByCharacterId[id] ?? "",
+                  };
+                })
+          }
           name={specialName}
           gender={specialGender}
           phrase={specialPhrase}
+          showAge={usePhotoFace}
+          useAge={photoUseAge}
+          age={photoAge}
+          ageUnit={photoAgeUnit}
+          referencePhoto={
+            usePhotoFace ? (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-stone-700">실제 사진</p>
+                <p className="mt-1 text-sm text-stone-500">
+                  눈, 코, 입이 잘 보이는 정면 사진을 올려 주세요. 이 사진으로 스티커를 만들어요.
+                </p>
+                <div className="mt-3">
+                  <CharacterPhotoPicker
+                    disabled={specialGenerating}
+                    hideHeading
+                    accept="image/jpeg,image/png,image/webp"
+                    onPhotoChange={setSpecialPhotoFile}
+                  />
+                </div>
+              </div>
+            ) : null
+          }
           tokenBalance={tokens}
           generating={specialGenerating}
           error={specialError}
@@ -765,11 +885,23 @@ export function StickerWizard({
           onNameChange={setSpecialName}
           onGenderChange={setSpecialGender}
           onPhraseChange={setSpecialPhrase}
+          onUseAgeChange={setPhotoUseAge}
+          onAgeChange={setPhotoAge}
+          onAgeUnitChange={setPhotoAgeUnit}
           onGenerate={() => {
+            if (usePhotoFace && !specialPhotoFile) {
+              setSpecialError("실제 사진을 올려 주세요.");
+              return;
+            }
+            if (usePhotoFace && photoUseAge && !/^\d+$/.test(photoAge.trim())) {
+              setSpecialError("나이는 숫자로 입력해 주세요.");
+              return;
+            }
             if (tokens < 1) {
               setSpecialError("토큰이 부족합니다");
               return;
             }
+            setSpecialError(null);
             setSpecialConfirmOpen(true);
           }}
         />
@@ -836,7 +968,7 @@ export function StickerWizard({
         <section>
           <h2 className="text-lg font-semibold">사이즈를 골라 주세요</h2>
           <p className="mt-1 text-sm text-stone-500">
-            사이즈를 고르면 A4 미리보기가 바뀌어요. 미리보기 확인 후 바로 결제할 수 있어요.
+            사이즈를 고르면 A4 미리보기가 바뀌어요. 미리보기 확인 후 토큰으로 주문할 수 있어요.
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {sizes.map((option) => {
@@ -913,7 +1045,7 @@ export function StickerWizard({
                 onClick={() => void goToPayment()}
                 className="flex h-12 w-full items-center justify-center rounded-xl bg-[#E07A5F] text-base font-medium text-white hover:bg-[#d56c51] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
               >
-                {savingDraft ? "준비 중..." : "결제하기"}
+                {savingDraft ? "준비 중..." : "토큰으로 주문하기"}
               </button>
             ) : (
               <PaymentComingSoon kind="sticker" />
@@ -925,11 +1057,26 @@ export function StickerWizard({
       {step !== 4 ? (
         <div
           className={cn(
-            "mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between",
+            "flex gap-3 sm:flex-row sm:justify-between",
+            step === 1
+              ? "mt-4 flex-row [&>a]:flex-1 [&>button]:flex-1"
+              : "mt-8 flex-col-reverse",
             step === 3 && "mt-4 sm:mt-8",
           )}
         >
-          {step === 3 ? null : step > 1 ? (
+          {step === 3 &&
+          (makeMode === "birthday" || makeMode === "thanks" || makeMode === "congrats") ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMakePath("examples");
+                setStep(2);
+              }}
+              className="flex h-12 items-center justify-center rounded-xl border border-stone-300 px-6 text-sm font-medium hover:bg-white"
+            >
+              뒤로 가기
+            </button>
+          ) : step === 3 ? null : step > 1 ? (
             <button
               type="button"
               onClick={() => {
@@ -940,7 +1087,15 @@ export function StickerWizard({
                   setMakePath("path");
                   return;
                 }
+                if (step === 2 && makePath === "photo-choice") {
+                  setStep(1);
+                  return;
+                }
                 if (step === 2 && makePath === "photo") {
+                  if (usePhotoFace) {
+                    setMakePath("photo-choice");
+                    return;
+                  }
                   setMakePath("path");
                   return;
                 }
@@ -957,7 +1112,7 @@ export function StickerWizard({
                     setSpecialKind(null);
                     return;
                   }
-                  setMakePath("path");
+                  setMakePath(usePhotoFace ? "photo-choice" : "path");
                   return;
                 }
                 if (step === 3) {
@@ -995,7 +1150,7 @@ export function StickerWizard({
               type="button"
               onClick={() => {
                 if (step === 1) {
-                  setMakePath("path");
+                  setMakePath(usePhotoFace ? "photo-choice" : "path");
                   setStep(2);
                   return;
                 }
@@ -1084,6 +1239,7 @@ export function StickerWizard({
           error={payState?.error}
           formAction={payAction}
           hiddenFields={<input type="hidden" name="orderId" value={draftOrderId} />}
+          tokenBalance={tokens}
         />
       ) : null}
     </div>
@@ -1114,7 +1270,7 @@ function CharacterPickImage({
             grayscale && "grayscale",
             loaded ? "opacity-100" : "opacity-0",
           )}
-          sizes="(max-width: 640px) 50vw, 33vw"
+          sizes="72px"
         />
       ) : null}
       {!loaded ? (
@@ -1123,22 +1279,5 @@ function CharacterPickImage({
         </div>
       ) : null}
     </>
-  );
-}
-
-function EmptyCharacters() {
-  return (
-    <div className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
-      <p className="font-medium">먼저 캐릭터를 만들어주세요</p>
-      <p className="mt-1 text-sm text-stone-500">
-        스티커에 들어갈 주인공이 필요해요.
-      </p>
-      <Link
-        href="/dashboard/characters/new"
-        className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-medium text-white"
-      >
-        캐릭터 만들러 가기
-      </Link>
-    </div>
   );
 }

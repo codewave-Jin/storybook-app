@@ -1,7 +1,7 @@
 export function PreviewWatermark({
   text = "판바기",
   url = "www.panbagi.co.kr",
-  note = "결제시 워터마크는 사라집니다",
+  note = "토큰 사용시 워터마크는 사라집니다",
   compact = false,
   size,
   placement = "bottom",
@@ -10,30 +10,36 @@ export function PreviewWatermark({
   url?: string;
   note?: string;
   compact?: boolean;
-  /** sm: smaller overlay for circular sticker preview. compact still wins if set. */
-  size?: "sm" | "md";
+  /** sm: smaller overlay for circular sticker preview. lg: large sheet overlay. compact still wins if set. */
+  size?: "sm" | "md" | "lg";
   /** bottom: horizontally centered near the bottom; center: middle of image */
   placement?: "center" | "bottom";
 }) {
-  const scale = compact ? "compact" : size === "sm" ? "sm" : "md";
+  const scale = compact ? "compact" : size === "sm" ? "sm" : size === "lg" ? "lg" : "md";
   const titleClass =
     scale === "compact"
       ? "text-[11px] font-bold tracking-wide sm:text-sm"
       : scale === "sm"
         ? "text-sm font-bold leading-tight tracking-wide sm:text-base"
-        : "text-3xl font-bold tracking-wide sm:text-4xl";
+        : scale === "lg"
+          ? "text-7xl font-bold tracking-wide sm:text-8xl"
+          : "text-3xl font-bold tracking-wide sm:text-4xl";
   const urlClass =
     scale === "compact"
       ? "mt-0.5 text-[8px] font-semibold tracking-wide sm:text-[10px]"
       : scale === "sm"
         ? "mt-0.5 text-[9px] font-semibold leading-tight tracking-wide sm:text-[10px]"
-        : "mt-0.5 text-sm font-semibold tracking-wide sm:text-base";
+        : scale === "lg"
+          ? "mt-1 text-3xl font-semibold tracking-wide sm:text-4xl"
+          : "mt-0.5 text-sm font-semibold tracking-wide sm:text-base";
   const noteClass =
     scale === "compact"
       ? "mt-0.5 text-[6px] font-medium tracking-wide sm:text-[8px]"
       : scale === "sm"
         ? "mt-0.5 text-[8px] font-medium leading-tight tracking-wide"
-        : "mt-1 text-[10px] font-medium tracking-wide sm:text-xs";
+        : scale === "lg"
+          ? "mt-1.5 text-base font-medium tracking-wide sm:text-lg"
+          : "mt-1 text-[10px] font-medium tracking-wide sm:text-xs";
   const toneClass =
     scale === "sm"
       ? "text-black/30 drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]"

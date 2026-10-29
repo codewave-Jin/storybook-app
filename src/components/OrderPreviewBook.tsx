@@ -81,6 +81,7 @@ export function OrderPreviewBook({
   fulfillmentStatus,
   shippingCarrier,
   trackingNumber,
+  tokenBalance,
 }: {
   title: string;
   backHref: string;
@@ -96,6 +97,7 @@ export function OrderPreviewBook({
   fulfillmentStatus?: FulfillmentStatus | null;
   shippingCarrier?: string | null;
   trackingNumber?: string | null;
+  tokenBalance: number;
 }) {
   const [index, setIndex] = useState(0);
   const [livePages, setLivePages] = useState(pages);
@@ -401,6 +403,7 @@ export function OrderPreviewBook({
               optionLines={optionLines}
               defaultEmail={defaultEmail}
               defaultName={defaultName}
+              tokenBalance={tokenBalance}
             />
           )}
         </div>

@@ -24,6 +24,11 @@ export function SpecialStickerPanel({
   name,
   gender,
   phrase,
+  showAge = false,
+  useAge = false,
+  age = "",
+  ageUnit = "months",
+  referencePhoto = null,
   tokenBalance,
   generating,
   error,
@@ -34,6 +39,9 @@ export function SpecialStickerPanel({
   onNameChange,
   onGenderChange,
   onPhraseChange,
+  onUseAgeChange,
+  onAgeChange,
+  onAgeUnitChange,
   onGenerate,
 }: {
   kind: SpecialStickerKind | null;
@@ -44,6 +52,11 @@ export function SpecialStickerPanel({
   name: string;
   gender: SpecialGender | "";
   phrase: string;
+  showAge?: boolean;
+  useAge?: boolean;
+  age?: string;
+  ageUnit?: "months" | "years";
+  referencePhoto?: React.ReactNode;
   tokenBalance: number;
   generating: boolean;
   error: string | null;
@@ -54,6 +67,9 @@ export function SpecialStickerPanel({
   onNameChange: (value: string) => void;
   onGenderChange: (value: SpecialGender) => void;
   onPhraseChange: (value: string) => void;
+  onUseAgeChange?: (value: boolean) => void;
+  onAgeChange?: (value: string) => void;
+  onAgeUnitChange?: (value: "months" | "years") => void;
   onGenerate: () => void;
 }) {
   if (!kind) {
@@ -229,6 +245,8 @@ export function SpecialStickerPanel({
         </div>
       )}
 
+      {referencePhoto}
+
       <div className="mt-4 space-y-3">
         <p className="text-sm font-medium text-stone-700">입을 옷</p>
         <p className="text-sm text-stone-500">
@@ -262,6 +280,51 @@ export function SpecialStickerPanel({
         ))}
       </div>
 
+      {showAge ? (
+        <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-stone-800">
+            <input
+              type="checkbox"
+              checked={useAge}
+              disabled={generating}
+              onChange={(event) => onUseAgeChange?.(event.target.checked)}
+              className="h-4 w-4 accent-sky-400"
+            />
+            나이를 반영할게요
+          </label>
+          {useAge ? (
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                inputMode="numeric"
+                value={age}
+                disabled={generating}
+                onChange={(event) => onAgeChange?.(event.target.value)}
+                aria-label="나이"
+                className="h-11 w-24 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-sky-400"
+              />
+              <select
+                value={ageUnit}
+                disabled={generating}
+                onChange={(event) =>
+                  onAgeUnitChange?.(event.target.value === "years" ? "years" : "months")
+                }
+                aria-label="나이 단위"
+                className="h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm outline-none focus:border-sky-400"
+              >
+                <option value="months">개월</option>
+                <option value="years">세</option>
+              </select>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs leading-relaxed text-stone-500">
+              입력하지 않으면 사진에서 보이는 연령을 유지합니다.
+            </p>
+          )}
+        </div>
+      ) : null}
+
       {error ? (
         <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
@@ -279,7 +342,9 @@ export function SpecialStickerPanel({
       <p className="mt-2 text-sm text-stone-500">
         {noTokens
           ? "토큰이 부족합니다"
-          : `현재 토큰 ${tokenBalance}개 · 생성 시 1개가 사용되고, 결제하면 돌려드려요.`}
+          : referencePhoto
+            ? `현재 토큰 ${tokenBalance}개 · 생성 시 1개가 사용돼요. 만든 스티커는 미리보기 화면에서 확인할 수 있어요.`
+            : `현재 토큰 ${tokenBalance}개 · 생성 시 1개가 사용되고, 토큰으로 주문하면 돌려드려요.`}
       </p>
     </section>
   );

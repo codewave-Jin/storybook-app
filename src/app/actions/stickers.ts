@@ -8,11 +8,13 @@ import { logGenerationEvent } from "@/lib/generation-events";
 import { parseCheckoutForm, parseStickerSheetCount, validateCheckoutInput } from "@/lib/checkout";
 import { isStickerSizeSelectable } from "@/lib/templates";
 import { defaultExpectedDeliveryAt } from "@/lib/fulfillment";
-import { PAYMENTS_ENABLED } from "@/lib/payments";
+import { PAYMENTS_ENABLED, quoteStickerOrder } from "@/lib/payments";
 import { prisma } from "@/lib/prisma";
 import {
   attachTokenHoldToOrder,
+  consumeTokens,
   refundTokenHoldsForOrder,
+  restoreTokenSpend,
 } from "@/lib/tokens";
 import { readyStickerPreviewPath } from "@/lib/sticker-draft";
 import {
@@ -65,7 +67,7 @@ export async function saveStickerDraft(
 
   const userId = session.user.id;
   const orderId = String(formData.get("orderId") ?? "").trim();
-  const characterId = String(formData.get("characterId") ?? "");
+  const characterId = String(formData.get("characterId") ?? "").trim();
   const borderId = String(formData.get("borderId") ?? "").trim();
   const phrase = String(formData.get("phrase") ?? "").trim();
   const sizeOptionId = String(formData.get("sizeOptionId") ?? "");
@@ -73,9 +75,6 @@ export async function saveStickerDraft(
   const tokenHoldId = String(formData.get("tokenHoldId") ?? "").trim();
   const parts = parseStickerPhrase(phrase);
 
-  if (!characterId) {
-    return { error: "캐릭터를 선택해 주세요." };
-  }
   if (!borderId) {
     return { error: "테두리를 선택해 주세요." };
   }
@@ -88,20 +87,24 @@ export async function saveStickerDraft(
   }
 
   const [character, border, sizeOption] = await Promise.all([
-    prisma.character.findFirst({
-      where: { id: characterId, userId, deletedAt: null },
-    }),
+    characterId
+      ? prisma.character.findFirst({
+          where: { id: characterId, userId, deletedAt: null },
+        })
+      : Promise.resolve(null),
     prisma.stickerBorder.findFirst({
       where: { id: borderId, isActive: true },
     }),
     prisma.stickerSizeOption.findUnique({ where: { id: sizeOptionId } }),
   ]);
 
-  if (!character) {
-    return { error: "선택한 캐릭터를 확인할 수 없습니다." };
-  }
-  if (character.status !== "COMPLETED") {
-    return { error: "생성이 완료된 캐릭터만 선택할 수 있습니다." };
+  if (characterId) {
+    if (!character) {
+      return { error: "선택한 캐릭터를 확인할 수 없습니다." };
+    }
+    if (character.status !== "COMPLETED") {
+      return { error: "생성이 완료된 캐릭터만 선택할 수 있습니다." };
+    }
   }
   if (!border) {
     return { error: "선택한 테두리를 확인할 수 없습니다." };
@@ -111,6 +114,9 @@ export async function saveStickerDraft(
   }
   if (!isStickerSizeSelectable(sizeOption.label)) {
     return { error: "아직 준비 중인 사이즈입니다." };
+  }
+  if (!character && !readyStickerPreviewPath(previewImagePath)) {
+    return { error: "미리보기를 확인해 주세요." };
   }
 
   const readyPreview = readyStickerPreviewPath(previewImagePath);
@@ -141,7 +147,7 @@ export async function saveStickerDraft(
     await prisma.stickerOrder.update({
       where: { id: existing.id },
       data: {
-        characterId: character.id,
+        characterId: character?.id ?? null,
         borderId: border.id,
         phrase,
         sizeOptionId: sizeOption.id,
@@ -163,7 +169,7 @@ export async function saveStickerDraft(
   const order = await prisma.stickerOrder.create({
     data: {
       userId,
-      characterId: character.id,
+      characterId: character?.id ?? null,
       templateId: null,
       borderId: border.id,
       costumeId: null,
@@ -254,16 +260,32 @@ export async function payForStickerOrder(
     return { error: checkout.error };
   }
 
-  await prisma.stickerOrder.update({
-    where: { id: orderId },
-    data: {
-      paymentStatus: "PAID",
-      fulfillmentStatus: "PRINTING",
-      expectedDeliveryAt: defaultExpectedDeliveryAt(new Date()),
-      quantity: order.sizeOption.quantityPerA4 * checkout.sheetCount,
-      ...checkout.data,
-    },
-  });
+  const quote = quoteStickerOrder(checkout.sheetCount);
+  const spent = await consumeTokens(
+    session.user.id,
+    quote.totalTokens,
+    "STICKER_ORDER",
+  );
+  if (!spent.success) {
+    return { error: spent.message ?? "토큰이 부족합니다" };
+  }
+
+  try {
+    await prisma.stickerOrder.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: "PAID",
+        fulfillmentStatus: "PRINTING",
+        expectedDeliveryAt: defaultExpectedDeliveryAt(new Date()),
+        quantity: order.sizeOption.quantityPerA4 * checkout.sheetCount,
+        ...checkout.data,
+      },
+    });
+  } catch (error) {
+    await restoreTokenSpend(session.user.id, spent);
+    console.error("payForStickerOrder update failed", error);
+    return { error: "주문 정보를 저장하지 못했습니다. 다시 시도해 주세요." };
+  }
 
   await refundTokenHoldsForOrder(session.user.id, "STICKER_SPECIAL", orderId);
 
@@ -283,7 +305,6 @@ export async function deleteDraftStickerOrder(orderId: string) {
     where: { id: orderId, userId: session.user.id },
     select: {
       id: true,
-      paymentStatus: true,
       previewImagePath: true,
       finalImagePath: true,
       compositeImagePath: true,
@@ -292,10 +313,6 @@ export async function deleteDraftStickerOrder(orderId: string) {
 
   if (!order) {
     return { error: "주문을 찾을 수 없습니다." };
-  }
-
-  if (order.paymentStatus === "PAID") {
-    return { error: "결제가 끝난 주문은 삭제할 수 없습니다." };
   }
 
   await refundTokenHoldsForOrder(session.user.id, "STICKER_SPECIAL", orderId);

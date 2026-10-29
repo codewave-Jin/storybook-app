@@ -1,3 +1,5 @@
+import { stickerCharacterLabel } from "@/lib/templates";
+
 export const REVIEW_MIN_CONTENT = 10;
 export const REVIEW_MAX_CONTENT = 500;
 export const REVIEW_MAX_IMAGES = 5;
@@ -59,7 +61,7 @@ export function reviewProductTitle(review: {
   stickerOrder?: {
     border?: { label: string } | null;
     template: { label: string } | null;
-    character: { label: string };
+    character: { label: string } | null;
   } | null;
 }) {
   if (review.storybookOrder) {
@@ -71,8 +73,8 @@ export function reviewProductTitle(review: {
       review.stickerOrder.template?.label?.trim() ||
       null;
     return extra
-      ? `${review.stickerOrder.character.label} · ${extra}`
-      : review.stickerOrder.character.label;
+      ? `${stickerCharacterLabel(review.stickerOrder.character)} · ${extra}`
+      : stickerCharacterLabel(review.stickerOrder.character);
   }
   return "리뷰";
 }

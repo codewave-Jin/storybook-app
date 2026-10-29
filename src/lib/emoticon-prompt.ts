@@ -57,6 +57,172 @@ export const EMOTICON_CELLS: EmoticonCell[] = [
   },
 ];
 
+export const EMOTICON_THEME_IDS = ["basic", "new-year", "halloween", "holiday", "christmas"] as const;
+
+export type EmoticonThemeId = (typeof EMOTICON_THEME_IDS)[number];
+
+export type EmoticonTheme = {
+  id: EmoticonThemeId;
+  label: string;
+  description: string;
+  outfit: string;
+  captionNote?: string;
+  cells: EmoticonCell[];
+};
+
+const THEMED_OUTFIT_RULE =
+  "Use this same outfit in all nine cells. Do not switch costumes between cells. Keep the face, eyes, and hair visible and recognizable. If the reference is a real photograph, the clothes must look like real clothing worn by that person. If the reference is an illustration, draw the clothes in that same illustration style, palette, and linework. Do not replace the face with a generic character.";
+
+function emoticonPose(index: number, title: string, action: string, accent: string, caption: string) {
+  return `${index}. ${title}\n${action}\n${accent}\nDraw this exact text at the top: ${caption}`;
+}
+
+function themedCells(
+  captions: [string, string, string, string, string, string, string, string, string],
+  accents: [string, string, string, string, string, string, string, string, string],
+  actionOverrides?: Partial<Record<number, string>>,
+): EmoticonCell[] {
+  const actions = [
+    "A cheerful expression with a big smile, waving both hands.",
+    "A delighted smile with both fists gently resting against the cheeks.",
+    "A playful wink with puckered lips, blowing a kiss.",
+    "Laughing joyfully with eyes nearly closed. Add playful cartoon-style laughing tears.",
+    "Sleeping peacefully with closed eyes, resting beside a soft plush toy.",
+    "Wide-open eyes and mouth, both hands touching the cheeks.",
+    "Smiling confidently while showing two thumbs up.",
+    "Playfully peeking. Only the upper face and small hands are visible.",
+    "Happily hugging a large heart.",
+  ];
+  const titles = ["HELLO", "HAPPY", "KISS", "LAUGHING", "SLEEPING", "SURPRISED", "THUMBS UP", "PEEKABOO", "LOVE"];
+  return EMOTICON_CELLS.map((cell, index) => ({
+    key: cell.key,
+    caption: captions[index],
+    pose: emoticonPose(
+      index + 1,
+      titles[index],
+      actionOverrides?.[index] ?? actions[index],
+      accents[index],
+      captions[index],
+    ),
+  }));
+}
+
+export const EMOTICON_THEMES: EmoticonTheme[] = [
+  {
+    id: "basic",
+    label: "기본",
+    description: "원래 옷과 일상 문구",
+    outfit:
+      "Keep the clothing, colors, and accessories already visible in the reference image. Do not invent a costume. Small expression props may sit beside the character, but the outfit stays the one in the reference.",
+    cells: EMOTICON_CELLS,
+  },
+  {
+    id: "new-year",
+    label: "새해인사",
+    description: "새해 옷과 덕담",
+    outfit: `${THEMED_OUTFIT_RULE} Dress them for New Year greetings in a bright red or gold knit cardigan, a soft scarf, and a small festive ribbon or headband above the forehead. Add only small New Year props beside the body, such as gold confetti or a tiny sparkler.`,
+    captionNote:
+      "The first cell must show this complete greeting and no shorter version: 새해 복 많이 받으세요. Do not abbreviate it to 새해 복. It may wrap onto two centered lines and be slightly smaller than the other captions so every character stays inside that cell.",
+    cells: themedCells(
+      ["새해 복 많이 받으세요", "행복해", "복 받아", "신난다", "좋은 꿈", "대박!", "파이팅", "짜잔!", "사랑해♡"],
+      [
+        "Add tiny gold fireworks and confetti.",
+        "Add small gold sparkles.",
+        "Add floating gold hearts.",
+        "Add colorful confetti.",
+        "Add a crescent moon, tiny stars, and a warm new-year glow.",
+        "Add gold exclamation marks.",
+        "Add yellow stars.",
+        "Peek from behind a festive red cloth.",
+        "Hug a large gold heart.",
+      ],
+    ),
+  },
+  {
+    id: "halloween",
+    label: "할로윈",
+    description: "귀여운 할로윈 옷과 문구",
+    outfit: `${THEMED_OUTFIT_RULE} Dress them in one cute, child-friendly Halloween costume: a soft orange pumpkin hood or a small witch hat and a short cape. Never make it gory, frightening, or bloody. Add small pumpkins, wrapped candy, or cute bats beside the character.`,
+    cells: themedCells(
+      ["사탕 줘", "부우~", "깜찍♡", "히히히", "굿나잇", "깜짝!", "최고!", "짠!", "친구야♡"],
+      [
+        "Add a small candy and a cute pumpkin.",
+        "Add a tiny friendly ghost.",
+        "Add small candy hearts.",
+        "Add playful candy pieces.",
+        "Rest beside a cute ghost plush, with a crescent moon.",
+        "Add colorful exclamation marks and a tiny bat.",
+        "Add a small pumpkin and yellow stars.",
+        "Peek from behind a pumpkin.",
+        "Hug a large orange heart.",
+      ],
+    ),
+  },
+  {
+    id: "holiday",
+    label: "명절",
+    description: "한복과 명절 인사",
+    outfit: `${THEMED_OUTFIT_RULE} Dress them in one child-sized Korean hanbok for a traditional holiday such as Seollal or Chuseok. Use a soft coral, cream, or pale-blue jeogori with a simple skirt or pants that suits the reference. Add small holiday props beside them, such as songpyeon, a persimmon, a bow, or a round moon.`,
+    cells: themedCells(
+      ["세배요", "풍성해", "고마워♡", "신나용", "달 봐~", "맛있다", "복 많이", "놀자!", "사랑해♡"],
+      [
+        "Add a small traditional bow beside them. Keep the face fully visible.",
+        "Add a round harvest moon and a piece of songpyeon.",
+        "Add floating pink hearts.",
+        "Add small persimmons.",
+        "Rest beside a soft cushion under a crescent moon.",
+        "Add a small plate of songpyeon and yellow emphasis lines.",
+        "Add a lucky pouch and yellow stars.",
+        "Peek from behind a traditional cloth.",
+        "Hug a large pink heart.",
+      ],
+      {
+        0: "A warm smile with a small polite bow and hands gently together. The face stays fully visible.",
+      },
+    ),
+  },
+  {
+    id: "christmas",
+    label: "크리스마스",
+    description: "크리스마스 옷과 문구",
+    outfit: `${THEMED_OUTFIT_RULE} Dress them for Christmas in a red knit sweater or coat and a small Santa hat or reindeer-antler headband that sits above the forehead and leaves the face clear. Add small gifts, holly, or snowflakes beside the character.`,
+    captionNote:
+      "The first cell must show this complete greeting and no shorter version: 메리크리스마스. Do not abbreviate it to 메리. It may wrap onto two centered lines and be slightly smaller than the other captions so the full word stays inside that cell.",
+    cells: themedCells(
+      ["메리크리스마스", "축하해", "쪽♡", "호호호", "잘자~", "선물!", "최고!", "짠!", "사랑해♡"],
+      [
+        "Add tiny snowflakes and a small gift.",
+        "Add gold sparkles and holly.",
+        "Add floating pink hearts.",
+        "Add playful snowflakes.",
+        "Rest beside a soft plush toy, with a crescent moon and tiny stars.",
+        "Add a wrapped gift and colorful exclamation marks.",
+        "Add yellow stars.",
+        "Peek from behind a gift box.",
+        "Hug a large red heart.",
+      ],
+    ),
+  },
+];
+
+const EMOTICON_THEME_BY_ID = new Map(EMOTICON_THEMES.map((theme) => [theme.id, theme]));
+
+export function emoticonThemeById(theme: string | null | undefined) {
+  const match = theme ? EMOTICON_THEME_BY_ID.get(theme as EmoticonThemeId) : undefined;
+  return match ?? EMOTICON_THEMES[0];
+}
+
+export function parseEmoticonTheme(raw: unknown): { theme: EmoticonThemeId } | { error: string } {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!value) {
+    return { theme: "basic" };
+  }
+  if (!EMOTICON_THEME_BY_ID.has(value as EmoticonThemeId)) {
+    return { error: "테마를 다시 골라 주세요." };
+  }
+  return { theme: value as EmoticonThemeId };
+}
+
 const NO_AGE_INSTRUCTION =
   "Preserve the apparent age and natural body proportions of the person or character shown in the reference image. Do not intentionally make the character younger or older.";
 
@@ -85,16 +251,56 @@ export function buildEmoticonAgeInstruction(
   return `Represent the character at approximately ${age} ${emoticonAgeUnitPhrase(age, unit)} old. Naturally reflect the facial softness, head-to-body ratio, and physical proportions typical of this age while preserving the original recognizable facial identity.`;
 }
 
+const PHOTO_LIKENESS_INSTRUCTION = `The reference image is a real photograph of one specific person. Likeness outranks cuteness.
+
+Every sticker must show that same person, not a similar-looking child and not a generic cute character.
+
+Copy these from the photograph and keep them recognizable in all nine cells:
+- face shape, jaw, and cheek fullness
+- eye shape, eye size, and the space between the eyes
+- eyebrow shape
+- nose shape and size
+- lip shape
+- skin tone and visible marks such as moles or dimples
+- hair color, hairline, and hairstyle
+
+A person who knows the subject must recognize them in every cell.
+Expressions and poses may change. The face design may not.
+Do not beautify the face, enlarge the eyes, slim the cheeks, or redraw the person as a different illustrated baby.
+If no age was requested, keep the apparent age in the photograph.
+Theme clothing may change. Facial identity may not.`;
+
 export function buildEmoticonSheetPrompt(input: {
   age?: number | null;
   ageUnit?: EmoticonAgeUnit | null;
+  theme?: string | null;
+  referenceKind?: "photo" | "character";
 }) {
+  const theme = emoticonThemeById(input.theme);
+  const photo = input.referenceKind === "photo";
   const ageInstruction = buildEmoticonAgeInstruction(input.age, input.ageUnit);
-  const row1 = EMOTICON_CELLS.slice(0, 3).map((cell) => cell.pose).join("\n\n");
-  const row2 = EMOTICON_CELLS.slice(3, 6).map((cell) => cell.pose).join("\n\n");
-  const row3 = EMOTICON_CELLS.slice(6, 9).map((cell) => cell.pose).join("\n\n");
+  const row1 = theme.cells.slice(0, 3).map((cell) => cell.pose).join("\n\n");
+  const row2 = theme.cells.slice(3, 6).map((cell) => cell.pose).join("\n\n");
+  const row3 = theme.cells.slice(6, 9).map((cell) => cell.pose).join("\n\n");
+  const intro = photo
+    ? "You are making a messaging-sticker sheet of the exact person in the reference photograph."
+    : "You are a professional character artist specializing in high-quality, adorable baby and children's messaging stickers.";
+  const styleSection = photo
+    ? `The reference is a real photograph.
+- Keep a natural photographic appearance of that same person.
+- Do not replace the photograph with a new cartoon child.
+- Expressions can be sticker-like, but the face must stay identifiable.`
+    : `If the reference image is a real photograph:
+- Preserve the recognizable real-life facial identity.
+- Maintain a natural, realistic photographic appearance.
+- Create adorable, expressive, photo-based baby stickers.
 
-  return `You are a professional character artist specializing in high-quality, adorable baby and children's messaging stickers.
+If the reference image is an illustration:
+- Preserve the original illustration style.
+- Maintain the original colors, textures, linework, and rendering characteristics.
+- Do not convert the character into a different artistic style.`;
+
+  return `${intro}
 
 Create a single square sticker sheet containing exactly nine different expressive stickers arranged in a precise 3×3 grid.
 
@@ -119,17 +325,10 @@ Do not invent a new face or replace the original identity with a generic cute ba
 
 Expressions and poses may change, but the underlying facial identity must remain consistent.
 
+${photo ? `### Photograph Likeness\n\n${PHOTO_LIKENESS_INSTRUCTION}\n` : ""}
 ### Reference Image Style
 
-If the reference image is a real photograph:
-- Preserve the recognizable real-life facial identity.
-- Maintain a natural, realistic photographic appearance.
-- Create adorable, expressive, photo-based baby stickers.
-
-If the reference image is an illustration:
-- Preserve the original illustration style.
-- Maintain the original colors, textures, linework, and rendering characteristics.
-- Do not convert the character into a different artistic style.
+${styleSection}
 
 All nine stickers must share the same visual style.
 
@@ -142,6 +341,10 @@ Age adaptation must remain subtle and natural.
 Preserve the original character's identity even when adjusting age-related proportions.
 
 Do not exaggerate age transformation or substantially alter facial features.
+
+### Outfit
+
+${theme.outfit}
 
 ### Sticker Composition
 
@@ -188,6 +391,7 @@ ${row3}
 ### Text Rendering
 
 ${POST_PROCESS_TEXT_INSTRUCTION}
+${theme.captionNote ? `\n${theme.captionNote}` : ""}
 
 ### Critical Requirements
 
@@ -201,7 +405,8 @@ ${POST_PROCESS_TEXT_INSTRUCTION}
 8. Keep the face size, eye line, and margins the same in every cell.
 9. Ensure no sticker elements overlap neighboring cells.
 10. Do not generate extra characters or duplicate stickers.
-11. Draw each cell's exact Korean caption inside that cell.`;
+11. Draw each cell's exact Korean caption inside that cell.
+12. Keep the specified outfit consistent in all nine cells.${photo ? "\n13. The photographed person must stay recognizable in all nine cells. Do not substitute a different face." : ""}`;
 }
 
 export type EmoticonPreviewCell = {
@@ -210,8 +415,11 @@ export type EmoticonPreviewCell = {
   imageUrl: string;
 };
 
-export function emoticonPreviewCells(cellImagePaths: string[]): EmoticonPreviewCell[] {
-  return EMOTICON_CELLS.map((cell, index) => ({
+export function emoticonPreviewCells(
+  cellImagePaths: string[],
+  theme?: string | null,
+): EmoticonPreviewCell[] {
+  return emoticonThemeById(theme).cells.map((cell, index) => ({
     key: cell.key,
     caption: cell.caption,
     imageUrl: cellImagePaths[index] ?? "",
