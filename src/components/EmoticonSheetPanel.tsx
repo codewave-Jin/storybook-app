@@ -305,8 +305,11 @@ export function EmoticonSheetPanel({
       )}
 
       <div className="mt-3">
-        <p className="text-sm font-medium text-stone-800">테마</p>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
+        <p className="text-base font-semibold text-stone-800">테마</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-stone-500">
+          얼굴은 그대로 두고, 고른 테마에 맞는 옷과 문구로 만듭니다.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
           {EMOTICON_THEMES.map((option) => {
             const selected = theme === option.id;
             return (
@@ -320,20 +323,18 @@ export function EmoticonSheetPanel({
                   setError(null);
                 }}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-60",
+                  "min-h-16 rounded-2xl border px-3 py-3 text-left disabled:opacity-60",
                   selected
-                    ? "border-sky-400 bg-sky-50 text-sky-800 ring-2 ring-sky-200"
-                    : "border-stone-200 bg-white text-stone-700 hover:border-sky-300",
+                    ? "border-sky-400 bg-sky-50 ring-2 ring-sky-300"
+                    : "border-stone-200 bg-white hover:border-sky-300",
                 )}
               >
-                {option.label}
+                <span className="block text-base font-semibold text-stone-800">{option.label}</span>
+                <span className="mt-0.5 block text-sm leading-snug text-stone-500">{option.description}</span>
               </button>
             );
           })}
         </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-stone-500">
-          {EMOTICON_THEMES.find((option) => option.id === theme)?.description}. 얼굴은 그대로 두고, 고른 테마에 맞는 옷과 문구로 만듭니다.
-        </p>
       </div>
 
       <div className="mt-3">
