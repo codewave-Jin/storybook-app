@@ -347,7 +347,6 @@ export default async function DashboardPage() {
         },
       },
       emoticonOrders: {
-        where: { paymentStatus: "PAID" },
         orderBy: { createdAt: "desc" },
         take: RECENT_WORK_LIMIT,
         select: {
@@ -475,8 +474,13 @@ export default async function DashboardPage() {
       href: `/dashboard/emoticon/${order.id}`,
       createdAt: order.createdAt,
       paymentStatus: order.paymentStatus,
-      statusLabel: PAYMENT_STATUS_LABEL.PAID,
-      statusClass: "bg-emerald-50 text-emerald-700",
+      statusLabel: PAYMENT_STATUS_LABEL[order.paymentStatus],
+      statusClass:
+        order.paymentStatus === "PAID"
+          ? "bg-emerald-50 text-emerald-700"
+          : order.paymentStatus === "FAILED"
+            ? FAILED_BADGE
+            : PRODUCTION_BADGE.WAITING,
       canDelete: true,
     })),
   ]

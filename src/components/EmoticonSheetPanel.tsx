@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppImage } from "@/components/AppImage";
@@ -54,6 +54,7 @@ export function EmoticonSheetPanel({
   const [generating, setGenerating] = useState(false);
   const [tokenConfirmOpen, setTokenConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const watchAfterRef = useRef<string | null>(null);
   const ready = source === "photo" ? Boolean(file) : Boolean(characterId);
 
   useEffect(() => {
@@ -138,6 +139,41 @@ export function EmoticonSheetPanel({
     setTokenConfirmOpen(true);
   }
 
+  useEffect(() => {
+    const after = watchAfterRef.current;
+    if (!generating || !after) {
+      return;
+    }
+    let stopped = false;
+    async function lookForOrder() {
+      if (stopped) {
+        return;
+      }
+      try {
+        const response = await fetch(
+          `/api/emoticons/latest?after=${encodeURIComponent(after ?? "")}`,
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          orderId?: string | null;
+        } | null;
+        if (!stopped && payload?.orderId) {
+          stopped = true;
+          router.push(`/dashboard/emoticon/${payload.orderId}`);
+        }
+      } catch {
+        // The create request can finish on the server after the phone drops it.
+      }
+    }
+    void lookForOrder();
+    const timer = window.setInterval(() => {
+      void lookForOrder();
+    }, 4000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [generating, router]);
+
   async function generate() {
     if (!validateBeforeGenerate()) {
       setTokenConfirmOpen(false);
@@ -145,6 +181,7 @@ export function EmoticonSheetPanel({
     }
 
     setTokenConfirmOpen(false);
+    watchAfterRef.current = new Date(Date.now() - 5000).toISOString();
     setGenerating(true);
     setError(null);
     try {
@@ -169,15 +206,32 @@ export function EmoticonSheetPanel({
         cells?: EmoticonPreview["cells"];
         error?: string;
       } | null;
-      if (!response.ok || !payload?.orderId || !payload.cells?.length) {
+      if (!response.ok) {
         setError(payload?.error ?? "이모티콘을 만들지 못했습니다.");
         setGenerating(false);
         return;
       }
+      if (!payload?.orderId || !payload.cells?.length) {
+        window.setTimeout(() => {
+          setGenerating((current) => {
+            if (current) {
+              setError("이모티콘을 만들지 못했습니다. 최근 작업에서 미리보기를 확인해 주세요.");
+            }
+            return false;
+          });
+        }, 30000);
+        return;
+      }
       router.push(`/dashboard/emoticon/${payload.orderId}`);
     } catch {
-      setError("이모티콘을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.");
-      setGenerating(false);
+      window.setTimeout(() => {
+        setGenerating((current) => {
+          if (current) {
+            setError("이모티콘을 만들지 못했습니다. 최근 작업에서 미리보기를 확인해 주세요.");
+          }
+          return false;
+        });
+      }, 120000);
     }
   }
 
