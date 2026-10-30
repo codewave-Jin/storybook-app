@@ -90,12 +90,14 @@ export async function runStickerPreviewGeneration(
     return { success: true, skipped: true };
   }
 
-  if (!order.character) {
+  const character = order.character;
+  if (!character) {
     const error = "캐릭터가 없는 실사 스티커는 이 경로로 다시 만들지 않습니다.";
     logSticker("sticker.failed", error, { reason: error });
     await markPreviewFailed(orderId, error);
     return { error };
   }
+  const orderWithCharacter = { ...order, character };
 
   const claimed = await prisma.stickerOrder.updateMany({
     where: {
@@ -145,7 +147,7 @@ export async function runStickerPreviewGeneration(
 
   if (order.borderId && order.border) {
     return runCompositeStickerPreview({
-      order,
+      order: orderWithCharacter,
       border: order.border,
       logSticker,
       fail,
@@ -153,7 +155,7 @@ export async function runStickerPreviewGeneration(
   }
 
   return runLegacyStickerPreview({
-    order,
+    order: orderWithCharacter,
     fromQueue,
     logSticker,
     fail,

@@ -464,6 +464,9 @@ function CutoutEraser({
                     beginPan(event);
                     return;
                   }
+                  if (!tool) {
+                    return;
+                  }
                   try {
                     event.currentTarget.setPointerCapture(event.pointerId);
                   } catch {
