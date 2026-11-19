@@ -108,7 +108,7 @@ function useQuizRounds(
         // 틀리면 오답 효과음만 (동물 소리는 내지 않는다)
         playFailSound();
         setState((s) => ({ ...s, wrong: wordId, wrongTick: s.wrongTick + 1 }));
-        later(() => setState((s) => (s.wrong === wordId ? { ...s, wrong: null } : s)), 700);
+        later(() => setState((s) => (s.wrong === wordId ? { ...s, wrong: null } : s)), 1600);
       }
     },
     [answer, later, makeChoices, nextDelay, state.done, state.phase],
@@ -127,6 +127,24 @@ function useQuizRounds(
   }, [init]);
 
   return { state, answer, pick, replay, restart };
+}
+
+/** 게임 캐릭터 말풍선: 고르기 전 / 오답 / 정답 */
+function GameSayBubble({ correct, wrong }: { correct: boolean; wrong: boolean }) {
+  const text = correct ? "우와! 정답이다!" : wrong ? "힝.. 다시 해볼까?" : "이게 뭘까?";
+  const ring = correct ? COLORS.coral : wrong ? "#9AA8B4" : COLORS.sky;
+  return (
+    <div
+      key={text}
+      className={styles.fadeIn}
+      role="status"
+      aria-live="polite"
+      style={{ position: "relative", marginTop: 14, width: "max-content", maxWidth: 280, borderRadius: 24, background: "#FFFFFF", padding: "10px 22px", fontSize: 28, lineHeight: 1.25, textAlign: "center", whiteSpace: "nowrap", color: COLORS.ink, boxShadow: `0 0 0 3px ${ring}, 0 8px 18px rgba(47,74,95,0.14)` }}
+    >
+      <span aria-hidden="true" style={{ position: "absolute", left: "50%", top: -11, width: 18, height: 18, marginLeft: -9, background: "#FFFFFF", transform: "rotate(45deg)", boxShadow: `-3px -3px 0 0 ${ring}` }} />
+      <span style={{ position: "relative" }}>{text}</span>
+    </div>
+  );
 }
 
 function GameTopBar({ topic, total, solved, correct, onHome, onIntro }: { topic: WordbookTopic; total: number; solved: number; correct: boolean; onHome: () => void; onIntro: () => void }) {
@@ -228,7 +246,7 @@ export function SoundGameScreen({ game, ...nav }: GameNav & { game: WordbookSoun
       <SceneBackground src={topic.pages[pageIndex].background} blur={3} veil={0.5} saturate={0.7} />
       <GameTopBar topic={topic} total={state.order.length} solved={state.index} correct={correct} onHome={nav.onHome} onIntro={nav.onIntro} />
 
-      <div style={{ position: "absolute", left: 90, top: 150, width: 220, display: "flex", justifyContent: "center" }}>
+      <div style={{ position: "absolute", left: 90, top: 150, width: 220, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <CharacterCard
           className={correct ? styles.pop : styles.swayGame}
           src={(correct ? character.surprised : character.curious) ?? character.base}
@@ -238,6 +256,7 @@ export function SoundGameScreen({ game, ...nav }: GameNav & { game: WordbookSoun
           padding={9}
           badge={correct ? "!" : "?"}
         />
+        <GameSayBubble correct={correct} wrong={Boolean(wrongWord)} />
       </div>
 
       <div style={{ position: "absolute", left: 377, top: 120, width: 440, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
@@ -320,7 +339,7 @@ export function HintQuizScreen({ game, ...nav }: GameNav & { game: WordbookHintG
       <GameTopBar topic={topic} total={state.order.length} solved={state.index} correct={correct} onHome={nav.onHome} onIntro={nav.onIntro} />
 
       {/* 왼쪽 주인공 (힌트 박스 세로 가운데) */}
-      <div style={{ position: "absolute", left: 24, top: 222, width: 280, display: "flex", justifyContent: "center" }}>
+      <div style={{ position: "absolute", left: 24, top: 222, width: 280, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <CharacterCard
           className={correct ? styles.pop : styles.swayGame}
           src={(correct ? character.surprised : character.curious) ?? character.base}
@@ -330,6 +349,7 @@ export function HintQuizScreen({ game, ...nav }: GameNav & { game: WordbookHintG
           padding={11}
           badge={correct ? "!" : "?"}
         />
+        <GameSayBubble correct={correct} wrong={Boolean(wrongWord)} />
       </div>
 
       {/* 힌트 박스: 힌트 그림 + 글자 + 정답 실루엣 */}
