@@ -28,6 +28,7 @@ import { toClientCharacterImages } from "@/lib/media-paths";
 import { storybookOrderOptionLines, collectOrderCharacterIds, type OrderOptionLine } from "@/lib/storybook-order-summary";
 import { stickerPhraseDisplay } from "@/lib/sticker-phrase";
 import { stickerCharacterLabel } from "@/lib/templates";
+import { wordbookStatusPayload } from "@/lib/wordbook-generate";
 
 const PRODUCTION_BADGE: Record<ProductionStatus, string> = {
   WAITING: "bg-[#F6E7C1] text-[#8A5A12]",
@@ -41,7 +42,7 @@ const RECENT_WORK_LIMIT = 5;
 
 type RecentWorkItem = {
   id: string;
-  kind: "storybook" | "sticker" | "emoticon";
+  kind: "storybook" | "sticker" | "emoticon" | "wordbook";
   title: string;
   href: string;
   createdAt: Date;
@@ -93,6 +94,9 @@ function workKindLabel(kind: RecentWorkItem["kind"]) {
   if (kind === "sticker") {
     return "스티커";
   }
+  if (kind === "wordbook") {
+    return "단어 그림책";
+  }
   return "이모티콘";
 }
 
@@ -103,7 +107,26 @@ function workKindClass(kind: RecentWorkItem["kind"]) {
   if (kind === "sticker") {
     return "bg-[#FDE8E0] text-[#E07A5F]";
   }
+  if (kind === "wordbook") {
+    return "bg-emerald-50 text-emerald-700";
+  }
   return "bg-violet-100 text-violet-700";
+}
+
+function wordbookWorkStatus(order: {
+  status: string;
+  paymentStatus: PaymentStatus;
+}): { label: string; badgeClass: string } {
+  if (order.status === "GENERATING") {
+    return { label: "표정 생성 중", badgeClass: PRODUCTION_BADGE.ILLUSTRATING };
+  }
+  if (order.status === "FAILED") {
+    return { label: "실패", badgeClass: FAILED_BADGE };
+  }
+  if (order.paymentStatus !== "PAID") {
+    return { label: PAYMENT_STATUS_LABEL.PENDING, badgeClass: PRODUCTION_BADGE.WAITING };
+  }
+  return { label: "완성", badgeClass: "bg-emerald-50 text-emerald-700" };
 }
 
 function emoticonWorkTitle(order: { age: number | null; ageUnit: string | null; theme: string }) {
@@ -358,6 +381,19 @@ export default async function DashboardPage() {
           createdAt: true,
         },
       },
+      wordbookOrders: {
+        orderBy: { createdAt: "desc" },
+        take: RECENT_WORK_LIMIT,
+        select: {
+          id: true,
+          status: true,
+          paymentStatus: true,
+          curiousImagePath: true,
+          surprisedImagePath: true,
+          createdAt: true,
+          character: { select: { label: true } },
+        },
+      },
       stickerOrders: {
         orderBy: { createdAt: "desc" },
         take: RECENT_WORK_LIMIT,
@@ -483,6 +519,27 @@ export default async function DashboardPage() {
             : PRODUCTION_BADGE.WAITING,
       canDelete: true,
     })),
+    ...(user?.wordbookOrders ?? []).map((order) => {
+      const status = wordbookWorkStatus(order);
+      return {
+        id: order.id,
+        kind: "wordbook" as const,
+        title: `${order.character?.label ?? "캐릭터"} · 단어 그림책`,
+        href: `/dashboard/wordbook/${order.id}`,
+        createdAt: order.createdAt,
+        paymentStatus: order.paymentStatus,
+        statusLabel: status.label,
+        statusClass: status.badgeClass,
+        canDelete: order.status !== "GENERATING",
+        generating:
+          order.status === "GENERATING"
+            ? {
+                href: `/api/wordbooks/${order.id}/status`,
+                signature: JSON.stringify(wordbookStatusPayload(order)),
+              }
+            : undefined,
+      };
+    }),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, RECENT_WORK_LIMIT);

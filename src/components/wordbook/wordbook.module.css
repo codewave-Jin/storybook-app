@@ -1,0 +1,146 @@
+@font-face {
+  font-family: "WordbookJua";
+  src: url("/fonts/Jua-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+/* 화면 전체: 남는 공간은 하늘색으로 채운다 */
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  background: #eaf4fb;
+  color: #2f4a5f;
+  font-family: "WordbookJua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 1194×834 디자인 화면. 플레이어가 scale 로 기기에 맞춘다 */
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1194px;
+  height: 834px;
+  overflow: hidden;
+  transform-origin: 50% 50%;
+}
+
+.stage button {
+  font-family: inherit;
+  color: inherit;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.stage img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+}
+.sway {
+  animation: sway 2.2s ease-in-out infinite;
+  transform-origin: 50% 92%;
+}
+
+@keyframes swayGame {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+.swayGame {
+  animation: swayGame 1.8s ease-in-out infinite;
+  transform-origin: 50% 92%;
+}
+
+@keyframes wiggle {
+  0% { transform: rotate(0); }
+  15% { transform: rotate(-10deg) scale(1.06); }
+  30% { transform: rotate(9deg) scale(1.06); }
+  45% { transform: rotate(-7deg); }
+  60% { transform: rotate(5deg); }
+  75% { transform: rotate(-2deg); }
+  100% { transform: rotate(0); }
+}
+.wiggle {
+  animation: wiggle 0.9s ease-in-out;
+  transform-origin: 50% 100%;
+}
+
+@keyframes bubbleIn {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+.bubble {
+  animation: bubbleIn 0.2s ease-out both;
+}
+
+/* 마지막 쪽 "다른 것도 배워보기" 말풍선: 위아래로 살짝 흔들린다 */
+@keyframes hintBubble {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.hintBubble {
+  animation: hintBubble 1.6s ease-in-out infinite;
+}
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.14) rotate(-3deg); }
+  65% { transform: scale(0.96) rotate(2deg); }
+  100% { transform: scale(1); }
+}
+.pop {
+  animation: pop 0.6s ease-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-12px); }
+  40% { transform: translateX(10px); }
+  60% { transform: translateX(-7px); }
+  80% { transform: translateX(4px); }
+}
+.shake {
+  animation: shake 0.45s ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.45); }
+  50% { box-shadow: 0 0 0 18px rgba(56, 189, 248, 0); }
+}
+.pulse {
+  animation: pulse 1.8s ease-out infinite;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px) scale(0.9); }
+  100% { opacity: 1; transform: none; }
+}
+.fadeIn {
+  animation: fadeIn 0.3s ease-out both;
+}
+
+/* 단어 그림에 흰 테두리 + 그림자 (배경에서 또렷하게) */
+.sticker {
+  filter: drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff)
+    drop-shadow(0 -3px 0 #fff) drop-shadow(0 10px 12px rgba(47, 74, 95, 0.32));
+}
+
+.silhouette {
+  filter: brightness(0) opacity(0.78);
+  transition: filter 0.35s ease;
+}
+.revealed {
+  filter: none;
+  transition: filter 0.35s ease;
+}

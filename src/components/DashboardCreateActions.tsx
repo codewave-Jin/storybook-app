@@ -1,62 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { AppImage } from "@/components/AppImage";
-
-function ComingSoonCard({
-  title,
-  description,
-  image,
-  imageFit = "cover",
-}: {
-  title: string;
-  description: string;
-  image: string;
-  imageFit?: "cover" | "contain";
-}) {
-  const [hint, setHint] = useState(false);
-  const isContain = imageFit === "contain";
-
-  return (
-    <button
-      type="button"
-      aria-disabled="true"
-      onClick={() => setHint(true)}
-      className="flex cursor-not-allowed items-center gap-3 rounded-2xl bg-stone-50 p-3 text-left ring-1 ring-stone-200 sm:gap-4 sm:p-4"
-    >
-      <span
-        className={`relative shrink-0 overflow-hidden rounded-xl bg-stone-100 ${
-          isContain ? "aspect-video h-16" : "h-16 w-16"
-        }`}
-      >
-        <AppImage
-          src={image}
-          alt=""
-          fill
-          className={isContain ? "object-contain object-center opacity-70" : "object-cover opacity-70"}
-          sizes={isContain ? "100px" : "64px"}
-        />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold text-stone-500">{title}</h3>
-          <span className="inline-flex rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-medium text-stone-500">
-            Coming Soon
-          </span>
-        </div>
-        <p className="mt-0.5 text-xs leading-relaxed text-stone-400">
-          {description}
-        </p>
-        {hint ? (
-          <p className="mt-1.5 text-xs font-medium text-stone-500">
-            곧 만나보실 수 있어요
-          </p>
-        ) : null}
-      </div>
-    </button>
-  );
-}
 
 function AvailableCard({
   href,
@@ -151,11 +96,13 @@ export function DashboardCreateActions() {
           description="같은 얼굴로 만드는 3×3 메시지 이모티콘"
           accent="sky"
         />
-        <ComingSoonCard
-          image="/landing/make-video.jpg"
-          imageFit="contain"
-          title="영상"
-          description="우리 가족이 움직이고 말하는 짧은 영상"
+        {/* 영상 자리를 단어 그림책으로 바꿈 */}
+        <AvailableCard
+          href="/dashboard/wordbook"
+          image="/landing/make-wordbook.jpg"
+          title="단어 그림책"
+          description="내 캐릭터와 함께 단어 놀이 그림책"
+          accent="coral"
         />
       </div>
     </section>

@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { deleteEmoticonOrder } from "@/app/actions/emoticons";
 import { deleteDraftOrder } from "@/app/actions/orders";
 import { deleteDraftStickerOrder } from "@/app/actions/stickers";
+import { deleteWordbookOrder } from "@/app/actions/wordbooks";
 import { cn } from "@/lib/utils";
 
 export function DeleteDraftOrderButton({
@@ -16,7 +17,7 @@ export function DeleteDraftOrderButton({
 }: {
   orderId: string;
   title: string;
-  kind?: "storybook" | "sticker" | "emoticon";
+  kind?: "storybook" | "sticker" | "emoticon" | "wordbook";
   compact?: boolean;
   redirectTo?: string;
 }) {
@@ -25,7 +26,13 @@ export function DeleteDraftOrderButton({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const heading =
-    kind === "sticker" ? "스티커 삭제" : kind === "emoticon" ? "이모티콘 삭제" : "동화책 삭제";
+    kind === "sticker"
+      ? "스티커 삭제"
+      : kind === "emoticon"
+        ? "이모티콘 삭제"
+        : kind === "wordbook"
+          ? "단어 그림책 삭제"
+          : "동화책 삭제";
 
   function handleDelete() {
     startTransition(async () => {
@@ -34,7 +41,9 @@ export function DeleteDraftOrderButton({
           ? await deleteDraftStickerOrder(orderId)
           : kind === "emoticon"
             ? await deleteEmoticonOrder(orderId)
-            : await deleteDraftOrder(orderId);
+            : kind === "wordbook"
+              ? await deleteWordbookOrder(orderId)
+              : await deleteDraftOrder(orderId);
       if (result?.error) {
         setError(result.error);
         return;

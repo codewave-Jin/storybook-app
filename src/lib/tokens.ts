@@ -4,7 +4,11 @@ import { prisma } from "@/lib/prisma";
 export const SIGNUP_TOKEN_GRANT = 3;
 
 export type TokenSpendSource = "free" | "paid";
-export type TokenHoldKind = "STORYBOOK_PREVIEW" | "STICKER_SPECIAL" | "EMOTICON_PREVIEW";
+export type TokenHoldKind =
+  | "STORYBOOK_PREVIEW"
+  | "STICKER_SPECIAL"
+  | "EMOTICON_PREVIEW"
+  | "WORDBOOK_PREVIEW";
 
 function transactionTypeForHold(kind: TokenHoldKind): TokenTransactionType {
   if (kind === "STICKER_SPECIAL") {
@@ -12,6 +16,9 @@ function transactionTypeForHold(kind: TokenHoldKind): TokenTransactionType {
   }
   if (kind === "EMOTICON_PREVIEW") {
     return "EMOTICON_PREVIEW";
+  }
+  if (kind === "WORDBOOK_PREVIEW") {
+    return "WORDBOOK_PREVIEW";
   }
   return "STORYBOOK_PREVIEW";
 }

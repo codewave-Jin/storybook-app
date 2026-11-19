@@ -116,6 +116,11 @@ export async function deleteCharacter(characterId: string): Promise<void> {
   const hasPaidSticker = stickerOrders.some(
     (order) => order.paymentStatus === "PAID",
   );
+  // 단어 그림책은 캐릭터 이미지를 기본 표정으로 그대로 쓰므로, 남아 있으면 이미지를 지우지 않는다.
+  const wordbookCount = await prisma.wordbookOrder.count({
+    where: { characterId: character.id, userId: session.user.id },
+  });
+  const keepCharacterImages = hasPaidSticker || wordbookCount > 0;
 
   for (const order of unpaidOrders) {
     await deleteStickerFile(order.previewImagePath);
@@ -136,7 +141,7 @@ export async function deleteCharacter(characterId: string): Promise<void> {
         ]
       : [];
 
-  if (hasPaidSticker) {
+  if (keepCharacterImages) {
     await prisma.$transaction([
       ...unpaidCleanup,
       prisma.character.update({

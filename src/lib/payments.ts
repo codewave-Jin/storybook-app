@@ -9,6 +9,10 @@ export const STORYBOOK_PRICE_KRW = 45_000;
 export const PHOTO_ALBUM_PRICE_KRW = 5_000;
 export const STICKER_SHEET_PRICE_KRW = 5_000;
 export const EMOTICON_PACK_PRICE_KRW = 2_000;
+/** 단어 그림책 가격. 임시 값이라 확정되면 이 숫자만 바꾸면 된다. */
+export const WORDBOOK_PRICE_KRW = 3_000;
+/** 표정마다 무료로 다시 그릴 수 있는 횟수 */
+export const WORDBOOK_FREE_REGEN = 2;
 export const ORDER_QUANTITY_MIN = 1;
 export const ORDER_QUANTITY_MAX = 20;
 export const STICKER_SHEET_MIN = 1;
@@ -32,6 +36,7 @@ export const STORYBOOK_PRICE_TOKENS = tokensForKrw(STORYBOOK_PRICE_KRW);
 export const PHOTO_ALBUM_PRICE_TOKENS = tokensForKrw(PHOTO_ALBUM_PRICE_KRW);
 export const STICKER_SHEET_PRICE_TOKENS = tokensForKrw(STICKER_SHEET_PRICE_KRW);
 export const EMOTICON_PACK_TOKENS = tokensForKrw(EMOTICON_PACK_PRICE_KRW);
+export const WORDBOOK_PRICE_TOKENS = tokensForKrw(WORDBOOK_PRICE_KRW);
 
 export function clampOrderQuantity(value: number) {
   if (!Number.isFinite(value)) {

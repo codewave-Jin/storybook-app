@@ -24,6 +24,7 @@ model User {
   orders            StorybookOrder[]
   stickerOrders     StickerOrder[]
   emoticonOrders    EmoticonOrder[]
+  wordbookOrders    WordbookOrder[]
   reviews           Review[]
   orderStatusLogs   OrderStatusLog[]
 }
@@ -64,6 +65,8 @@ enum TokenTransactionType {
   STICKER_ORDER
   EMOTICON_PREVIEW
   EMOTICON_ORDER
+  WORDBOOK_PREVIEW
+  WORDBOOK_ORDER
   PURCHASE
   REFUND
 }
@@ -72,6 +75,7 @@ enum TokenHoldKind {
   STORYBOOK_PREVIEW
   STICKER_SPECIAL
   EMOTICON_PREVIEW
+  WORDBOOK_PREVIEW
 }
 
 model TokenHold {
@@ -108,6 +112,7 @@ model Character {
 
   stickerOrders      StickerOrder[]
   characterAssets    CharacterAsset[]
+  wordbookOrders     WordbookOrder[]
 
   @@index([email])
   @@index([userId, deletedAt])
@@ -552,6 +557,33 @@ model EmoticonOrder {
   @@index([userId, createdAt])
   @@index([email])
   @@map("emoticon_orders")
+}
+
+/// 단어 그림책: 저장된 캐릭터(기본 표정) + GPT가 그린 궁금한·놀란 표정 2장.
+/// 배경·단어 그림·소리는 모든 책이 같은 공용 에셋이라 여기에는 캐릭터 이미지만 저장한다.
+model WordbookOrder {
+  id                  String        @id @default(cuid())
+  email               String?
+  userId              String
+  user                User          @relation(fields: [userId], references: [id])
+  characterId         String?
+  character           Character?    @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  /// 주문 시점의 캐릭터 이미지 경로 (캐릭터를 지워도 책은 그대로 열리게 복사해 둔다)
+  baseImagePath       String
+  curiousImagePath    String?
+  surprisedImagePath  String?
+  /// GENERATING | READY | FAILED
+  status              String        @default("GENERATING")
+  errorReason         String?
+  curiousRegenCount   Int           @default(0)
+  surprisedRegenCount Int           @default(0)
+  paymentStatus       PaymentStatus @default(PENDING)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([email])
+  @@map("wordbook_orders")
 }
 
 model Review {
