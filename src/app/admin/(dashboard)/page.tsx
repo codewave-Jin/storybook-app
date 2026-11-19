@@ -11,6 +11,8 @@ export default async function AdminHomePage() {
     completedCount,
     stickerCount,
     stickerPaidCount,
+    wordbookCount,
+    wordbookPaidCount,
     activeJobs,
   ] = await Promise.all([
     prisma.storybookOrder.count(),
@@ -22,6 +24,8 @@ export default async function AdminHomePage() {
     prisma.storybookOrder.count({ where: { productionStatus: "COMPLETED" } }),
     prisma.stickerOrder.count(),
     prisma.stickerOrder.count({ where: { paymentStatus: "PAID" } }),
+    prisma.wordbookOrder.count(),
+    prisma.wordbookOrder.count({ where: { paymentStatus: "PAID" } }),
     loadActiveGenerationJobs(),
   ]);
 
@@ -33,6 +37,8 @@ export default async function AdminHomePage() {
     { label: "제작완료", value: completedCount },
     { label: "스티커 주문", value: stickerCount },
     { label: "스티커 주문완료", value: stickerPaidCount },
+    { label: "단어 그림책 주문", value: wordbookCount },
+    { label: "단어 그림책 주문완료", value: wordbookPaidCount },
   ];
 
   return (

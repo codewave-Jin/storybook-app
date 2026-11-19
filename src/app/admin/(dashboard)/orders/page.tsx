@@ -13,6 +13,7 @@ import {
   formatDateTime,
   isAdminProductFilter,
   stickerAdminStatus,
+  wordbookAdminStatus,
 } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { stickerCharacterLabel, stickerOrderExtraLabel, stickerOrderTitle } from "@/lib/templates";
@@ -58,8 +59,11 @@ export default async function AdminOrdersPage({
       }
     : {};
 
-  const includeStorybooks = productFilter !== "STICKER";
-  const includeStickers = productFilter !== "STORYBOOK";
+  const includeStorybooks = productFilter === "ALL" || productFilter === "STORYBOOK";
+  const includeStickers = productFilter === "ALL" || productFilter === "STICKER";
+  // 단어 그림책은 배송이 없어서 배송 상태 필터를 고르면 빠진다
+  const includeWordbooks =
+    productFilter === "WORDBOOK" || (productFilter === "ALL" && !statusFilter);
   const stickerStatusFilter =
     productFilter === "STICKER" && statusFilter === "PREPARING"
       ? undefined
@@ -75,7 +79,7 @@ export default async function AdminOrdersPage({
     ...userSearch,
   };
 
-  const [storybooks, stickers] = await Promise.all([
+  const [storybooks, stickers, wordbooks] = await Promise.all([
     includeStorybooks
       ? prisma.storybookOrder.findMany({
           where: storybookWhere,
@@ -94,6 +98,16 @@ export default async function AdminOrdersPage({
             character: { select: { label: true } },
             border: { select: { label: true } },
             template: { select: { label: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+    includeWordbooks
+      ? prisma.wordbookOrder.findMany({
+          where: userSearch,
+          include: {
+            user: { select: { email: true, name: true } },
+            character: { select: { label: true } },
           },
           orderBy: { createdAt: "desc" },
         })
@@ -146,14 +160,30 @@ export default async function AdminOrdersPage({
         ),
       };
     }),
+    ...wordbooks.map((order) => {
+      const status = wordbookAdminStatus(order);
+      return {
+        id: order.id,
+        kind: "WORDBOOK" as const,
+        userName: order.user.name,
+        userEmail: order.user.email,
+        productKindLabel: "단어 그림책",
+        productTitle: `${order.character?.label || "삭제된 캐릭터"}의 단어 그림책`,
+        statusLabel: status.label,
+        statusClass: status.className,
+        createdAt: formatDateTime(order.createdAt),
+        createdAtMs: order.createdAt.getTime(),
+        expectedDeliveryAt: "-",
+      };
+    }),
   ].sort((a, b) => b.createdAtMs - a.createdAtMs);
 
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">주문 관리</h1>
       <p className="mt-1 text-sm text-stone-500">
-        동화책·스티커 주문을 함께 봅니다. 행을 클릭하면 상세와 배송 정보를 확인할 수
-        있습니다.
+        동화책·스티커·단어 그림책 주문을 함께 봅니다. 동화책·스티커 행을 클릭하면 상세와
+        배송 정보를 확인할 수 있습니다.
       </p>
 
       <form
@@ -202,7 +232,8 @@ export default async function AdminOrdersPage({
         })}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      {/* 단어 그림책은 배송이 없어 배송 상태 필터를 숨긴다 */}
+      <div className={cn("mt-3 flex flex-wrap gap-2", productFilter === "WORDBOOK" && "hidden")}>
         {(productFilter === "STICKER"
           ? STICKER_FULFILLMENT_STATUS_FILTERS
           : FULFILLMENT_STATUS_FILTERS

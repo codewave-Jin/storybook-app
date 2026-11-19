@@ -22,7 +22,25 @@ export const ADMIN_PRODUCT_FILTERS = [
   { value: "ALL", label: "전체" },
   { value: "STORYBOOK", label: "동화책" },
   { value: "STICKER", label: "스티커" },
+  { value: "WORDBOOK", label: "단어 그림책" },
 ] as const;
+
+/** 단어 그림책 주문 상태 (배송 없는 디지털 상품: 표정 생성 → 결제) */
+export function wordbookAdminStatus(order: {
+  status: string;
+  paymentStatus: PaymentStatus;
+}): { label: string; className: string } {
+  if (order.paymentStatus === "PAID") {
+    return { label: "주문완료", className: "bg-emerald-50 text-emerald-700" };
+  }
+  if (order.status === "FAILED") {
+    return { label: "생성실패", className: "bg-red-50 text-red-600" };
+  }
+  if (order.status === "GENERATING") {
+    return { label: "생성중", className: "bg-amber-50 text-amber-700" };
+  }
+  return { label: "미리보기", className: "bg-stone-100 text-stone-600" };
+}
 
 export type AdminProductFilter = (typeof ADMIN_PRODUCT_FILTERS)[number]["value"];
 

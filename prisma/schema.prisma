@@ -69,6 +69,8 @@ enum TokenTransactionType {
   WORDBOOK_ORDER
   PURCHASE
   REFUND
+  /// 관리자가 회원 토큰을 회수
+  ADMIN_REVOKE
 }
 
 enum TokenHoldKind {

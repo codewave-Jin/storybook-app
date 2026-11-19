@@ -333,6 +333,48 @@ export async function grantPaidTokens(userId: string, amount: number) {
   });
 }
 
+/**
+ * 관리자 토큰 회수: 유료 토큰부터 빼고, 모자라면 무료 토큰에서 뺀다.
+ * 가진 토큰보다 많이 회수할 수는 없다.
+ */
+export async function revokeTokens(userId: string, amount: number) {
+  if (!Number.isInteger(amount) || amount < 1 || amount > MAX_ADMIN_TOKEN_GRANT) {
+    throw new Error(`1~${MAX_ADMIN_TOKEN_GRANT}개 사이로 회수해 주세요.`);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.tokenBalance.findUnique({ where: { userId } });
+    const total = existing ? totalTokens(existing) : 0;
+    if (!existing || total < amount) {
+      throw new Error(`보유 토큰(${total}개)보다 많이 회수할 수 없습니다.`);
+    }
+
+    const paidRevoked = Math.min(existing.paidBalance, amount);
+    const freeRevoked = amount - paidRevoked;
+    const balance = await tx.tokenBalance.update({
+      where: { userId },
+      data: {
+        paidBalance: existing.paidBalance - paidRevoked,
+        freeBalance: existing.freeBalance - freeRevoked,
+      },
+    });
+
+    await tx.tokenTransaction.create({
+      data: {
+        userId,
+        amount: -amount,
+        type: "ADMIN_REVOKE",
+      },
+    });
+
+    return {
+      paidRevoked,
+      freeRevoked,
+      total: totalTokens(balance),
+    };
+  });
+}
+
 export async function getCharacterSlotAndTokens(userId: string): Promise<{
   tokens: number;
   slot: { canCreate: boolean; current: number; limit: number };

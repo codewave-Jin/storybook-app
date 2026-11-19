@@ -59,13 +59,19 @@ export function AdminUsersBoard({ users }: { users: AdminUserRow[] }) {
                 </p>
                 <AdminGrantTokensForm userId={user.id} />
               </div>
+              <div className="mt-3">
+                <p className="mb-1.5 text-xs font-medium text-stone-500">
+                  토큰 회수 (유료 → 무료 순)
+                </p>
+                <AdminGrantTokensForm userId={user.id} mode="revoke" />
+              </div>
             </article>
           ))
         )}
       </div>
 
       <div className="hidden overflow-x-auto rounded-2xl border border-stone-200 bg-white md:block">
-        <table className="w-full min-w-[920px] text-left text-sm">
+        <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="bg-stone-50 text-stone-500">
             <tr>
               <th className="px-4 py-3 font-medium">회원</th>
@@ -74,12 +80,13 @@ export function AdminUsersBoard({ users }: { users: AdminUserRow[] }) {
               <th className="px-4 py-3 font-medium">유료</th>
               <th className="px-4 py-3 font-medium">합계</th>
               <th className="px-4 py-3 font-medium">토큰 지급</th>
+              <th className="px-4 py-3 font-medium">토큰 회수</th>
             </tr>
           </thead>
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-stone-400">
+                <td colSpan={7} className="px-4 py-12 text-center text-stone-400">
                   회원이 없습니다.
                 </td>
               </tr>
@@ -109,6 +116,9 @@ export function AdminUsersBoard({ users }: { users: AdminUserRow[] }) {
                   </td>
                   <td className="px-4 py-3 align-top">
                     <AdminGrantTokensForm userId={user.id} compact />
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <AdminGrantTokensForm userId={user.id} compact mode="revoke" />
                   </td>
                 </tr>
               ))

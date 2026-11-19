@@ -33,7 +33,8 @@ import { cn } from "@/lib/utils";
 
 export type AdminOrderRow = {
   id: string;
-  kind: "STORYBOOK" | "STICKER";
+  /** WORDBOOK 은 목록에만 보이고 상세·삭제는 아직 없다 */
+  kind: "STORYBOOK" | "STICKER" | "WORDBOOK";
   userName: string;
   userEmail: string;
   productKindLabel: string;
@@ -738,6 +739,13 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
     kind: "STORYBOOK" | "STICKER";
   } | null>(null);
 
+  function open(order: AdminOrderRow) {
+    if (order.kind === "WORDBOOK") {
+      return;
+    }
+    setSelected({ id: order.id, kind: order.kind });
+  }
+
   return (
     <>
       <div className="mt-4 space-y-3 md:hidden">
@@ -754,8 +762,9 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
               <button
                 type="button"
                 aria-label={`${order.userName} 주문 상세`}
-                onClick={() => setSelected({ id: order.id, kind: order.kind })}
-                className="w-full text-left"
+                onClick={() => open(order)}
+                disabled={order.kind === "WORDBOOK"}
+                className="w-full text-left disabled:cursor-default"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium">{order.userName}</p>
@@ -773,9 +782,11 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
                   주문 {order.createdAt} · 배송예정 {order.expectedDeliveryAt}
                 </p>
               </button>
-              <div className="mt-3 flex justify-end">
-                <DeleteOrderButton orderId={order.id} kind={order.kind} />
-              </div>
+              {order.kind !== "WORDBOOK" ? (
+                <div className="mt-3 flex justify-end">
+                  <DeleteOrderButton orderId={order.id} kind={order.kind} />
+                </div>
+              ) : null}
             </article>
           ))
         )}
@@ -807,17 +818,20 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
               orders.map((order) => (
                 <tr
                   key={`${order.kind}-${order.id}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${order.userName} 주문 상세`}
-                  onClick={() => setSelected({ id: order.id, kind: order.kind })}
+                  role={order.kind === "WORDBOOK" ? undefined : "button"}
+                  tabIndex={order.kind === "WORDBOOK" ? undefined : 0}
+                  aria-label={order.kind === "WORDBOOK" ? undefined : `${order.userName} 주문 상세`}
+                  onClick={() => open(order)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      setSelected({ id: order.id, kind: order.kind });
+                      open(order);
                     }
                   }}
-                  className="cursor-pointer border-t border-stone-100 hover:bg-stone-50"
+                  className={cn(
+                    "border-t border-stone-100",
+                    order.kind !== "WORDBOOK" && "cursor-pointer hover:bg-stone-50",
+                  )}
                 >
                   <td className="px-4 py-3 font-medium">{order.userName}</td>
                   <td className="px-4 py-3 break-all">{order.userEmail}</td>
@@ -838,7 +852,9 @@ export function AdminOrdersBoard({ orders }: { orders: AdminOrderRow[] }) {
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                   >
-                    <DeleteOrderButton orderId={order.id} kind={order.kind} />
+                    {order.kind !== "WORDBOOK" ? (
+                      <DeleteOrderButton orderId={order.id} kind={order.kind} />
+                    ) : null}
                   </td>
                 </tr>
               ))
