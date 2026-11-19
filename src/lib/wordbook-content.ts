@@ -26,6 +26,8 @@ export type WordbookWord = {
   soundFile?: string;
   /** 소리 크기 (0~1, 기본 1) */
   volume?: number;
+  /** 소개 페이지에서 누르면 가운데 캐릭터가 하는 말. {N} 자리에 아이 이름이 들어간다 */
+  talk: string;
 };
 
 /** 소개 페이지에 놓이는 단어 그림 상자 (1194×834 기준 px) */
@@ -83,6 +85,37 @@ export type WordbookTopic = {
   pages: WordbookPage[];
 };
 
+/** 단어별 캐릭터 대사 (3살 눈높이, 한 문장). 쪽마다 하나는 아이 이름({N})이 들어간다 */
+const TALK: Record<string, string> = {
+  dog: "{N}도 강아지랑 놀래!",
+  cat: "고양이 털이 보들보들해",
+  cow: "소가 우유를 줘요",
+  pig: "돼지 코는 동글동글!",
+  bird: "새야, 훨훨 날아 봐!",
+  giraffe: "기린 목은 정말 길다!",
+  monkey: "{N}도 바나나 좋아해!",
+  elephant: "코끼리 코가 길쭉길쭉",
+  bear: "곰아, 꼭 안아 줘!",
+  lion: "사자는 동물의 왕이야",
+  fish: "{N}도 물고기처럼 헤엄칠래!",
+  whale: "고래는 엄청 커!",
+  turtle: "거북아, 천천히 가도 돼",
+  shark: "상어 이빨 뾰족뾰족!",
+  crab: "게는 옆으로 걸어요",
+  train: "기차 타고 할머니 집에 가자",
+  bus: "버스야, 나도 태워 줘!",
+  car: "{N}도 자동차 타고 붕붕!",
+  bike: "자전거 페달을 쌩쌩",
+  "police-car": "경찰차가 우리를 지켜 줘요",
+  ambulance: "구급차가 아픈 사람을 도와요",
+  "fire-truck": "{N}도 소방관 할래!",
+  "tow-truck": "견인차가 고장 난 차를 끌어요",
+  ship: "배 타고 바다로 가자",
+  airplane: "{N}도 비행기 타고 싶어!",
+  excavator: "포크레인이 땅을 파요",
+  truck: "트럭에 짐 싣고 출발!",
+};
+
 const w = (
   id: string,
   label: string,
@@ -93,6 +126,7 @@ const w = (
   label,
   sound,
   image: `${ASSET}/words/${id}.webp`,
+  talk: TALK[id] ?? "",
   ...(options.soundFile ? { soundFile: `${ASSET}/sounds/${options.soundFile}` } : {}),
   ...(options.volume != null ? { volume: options.volume } : {}),
 });
@@ -298,6 +332,8 @@ export function countTopicWords(topic: WordbookTopic) {
 /** 미리 받아 둘 에셋 목록 (그림·소리). 오프라인 저장 단계에서도 쓴다 */
 export function wordbookAssetUrls() {
   const urls = new Set<string>();
+  urls.add(`${ASSET}/scenes/cover.jpg`); // 시작 화면 표지
+  urls.add(`${ASSET}/scenes/home.jpg`); // 홈 화면 배경
   for (const word of Object.values(WORDBOOK_WORDS)) {
     urls.add(word.image);
     if (word.soundFile) urls.add(word.soundFile);
@@ -312,6 +348,18 @@ export function wordbookAssetUrls() {
     }
   }
   return [...urls];
+}
+
+/** 부를 때 쓰는 이름: 받침이 있으면 "이" 를 붙인다 (하준 → 하준이, 지우 → 지우) */
+export function callName(name: string) {
+  const code = name.charCodeAt(name.length - 1) - 0xac00;
+  const hasBatchim = code >= 0 && code < 11172 && code % 28 !== 0;
+  return hasBatchim ? `${name}이` : name;
+}
+
+/** 캐릭터 대사에 아이 이름을 넣는다 */
+export function talkLine(word: WordbookWord, childName: string) {
+  return word.talk.replace("{N}", callName(childName));
 }
 
 /** 받침에 맞춰 "이/가" 를 붙인다 (곰이, 트럭이, 강아지가) */
